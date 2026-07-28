@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.11 — Meta ampliada e cards da Visão Geral filtráveis por período
+- O seletor de período (Mês/Semana/Dia) saiu do corpo da página e foi pro **canto superior direito**, ao lado da configuração de meta — onde sempre esteve.
+- **Meta muito mais visível**: números grandes (valor recebido, valor da meta, percentual), barra de progresso mais alta e destacada com moldura dourada.
+- Os 4 cards principais da Visão Geral (**Faturamento recebido, Pendências a receber, Recorrência em andamento, Taxa de conversão**) agora recalculam de acordo com o período selecionado no topo — antes só a secção "Atividade" abaixo dos cards era filtrada, os cards ficavam sempre com o total geral.
+- Pendências e recorrência em andamento no período consideram os contratos **originados** naquele mês/semana/dia; taxa de conversão usa os fechamentos do período contra o total de conversas informadas (esse número ainda não tem granularidade diária/mensal nos dados).
+
+## v0.10 — Filtros em Vendas e Financeiro
+- **Vendas**: novo filtro por **Mês** ou **Dia** (além de "Todos"), para conferir exatamente quais vendas entraram em cada data — essencial depois da importação de dados de meses anteriores.
+- **Financeiro reorganizado em 3 rotas separadas**: **Custos fixos**, **Custos variáveis** e **Detalhamento de impostos** (antes fixos e variáveis ficavam juntos numa lista só).
+- **Financeiro com filtro por mês**: os cards (custos fixos, variáveis, impostos devidos, lucro líquido) e as 3 rotas recalculam de acordo com o mês selecionado (ou "Todos" para a visão geral).
+- O detalhamento de impostos passou a ser por **evento de recebimento** (cada venda, entrada ou parcela paga, com sua própria data) em vez de por contrato — isso é o que torna possível filtrar impostos por mês com precisão.
+
+## v0.9 — Importação de dados históricos (Maio e Junho)
+- Analisadas as planilhas complementares de Maio e Junho enviadas pelo utilizador.
+- **Descoberta importante**: as recorrências dessas planilhas já estavam 100% representadas nos dados existentes (a aba "RECORRÊNCIA GERAL" de Julho já as carregava, com o estado mais atualizado de parcelas pagas) — nenhuma recorrência nova precisou de ser criada.
+- Identificadas e importadas **45 vendas avulsas** (pagamento integral, sem recorrência associada) que ainda não estavam na base — comparadas registo a registo com as recorrências já existentes para não duplicar receita nem comissão.
+- Importados **43 lançamentos de custos** (aluguer, salários, contabilista, etc.) de Maio e Junho, mantendo os já existentes de Julho intactos.
+- A importação roda **uma única vez**, de forma automática e segura: verificada por uma marca em `meta.importMaioJunho2026`, nunca duplica mesmo que o painel seja recarregado várias vezes, e não apaga nem sobrescreve nenhuma edição já feita ao vivo no Supabase (parcelas marcadas como pagas, senhas de colaboradores, etc.).
+- Corrigido manualmente 1 registo com data corrompida na planilha original (SONIA DIVINA, célula de data com erro de fórmula do Excel).
+
 ## v0.8 — Filtros de período e recorrências pagas
 - **Visão Geral**: nova barra de filtro por **Mês / Semana / Dia**, com navegação (‹ ›), seletor direto de mês e botão "Hoje". Abaixo dela, uma secção de **Atividade no período** lista cada recebimento (vendas, entradas e parcelas pagas) daquele período, com total recebido, nº de recebimentos, ticket médio e comissão gerada.
 - **Recorrências pagas**: nova aba separada. Recorrências 100% quitadas saem automaticamente de "Recorrências" (que agora só mostra as em aberto) e passam a aparecer aqui, organizadas por filtro de mês — o mês usado é o da **última parcela paga**, não o da criação do contrato. Cada linha mostra um resumo: "Entrou em [data], N parcela(s), finalizada em [mês]".
