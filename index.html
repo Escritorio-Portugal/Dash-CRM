@@ -361,6 +361,7 @@ let STATE = {
   periodFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   paidMonthFilter: 'all',
   salesFilter: { granularity:'all', anchor: todayISO() },
+  salesVendorFilter: 'all',
   financeiroFilter: { granularity:'all', anchor: todayISO().slice(0,7) }
 };
 
@@ -464,6 +465,7 @@ function periodRange(filter){
   return { start, end };
 }
 function periodLabelText(filter){
+  if(filter.granularity==='all') return 'Total histórico (todos os períodos)';
   const {start,end} = periodRange(filter);
   if(filter.granularity==='month') return monthLabel(filter.anchor.slice(0,7));
   if(filter.granularity==='week'){
@@ -810,16 +812,20 @@ function renderNav(){
     : `<span class="role-tag">Sessão ativa</span><strong>${me?me.nome:'Colaborador(a)'}</strong>`;
 }
 
+function currentMonthFilter(){
+  return { granularity:'month', anchor: todayISO().slice(0,7) };
+}
+
 function renderSidebar(){
   if(STATE.role!=='gestor') return;
-  const rk = ranking(STATE.periodFilter);
+  const rk = ranking(currentMonthFilter());
   const topId = rk[0] && rk[0].stats.valorFaturado>0 ? rk[0].seller.id : null;
   const list = document.getElementById('sellerList');
   const inactive = STATE.sellers.filter(s=>!s.ativo);
-  list.innerHTML = rk.map(({seller,stats})=>`
+  list.innerHTML = `<div class="sellers-head" style="padding-top:0;">${monthLabel(todayISO().slice(0,7))}</div>` + rk.map(({seller,stats})=>`
     <div class="seller-row ${seller.id===STATE.selectedSellerId?'active':''} ${seller.id===topId?'rank1':''}" data-seller="${seller.id}">
       <div class="avatar">${initials(seller.nome)}</div>
-      <div class="info"><div class="name">${seller.nome}</div><div class="sub">${fmtEUR(stats.valorFaturado)}</div></div>
+      <div class="info"><div class="name">${seller.nome}</div><div class="sub">${fmtEUR(stats.valorFaturado)} no mês</div></div>
     </div>`).join('') + (inactive.length ? `
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--wine-line);">
       <div class="sellers-head" style="padding-bottom:6px;">Inativos</div>
@@ -1010,7 +1016,9 @@ function renderPeriodMiniBar(){
       <button data-periodgran="month" class="${gran==='month'?'active':''}">Mês</button>
       <button data-periodgran="week" class="${gran==='week'?'active':''}">Semana</button>
       <button data-periodgran="day" class="${gran==='day'?'active':''}">Dia</button>
+      <button data-periodgran="all" class="${gran==='all'?'active':''}">Total histórico</button>
     </div>
+    ${gran!=='all' ? `
     <div class="period-nav">
       <button class="iconbtn-lite" data-periodprev>‹</button>
       <span class="period-label">${periodLabelText(f)}</span>
@@ -1019,6 +1027,7 @@ function renderPeriodMiniBar(){
     ${gran==='month'
       ? `<select data-periodmonth>${months.map(mk=>`<option value="${mk}" ${mk===f.anchor.slice(0,7)?'selected':''}>${monthLabel(mk)}</option>`).join('')}${months.length?'':`<option value="${f.anchor}" selected>${monthLabel(f.anchor)}</option>`}</select>`
       : `<input type="date" data-perioddate value="${f.anchor}">`}
+    ` : `<span class="period-label">${periodLabelText(f)}</span>`}
   </div>`;
 }
 
@@ -1049,10 +1058,23 @@ function renderGenericFilterBar(filterKey, granularities, monthsAvailable){
    ========================================================= */
 function renderSales(){
   const months = [...new Set(STATE.sales.map(s=>s.data && s.data.slice(0,7)).filter(Boolean))].sort().reverse();
-  const list = STATE.sales.filter(s=>inPeriodOrAll(s.data, STATE.salesFilter)).sort((a,b)=> b.data.localeCompare(a.data));
+  const vendedoresComVenda = STATE.sellers.filter(s=>STATE.sales.some(v=>v.vendedorId===s.id));
+  const list = STATE.sales
+    .filter(s=>inPeriodOrAll(s.data, STATE.salesFilter))
+    .filter(s=>STATE.salesVendorFilter==='all' || s.vendedorId===STATE.salesVendorFilter)
+    .sort((a,b)=> b.data.localeCompare(a.data));
   const totalRecebido = list.reduce((a,s)=>a+(s.valorPago||0),0);
   return `
   ${renderGenericFilterBar('salesFilter', ['all','month','day'], months)}
+  <div class="period-bar" style="margin-bottom:20px;">
+    <div class="period-tabs" style="background:none;border:none;padding:0;gap:0;">
+      <span style="font-size:12.5px;font-weight:600;color:var(--ink-soft);padding:0 4px;">Vendedor:</span>
+    </div>
+    <select id="salesVendorSelect">
+      <option value="all" ${STATE.salesVendorFilter==='all'?'selected':''}>Todos os vendedores</option>
+      ${vendedoresComVenda.map(s=>`<option value="${s.id}" ${STATE.salesVendorFilter===s.id?'selected':''}>${s.nome}</option>`).join('')}
+    </select>
+  </div>
   <section class="block">
     <div class="block-head"><h3>Registo de vendas (${list.length})</h3><button class="btn gold" id="btnAddSale">+ Nova venda</button></div>
     <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">vendas avulsas — não recorrentes · recebido no período: ${fmtEUR(totalRecebido)}</span></div>
@@ -1062,7 +1084,7 @@ function renderSales(){
         const st = saleStatus(s);
         return `<tr><td>${fmtDate(s.data)}</td><td><strong>${s.cliente}</strong></td><td>${s.vendedorNome||'—'}</td><td>${s.origem||'—'}</td><td>${s.servico||'—'}</td><td class="tnum">${fmtEUR(s.valorTotal)}</td><td class="tnum">${fmtEUR(s.valorPago)}</td><td>${st.quitada?'<span class="chip good">pago</span>':'<span class="chip bad">'+fmtEUR(st.valorPendente)+' pendente</span>'}</td></tr>`;
       }).join('')}</tbody>
-    </table>` : `<div class="empty">Nenhuma venda registada nesse período.</div>`}
+    </table>` : `<div class="empty">Nenhuma venda registada nesse período/vendedor.</div>`}
   </section>`;
 }
 
@@ -1085,6 +1107,21 @@ function renderRanking(){
 /* =========================================================
    DETALHE DO VENDEDOR (visão do gestor)
    ========================================================= */
+function renderFunilManual(seller, st){
+  return `
+  <section class="block">
+    <div class="block-head"><h3>Funil manual</h3><span class="hint">preenchimento manual — a planilha original não separa estes números por vendedor</span></div>
+    <div style="padding:16px 20px;">
+      <div class="funnel">
+        <div class="fitem"><label>Conversas iniciadas</label><input type="number" min="0" id="fConversas" value="${seller.conversasIniciadas||0}"></div>
+        <div class="fitem"><label>Novos contatos</label><input type="number" min="0" id="fContatos" value="${seller.novosContatos||0}"></div>
+        <div class="fitem"><label>Fechamentos (manual, opcional)</label><input type="number" min="0" id="fFechamentos" value="${seller.fechamentosManual||0}"></div>
+        <div class="fitem"><label>Taxa de conversão</label><input type="text" value="${st.taxaConversao!==null?fmtPct(st.taxaConversao):'—'}" disabled></div>
+      </div>
+    </div>
+  </section>`;
+}
+
 function renderSellerDetail(){
   const seller = sellerById(STATE.selectedSellerId);
   if(!seller) return `<div class="empty">Selecione um vendedor na barra lateral.</div>`;
@@ -1112,22 +1149,12 @@ function renderSellerDetail(){
       <span id="senhaSavedMsg" style="display:none;color:var(--good);font-size:12px;margin-left:8px;">Guardada ✓</span>
     </div>
   </section>
-  <section class="block">
-    <div class="block-head"><h3>Funil manual</h3><span class="hint">a planilha original não separa estes números por vendedor — edite aqui</span></div>
-    <div style="padding:16px 20px;">
-      <div class="funnel">
-        <div class="fitem"><label>Conversas iniciadas</label><input type="number" min="0" id="fConversas" value="${seller.conversasIniciadas||0}"></div>
-        <div class="fitem"><label>Novos contatos</label><input type="number" min="0" id="fContatos" value="${seller.novosContatos||0}"></div>
-        <div class="fitem"><label>Fechamentos (manual, opcional)</label><input type="number" min="0" id="fFechamentos" value="${seller.fechamentosManual||0}"></div>
-        <div class="fitem"><label>Taxa de conversão</label><input type="text" value="${st.taxaConversao!==null?fmtPct(st.taxaConversao):'—'}" disabled></div>
-      </div>
-    </div>
-  </section>
   <section class="block"><div class="block-head"><h3>Recorrências (${recs.length})</h3></div>${recurrenceTable(recs,{hideVendedor:true})}</section>
   <section class="block"><div class="block-head"><h3>Vendas avulsas (${sales.length})</h3></div>
     ${sales.length ? `<table><thead><tr><th>Data</th><th>Cliente</th><th>Serviço</th><th>Total</th><th>Recebido</th></tr></thead>
     <tbody>${sales.map(s=>`<tr><td>${fmtDate(s.data)}</td><td>${s.cliente}</td><td>${s.servico}</td><td class="tnum">${fmtEUR(s.valorTotal)}</td><td class="tnum">${fmtEUR(s.valorPago)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Sem vendas avulsas.</div>`}
-  </section>`;
+  </section>
+  ${renderFunilManual(seller, st)}`;
 }
 
 /* =========================================================
@@ -1158,7 +1185,8 @@ function renderMyPanel(){
   <section class="block"><div class="block-head"><h3>Minhas vendas avulsas (${sales.length})</h3></div>
     ${sales.length ? `<table><thead><tr><th>Data</th><th>Cliente</th><th>Serviço</th><th>Total</th><th>Recebido</th></tr></thead>
     <tbody>${sales.map(s=>`<tr><td>${fmtDate(s.data)}</td><td>${s.cliente}</td><td>${s.servico}</td><td class="tnum">${fmtEUR(s.valorTotal)}</td><td class="tnum">${fmtEUR(s.valorPago)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Sem vendas avulsas.</div>`}
-  </section>`;
+  </section>
+  ${renderFunilManual(seller, st)}`;
 }
 
 /* =========================================================
@@ -1652,13 +1680,16 @@ function wireViewportEvents(){
   if(btnQuickRec) btnQuickRec.onclick = ()=>openQuickAddModal('recorrencia', STATE.role==='colaborador');
   const btnAddSale = document.getElementById('btnAddSale');
   if(btnAddSale) btnAddSale.onclick = ()=>openQuickAddModal('integral', STATE.role==='colaborador');
+  const salesVendorSelect = document.getElementById('salesVendorSelect');
+  if(salesVendorSelect) salesVendorSelect.addEventListener('change', ()=>{ STATE.salesVendorFilter = salesVendorSelect.value; renderAll(); });
 
   const fConversas = document.getElementById('fConversas');
   const fContatos = document.getElementById('fContatos');
   const fFechamentos = document.getElementById('fFechamentos');
   if(fConversas){
+    const funilSellerId = STATE.view==='my-panel' ? STATE.myOwnSellerId : STATE.selectedSellerId;
     const save = async ()=>{
-      const s = sellerById(STATE.selectedSellerId);
+      const s = sellerById(funilSellerId);
       s.conversasIniciadas = Number(fConversas.value)||0;
       s.novosContatos = Number(fContatos.value)||0;
       s.fechamentosManual = Number(fFechamentos.value)||0;

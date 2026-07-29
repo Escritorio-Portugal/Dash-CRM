@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.15 — Funil manual no próprio painel do colaborador
+- A seção **"Funil manual"** (conversas iniciadas, novos contatos, fechamentos manuais, taxa de conversão) — que antes só existia na visão do gestor sobre cada vendedor — agora também aparece dentro do **painel do próprio colaborador**, logo abaixo de "Minhas vendas avulsas".
+- Cada colaborador pode preencher os seus próprios números diretamente, sem depender do gestor fazer isso por ele.
+- Os dois lugares (perfil visto pelo gestor e painel do colaborador) agora usam o mesmo componente e salvam no mesmo campo — preencher em um reflete no outro.
+
+## v0.14 — Filtro de vendedor em Vendas + sidebar sempre no mês corrente
+- **Vendas**: novo filtro por **vendedor** (dropdown com só quem tem venda registada), combinável com o filtro de mês/dia já existente.
+- **Sidebar (lista de vendedores na lateral)**: agora mostra sempre o **faturamento do mês corrente**, de forma independente do filtro de período usado em Ranking/Visão Geral/perfil do vendedor. Reseta sozinha no dia 1 de cada mês, porque é sempre recalculada a partir da data real, nunca de um filtro salvo.
+- A sidebar **nunca mostra a soma total histórica** — isso só aparece dentro do perfil individual do vendedor (e no Ranking), onde agora existe uma aba extra **"Total histórico"** na mini barra de período, para quem quiser ver a produção acumulada de todos os tempos.
+
 ## v0.13 — Lançamento rápido de venda/recorrência
 - Dois botões de atalho na Visão Geral: **"+ Adicionar venda"** e **"+ Adicionar recorrência"**.
 - Ambos abrem o **mesmo modal inteligente**, com um controle no topo (Venda integral / Recorrência) — a pessoa marca o tipo, o formulário muda os campos automaticamente, e ao salvar o sistema já cria o registo na área certa (Vendas ou Recorrências) sem precisar navegar até lá.
