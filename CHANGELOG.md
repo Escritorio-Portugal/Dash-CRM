@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.13 — Lançamento rápido de venda/recorrência
+- Dois botões de atalho na Visão Geral: **"+ Adicionar venda"** e **"+ Adicionar recorrência"**.
+- Ambos abrem o **mesmo modal inteligente**, com um controle no topo (Venda integral / Recorrência) — a pessoa marca o tipo, o formulário muda os campos automaticamente, e ao salvar o sistema já cria o registo na área certa (Vendas ou Recorrências) sem precisar navegar até lá.
+- O tipo pode ser trocado dentro do próprio modal a qualquer momento, sem perder o que já foi digitado (cliente, serviço, data).
+- Serviço com autocompletar do catálogo, preenchendo o valor automaticamente (igual já acontecia na criação de recorrência).
+- Também adicionado o mesmo modal na tela de **Vendas** (que antes não tinha nenhuma forma de cadastrar uma venda avulsa manualmente).
+
+## v0.12 — Correção de duplicidade + Ranking/perfil por período
+- **Bug real corrigido**: 4 vendas avulsas (3 da Fernanda, 1 da Larissa) já eram contadas duas vezes — uma vez como "venda avulsa" e outra como a entrada/parcela de uma recorrência com o mesmo cliente e mesma data. Isso inflava o faturamento e a comissão. Removidas do dado semente e de qualquer base já em produção (migração automática, roda uma única vez).
+- **Ranking, perfil do vendedor e painel do colaborador agora seguem o mesmo filtro de período da Visão Geral** — antes mostravam sempre a soma de tudo desde sempre, o que fazia um vendedor com vários meses de dados importados parecer ter faturado um valor gigante "num mês só". Agora cada tela tem sua própria mini barra de período (Mês/Semana/Dia), sincronizada com a mesma seleção global.
+- O mês inicial mostrado ao abrir o painel passou a ser o mês mais recente com dados reais (em vez do dia real do calendário do computador, que podia não bater com nenhum dado cadastrado).
+- **Meta e filtro de período reorganizados**: saíram do corpo da página e foram para o canto superior direito, numa única linha, ocupando ~80% da largura — período, navegação, seletor de mês e o botão de editar meta lado a lado, não mais empilhados.
+
 ## v0.11 — Meta ampliada e cards da Visão Geral filtráveis por período
 - O seletor de período (Mês/Semana/Dia) saiu do corpo da página e foi pro **canto superior direito**, ao lado da configuração de meta — onde sempre esteve.
 - **Meta muito mais visível**: números grandes (valor recebido, valor da meta, percentual), barra de progresso mais alta e destacada com moldura dourada.
