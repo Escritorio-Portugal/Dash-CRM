@@ -964,6 +964,85 @@ function ranking(filter){
   return activeSellers().map(s=>({ seller:s, stats: computeSellerStats(s.id, filter) })).sort((a,b)=>b.stats.valorFaturado - a.stats.valorFaturado);
 }
 
+/* Detalhamento do "Valor Vendido": quanto veio de vendas pagas à vista
+   (integrais) x quanto veio de recorrências (contratado), e quantas
+   parcelas de recorrência já foram pagas x quantas ainda estão em aberto —
+   sellerId null = todos os vendedores. */
+function computeVendasBreakdown(filter, sellerId){
+  const salesIn = STATE.sales.filter(s=> (!sellerId || s.vendedorId===sellerId) && inPeriodOrAll(s.data, filter));
+  const recsIn = STATE.recurrences.filter(r=> (!sellerId || r.vendedorId===sellerId) && inPeriodOrAll(r.dataVenda, filter));
+  const integrais = salesIn.filter(s=>s.pagamentoIntegral);
+  const valorIntegrais = integrais.reduce((a,s)=>a+(s.valorTotal||0),0);
+  const valorRecorrencias = recsIn.reduce((a,r)=>a+(r.valorContrato||0),0);
+  let parcelasPagas=0, parcelasAbertas=0;
+  recsIn.forEach(r=>{ r.parcelas.forEach(p=>{ p.pago ? parcelasPagas++ : parcelasAbertas++; }); });
+  return { nIntegrais: integrais.length, valorIntegrais, nRecorrencias: recsIn.length, valorRecorrencias, parcelasPagas, parcelasAbertas };
+}
+function renderVendasSubcards(filter, sellerId){
+  const b = computeVendasBreakdown(filter, sellerId);
+  return `
+  <div class="cards" style="margin-top:-10px;">
+    <div class="card"><div class="lbl">Vendas integrais (pagas à vista)</div><div class="val">${fmtEUR(b.valorIntegrais)}</div><div class="sub">${b.nIntegrais} venda(s)</div></div>
+    <div class="card"><div class="lbl">Vendas recorrentes (contratado)</div><div class="val">${fmtEUR(b.valorRecorrencias)}</div><div class="sub">${b.nRecorrencias} contrato(s)</div></div>
+    <div class="card"><div class="lbl">Parcelas pagas</div><div class="val good">${b.parcelasPagas}</div><div class="sub">de recorrências no período</div></div>
+    <div class="card"><div class="lbl">Parcelas em aberto</div><div class="val bad">${b.parcelasAbertas}</div><div class="sub">ainda não pagas</div></div>
+  </div>`;
+}
+
+/* Linha a linha de tudo que compõe a comissão de um vendedor no período —
+   mesma matemática de comissaoSale/comissaoRecorrencia, calculada de novo
+   aqui pra mostrar exatamente quanto foi descontado de cada recebimento. */
+function comissaoBreakdownEvents(sellerId, filter){
+  const iva = taxaIva(), rate = taxaComissao();
+  const linhas = [];
+  STATE.sales.filter(s=>s.vendedorId===sellerId && !s.jaContabilizadoViaRecorrencia && (s.valorPago||0)>0 && s.data && inPeriodOrAll(s.data, filter)).forEach(s=>{
+    const ivaDesc = s.valorPago*iva;
+    const liquido = Math.max(0, s.valorPago - ivaDesc);
+    linhas.push({ date:s.data, cliente:s.cliente, tipo:'Venda', recebido:s.valorPago, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
+  });
+  STATE.recurrences.filter(r=>r.vendedorId===sellerId && inPeriodOrAll(r.dataVenda, filter)).forEach(r=>{
+    const st = recStatus(r);
+    if((r.valorEntrada||0)>0){
+      const ivaDesc = r.valorEntrada*iva;
+      const liquido = Math.max(0, r.valorEntrada - ivaDesc);
+      linhas.push({ date:r.dataVenda, cliente:r.cliente, tipo:'Entrada', recebido:r.valorEntrada, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
+    }
+    const txAdmPorParcela = st.total>0 ? (r.txAdm||0)/st.total : 0;
+    r.parcelas.forEach(p=>{
+      if(p.pago){
+        const ivaDesc = st.valorParcela*iva;
+        const liquido = Math.max(0, st.valorParcela - ivaDesc - txAdmPorParcela);
+        linhas.push({ date: p.data||r.dataVenda, cliente:r.cliente, tipo:'Parcela '+p.numero, recebido: st.valorParcela, ivaDesc, txAdmDesc:txAdmPorParcela, liquido, comissao: liquido*rate });
+      }
+    });
+  });
+  return linhas.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+}
+function abrirComissaoDetalhe(sellerId, filter){
+  const seller = sellerById(sellerId);
+  const linhas = comissaoBreakdownEvents(sellerId, filter);
+  const totalRecebido = linhas.reduce((a,l)=>a+l.recebido,0);
+  const totalComissao = linhas.reduce((a,l)=>a+l.comissao,0);
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:860px;">
+    <div class="modal-head"><h3>Como a comissão de ${seller?seller.nome:'—'} foi calculada</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:14px;">
+        <strong>Venda integral ou entrada de recorrência:</strong> desconta-se o IVA (${fmtPct(taxaIva())}) do valor recebido — a comissão é ${fmtPct(taxaComissao())} sobre o que sobra.<br>
+        <strong>Parcela de recorrência paga:</strong> desconta-se o IVA da parcela <em>e</em> a fatia da taxa administrativa do contrato (dividida pelo nº de parcelas) — a comissão é ${fmtPct(taxaComissao())} sobre o restante.
+      </div>
+      ${linhas.length ? `<div style="max-height:50vh;overflow:auto;"><table><thead><tr><th>Data</th><th>Cliente</th><th>Tipo</th><th>Recebido</th><th>IVA descontado</th><th>Tx adm. descontada</th><th>Líquido</th><th>Comissão</th></tr></thead>
+      <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${l.cliente}</td><td><span class="chip neutral">${l.tipo}</span></td><td class="tnum">${fmtEUR(l.recebido)}</td><td class="tnum">${fmtEUR(l.ivaDesc)}</td><td class="tnum">${fmtEUR(l.txAdmDesc)}</td><td class="tnum">${fmtEUR(l.liquido)}</td><td class="tnum"><strong>${fmtEUR(l.comissao)}</strong></td></tr>`).join('')}</tbody></table></div>
+      <div class="block-head" style="border-top:1px solid var(--line);margin-top:2px;background:var(--surface-2);"><span>Total recebido: <strong>${fmtEUR(totalRecebido)}</strong></span><span>Total comissão: <strong>${fmtEUR(totalComissao)}</strong></span></div>`
+      : `<div class="empty">Nenhum recebimento nesse período.</div>`}
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Fechar</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+}
+
 /* =========================================================
    LOGIN / SESSÃO
    ========================================================= */
@@ -1282,6 +1361,7 @@ function renderOverview(){
     <div class="card"><div class="lbl">Recorrência em andamento</div><div class="val">${fmtEUR(g.recorrenciaAtivaValor)}</div><div class="sub">${g.nRecsAbertas} contrato(s) com parcela pendente</div></div>
     <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${g.taxaConversao!==null ? fmtPct(g.taxaConversao) : '—'}</div><div class="sub">${g.taxaConversao!==null ? g.fechamentos+' fechamentos no período / '+g.conversas+' conversas totais' : 'informe conversas iniciadas por vendedor'}</div></div>
   </div>
+  ${renderVendasSubcards(STATE.periodFilter, null)}
   ${renderChartsPanel()}
   ${renderRecorrenciasAtrasadasBox()}
   ${renderPeriodActivity()}
@@ -1686,8 +1766,9 @@ function renderSellerDetail(){
     <div class="card accent"><div class="lbl">Valor vendido (contratado)</div><div class="val good">${fmtEUR(st.valorVendido)}</div><div class="sub">${st.nSales} venda(s) — pago ou não</div></div>
     <div class="card"><div class="lbl">Faturado (caixa)</div><div class="val good">${fmtEUR(st.valorFaturado)}</div></div>
     <div class="card"><div class="lbl">Pendente</div><div class="val bad">${fmtEUR(st.valorPendente)}</div></div>
-    <div class="card"><div class="lbl">Comissão (${fmtPct(taxaComissao())} sobre o líquido de IVA)</div><div class="val">${fmtEUR(st.comissao)}</div></div>
+    <div class="card"><div class="lbl">Comissão (${fmtPct(taxaComissao())} sobre o líquido de IVA)</div><div class="val" data-comissao-seller="${seller.id}" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver como foi calculada">${fmtEUR(st.comissao)}</div></div>
   </div>
+  ${renderVendasSubcards(STATE.periodFilter, seller.id)}
   <section class="block">
     <div class="block-head"><h3>Acesso do colaborador</h3><span class="hint">senha usada para entrar no painel individual</span></div>
     <div style="padding:16px 20px;max-width:420px;">
@@ -1721,10 +1802,11 @@ function renderMyPanel(){
   </div>
   <div class="cards">
     <div class="card accent"><div class="lbl">Meu faturamento</div><div class="val good">${fmtEUR(st.valorFaturado)}</div></div>
-    <div class="card"><div class="lbl">Minha comissão</div><div class="val">${fmtEUR(st.comissao)}</div><div class="sub">${fmtPct(taxaComissao())} sobre o líquido de IVA</div></div>
+    <div class="card"><div class="lbl">Minha comissão</div><div class="val" data-comissao-seller="${seller.id}" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver como foi calculada">${fmtEUR(st.comissao)}</div><div class="sub">${fmtPct(taxaComissao())} sobre o líquido de IVA</div></div>
     <div class="card"><div class="lbl">Meu pendente</div><div class="val bad">${fmtEUR(st.valorPendente)}</div></div>
     <div class="card"><div class="lbl">Ticket médio</div><div class="val">${fmtEUR(st.ticketMedio)}</div></div>
   </div>
+  ${renderVendasSubcards(STATE.periodFilter, seller.id)}
   <section class="block">
     <div class="block-head"><h3>Minhas recorrências (${recs.length})</h3><button class="btn gold" id="btnAddRecColab">+ Nova recorrência</button></div>
     ${recurrenceTable(recs,{hideVendedor:true})}
@@ -2369,6 +2451,10 @@ function wireViewportEvents(){
   }));
 
   // Financeiro
+  vp.querySelectorAll('[data-comissao-seller]').forEach(el=>{
+    el.addEventListener('click', ()=> abrirComissaoDetalhe(el.dataset.comissaoSeller, STATE.periodFilter));
+  });
+
   vp.querySelectorAll('[data-ftab]').forEach(b=> b.addEventListener('click', ()=>{ STATE.financeiroTab=b.dataset.ftab; renderAll(); }));
   const btnAddCost = document.getElementById('btnAddCost');
   if(btnAddCost) btnAddCost.onclick = ()=>openCostModal(null, btnAddCost.dataset.defaultCategoria);
