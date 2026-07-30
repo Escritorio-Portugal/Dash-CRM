@@ -403,6 +403,7 @@ let STATE = {
   paidMonthFilter: 'all',
   salesFilter: { granularity:'all', anchor: todayISO() },
   salesVendorFilter: 'all',
+  clientesFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   financeiroFilter: { granularity:'all', anchor: todayISO().slice(0,7) },
   alertaDispensadoHoje: false,
   expandAtividade: false,
@@ -992,6 +993,7 @@ const NAV_GESTOR = [
   {view:'recurrences-paid', label:'Recorrências pagas'},
   {view:'sales', label:'Vendas'},
   {view:'ranking', label:'Ranking'},
+  {view:'clientes', label:'Clientes'},
   {view:'config', label:'Configurações'},
   {view:'financeiro', label:'Financeiro'},
 ];
@@ -1016,14 +1018,14 @@ function currentMonthFilter(){
 
 function renderSidebar(){
   if(STATE.role!=='gestor') return;
-  const rk = ranking(currentMonthFilter());
-  const topId = rk[0] && rk[0].stats.valorFaturado>0 ? rk[0].seller.id : null;
+  const rk = ranking(currentMonthFilter()).slice().sort((a,b)=>b.stats.valorVendido - a.stats.valorVendido);
+  const topId = rk[0] && rk[0].stats.valorVendido>0 ? rk[0].seller.id : null;
   const list = document.getElementById('sellerList');
   const inactive = STATE.sellers.filter(s=>!s.ativo);
   list.innerHTML = `<div class="sellers-head" style="padding-top:0;">${monthLabel(todayISO().slice(0,7))}</div>` + rk.map(({seller,stats})=>`
     <div class="seller-row ${seller.id===STATE.selectedSellerId?'active':''} ${seller.id===topId?'rank1':''}" data-seller="${seller.id}">
       <div class="avatar">${initials(seller.nome)}</div>
-      <div class="info"><div class="name">${seller.nome}</div><div class="sub">${fmtEUR(stats.valorFaturado)} no mês</div></div>
+      <div class="info"><div class="name">${seller.nome}</div><div class="sub">${fmtEUR(stats.valorVendido)} vendido no mês</div></div>
     </div>`).join('') + (inactive.length ? `
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--wine-line);">
       <div class="sellers-head" style="padding-bottom:6px;">Inativos</div>
@@ -1035,7 +1037,7 @@ function renderSidebar(){
 }
 
 function renderTopbar(){
-  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', sales:'Vendas', ranking:'Ranking de Vendedores', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
+  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', sales:'Vendas', ranking:'Ranking de Vendedores', clientes:'Clientes', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
   document.getElementById('pageTitle').textContent = STATE.view==='overview' ? '' : (titles[STATE.view] || '');
   const inline = document.getElementById('metaInline');
   if(STATE.view==='overview'){
@@ -1330,6 +1332,13 @@ function renderGenericFilterBar(filterKey, granularities, monthsAvailable){
 /* =========================================================
    VENDAS
    ========================================================= */
+/* Líquido recebido só das recorrências (entrada + parcelas pagas) de um
+   vendedor num período — usa os mesmos eventos de buildEvents(), excluindo
+   os que vêm de vendas avulsas (tipo:'Venda'). */
+function recorrenciaCashSeller(sellerId, filter){
+  return buildEvents().filter(e=>e.vendedorId===sellerId && e.tipo!=='Venda' && inPeriodOrAll(e.date, filter)).reduce((a,e)=>a+e.valor,0);
+}
+
 function renderSales(){
   const months = [...new Set(STATE.sales.map(s=>s.data && s.data.slice(0,7)).filter(Boolean))].sort().reverse();
   const vendedoresComVenda = STATE.sellers.filter(s=>STATE.sales.some(v=>v.vendedorId===s.id));
@@ -1339,6 +1348,18 @@ function renderSales(){
     .sort((a,b)=> b.data.localeCompare(a.data));
   const totalRecebido = list.reduce((a,s)=>a+(s.valorPago||0),0);
   const totalVendido = list.reduce((a,s)=>a+(s.valorTotal||0),0);
+  const vendedorSelecionado = STATE.salesVendorFilter!=='all' ? sellerById(STATE.salesVendorFilter) : null;
+  const resumoVendedor = vendedorSelecionado ? (()=>{
+    const liquidoVendas = totalRecebido;
+    const liquidoRecorrencia = recorrenciaCashSeller(vendedorSelecionado.id, STATE.salesFilter);
+    return `
+    <div class="cards" style="margin:0 0 20px;">
+      <div class="card"><div class="lbl">${vendedorSelecionado.nome} · líquido de vendas</div><div class="val good">${fmtEUR(liquidoVendas)}</div></div>
+      <div class="card"><div class="lbl">${vendedorSelecionado.nome} · líquido de recorrência</div><div class="val good">${fmtEUR(liquidoRecorrencia)}</div></div>
+      <div class="card accent"><div class="lbl">${vendedorSelecionado.nome} · líquido total (vendas + recorrência)</div><div class="val good">${fmtEUR(liquidoVendas+liquidoRecorrencia)}</div></div>
+      <div class="card"><div class="lbl">${vendedorSelecionado.nome} · vendas no total (valor vendido)</div><div class="val">${fmtEUR(totalVendido)}</div></div>
+    </div>`;
+  })() : '';
   return `
   ${renderGenericFilterBar('salesFilter', ['all','month','day'], months)}
   <div class="period-bar" style="margin-bottom:20px;">
@@ -1350,6 +1371,7 @@ function renderSales(){
       ${vendedoresComVenda.map(s=>`<option value="${s.id}" ${STATE.salesVendorFilter===s.id?'selected':''}>${s.nome}</option>`).join('')}
     </select>
   </div>
+  ${resumoVendedor}
   <section class="block">
     <div class="block-head"><h3>Registo de vendas (${list.length})</h3><button class="btn gold" id="btnAddSale">+ Nova venda</button></div>
     <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">vendas avulsas — não recorrentes · vendido no período: ${fmtEUR(totalVendido)} · recebido: ${fmtEUR(totalRecebido)}</span></div>
@@ -1377,6 +1399,155 @@ function renderRanking(){
     <table><thead><tr><th>Vendedor</th><th>Valor vendido</th><th>Faturado (caixa)</th><th>Pendente</th><th>Ticket médio</th><th>Comissão</th><th>Fechamentos</th><th>Conversão</th></tr></thead>
     <tbody>${rk.map(r=>`<tr><td><strong>${r.seller.nome}</strong></td><td class="tnum">${fmtEUR(r.stats.valorVendido)}</td><td class="tnum">${fmtEUR(r.stats.valorFaturado)}</td><td class="tnum">${fmtEUR(r.stats.valorPendente)}</td><td class="tnum">${fmtEUR(r.stats.ticketMedio)}</td><td class="tnum">${fmtEUR(r.stats.comissao)}</td><td>${r.stats.deals}</td><td>${r.stats.taxaConversao!==null?fmtPct(r.stats.taxaConversao):'—'}</td></tr>`).join('')}</tbody>
     </table></section>`;
+}
+
+/* =========================================================
+   CLIENTES / ANÁLISE (gestor) — ranking de clientes, fluxo de
+   clientes novos x recorrentes, funil agregado de todos os
+   vendedores e composição do pipeline por origem.
+   ========================================================= */
+function normCliente(s){ return (s||'').trim().toUpperCase().replace(/\s+/g,' '); }
+
+/* Um "fechamento" por linha — venda avulsa OU recorrência, sem duplicar o
+   mesmo negócio (vendas com jaContabilizadoViaRecorrencia já são a mesma
+   recorrência, então saem daqui pra não contar duas vezes). */
+function todosFechamentos(){
+  const deSales = STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia).map(s=>({
+    cliente:s.cliente, data:s.data, valor:s.valorTotal||0, vendedorNome:s.vendedorNome, origem:s.origem
+  }));
+  const deRecs = STATE.recurrences.map(r=>({
+    cliente:r.cliente, data:r.dataVenda, valor:r.valorContrato||0, vendedorNome:r.vendedorNome, origem:'RECORRENCIA'
+  }));
+  return [...deSales, ...deRecs].filter(f=>f.cliente && f.data);
+}
+
+/* Ranking de clientes por nº de fechamentos — histórico completo, porque
+   "fidelidade" não faz sentido restrita a um único mês. */
+function rankingClientes(){
+  const map = new Map();
+  todosFechamentos().forEach(f=>{
+    const k = normCliente(f.cliente);
+    if(!map.has(k)) map.set(k, { nome:f.cliente, fechamentos:0, valorTotal:0, vendedores:new Set(), primeira:f.data, ultima:f.data });
+    const c = map.get(k);
+    c.fechamentos++;
+    c.valorTotal += f.valor;
+    c.vendedores.add(f.vendedorNome||'—');
+    if(f.data < c.primeira) c.primeira = f.data;
+    if(f.data > c.ultima) c.ultima = f.data;
+  });
+  return [...map.values()].sort((a,b)=> b.fechamentos - a.fechamentos || b.valorTotal - a.valorTotal);
+}
+
+/* Fluxo de pessoas no período: novos (1ª compra caiu dentro do período) x
+   recorrentes (já eram clientes antes do período começar). */
+function fluxoClientes(filter){
+  const todos = todosFechamentos();
+  const primeiraPorCliente = new Map();
+  todos.forEach(f=>{
+    const k = normCliente(f.cliente);
+    if(!primeiraPorCliente.has(k) || f.data < primeiraPorCliente.get(k)) primeiraPorCliente.set(k, f.data);
+  });
+  const clientesNoPeriodo = new Set(todos.filter(f=>inPeriodOrAll(f.data, filter)).map(f=>normCliente(f.cliente)));
+  let novos=0, recorrentes=0;
+  clientesNoPeriodo.forEach(k=>{ inPeriodOrAll(primeiraPorCliente.get(k), filter) ? novos++ : recorrentes++; });
+  return { novos, recorrentes, total: clientesNoPeriodo.size };
+}
+
+/* Funil agregado — soma o funil diário (preenchido por vendedor) de todos
+   os vendedores ativos no período, na mesma estrutura da planilha. */
+function funilAgregado(filter){
+  const out = { conversas:0, respondeu:0, consultaMarcada:0, leadsQualificados:0, vendasConsultaMarcada:0, reagendado:0, noShow:0, consultaRealizada:0, vendaForaConsulta:0 };
+  activeSellers().forEach(s=>{
+    const f = sumFunilDiario(s, filter);
+    Object.keys(out).forEach(k=>{ out[k] += f[k]||0; });
+  });
+  out.fechamentos = out.vendasConsultaMarcada + out.vendaForaConsulta;
+  return out;
+}
+
+/* Composição do pipeline por origem do lead, no período — de onde vieram
+   as vendas (avulsas), por valor. */
+function composicaoPorOrigem(filter){
+  const salesIn = STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && inPeriodOrAll(s.data, filter));
+  const map = {};
+  salesIn.forEach(s=>{
+    const o = s.origem || 'NÃO INFORMADO';
+    if(!map[o]) map[o] = {count:0, valor:0};
+    map[o].count++; map[o].valor += s.valorTotal||0;
+  });
+  return Object.entries(map).map(([origem,v])=>({origem, ...v})).sort((a,b)=>b.valor-a.valor);
+}
+
+function renderClientes(){
+  const filter = STATE.clientesFilter;
+  const months = [...new Set(todosFechamentos().map(f=>f.data.slice(0,7)))].sort().reverse();
+  const flow = fluxoClientes(filter);
+  const funil = funilAgregado(filter);
+  const origemComp = composicaoPorOrigem(filter);
+  const rkClientes = rankingClientes();
+  const maxOrigem = origemComp.length ? Math.max(...origemComp.map(o=>o.valor)) : 1;
+  const clientesFieis = rkClientes.filter(c=>c.fechamentos>1).length;
+
+  const etapas = [
+    ['conversas','Conversas iniciadas'],
+    ['respondeu','Respondeu 1ª msg'],
+    ['consultaMarcada','Consulta marcada'],
+    ['consultaRealizada','Consulta realizada'],
+    ['fechamentos','Fechamentos (vendas)'],
+  ];
+  const maxEtapa = funil.conversas || 1;
+
+  return `
+  ${renderGenericFilterBar('clientesFilter', ['all','month','week','day'], months)}
+  <div class="cards" style="margin:20px 0;">
+    <div class="card accent"><div class="lbl">Clientes novos</div><div class="val good">${flow.novos}</div><div class="sub">1ª compra no período</div></div>
+    <div class="card"><div class="lbl">Clientes recorrentes</div><div class="val">${flow.recorrentes}</div><div class="sub">já eram clientes antes do período</div></div>
+    <div class="card"><div class="lbl">Conversas no funil</div><div class="val">${funil.conversas}</div><div class="sub">${funil.conversas>0 ? fmtPct(funil.fechamentos/funil.conversas)+' viraram venda' : 'sem funil diário preenchido no período'}</div></div>
+    <div class="card"><div class="lbl">Clientes fiéis</div><div class="val">${clientesFieis}</div><div class="sub">2+ fechamentos, histórico completo</div></div>
+  </div>
+
+  <section class="block">
+    <div class="block-head"><h3>Funil agregado — todos os vendedores</h3><span class="hint">soma do funil diário de cada vendedor no período selecionado</span></div>
+    <div style="padding:18px 20px;">
+      ${etapas.map(([k,label])=>{
+        const v = funil[k]||0;
+        const pct = maxEtapa>0 ? Math.min(100, v/maxEtapa*100) : 0;
+        return `<div class="hbar-row" style="grid-template-columns:170px 1fr 60px;">
+          <span class="hbar-label">${label}</span>
+          <div class="hbar-track"><span style="width:${pct}%"></span></div>
+          <span class="hbar-val">${v}</span>
+        </div>`;
+      }).join('')}
+      <div class="field-hint" style="margin-top:12px;">Reagendado: <strong>${funil.reagendado}</strong> · No-show: <strong>${funil.noShow}</strong> · Leads qualificados: <strong>${funil.leadsQualificados}</strong> · Vendas fora de consulta: <strong>${funil.vendaForaConsulta}</strong></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><h3>Composição do pipeline por origem</h3><span class="hint">de onde vieram as vendas do período, por valor vendido</span></div>
+    <div style="padding:18px 20px;">
+      ${origemComp.length ? origemComp.map(o=>`
+        <div class="hbar-row">
+          <span class="hbar-label">${o.origem}</span>
+          <div class="hbar-track"><span style="width:${(o.valor/maxOrigem*100)}%"></span></div>
+          <span class="hbar-val">${fmtEUR(o.valor)}</span>
+        </div>`).join('') : `<div class="empty">Sem vendas nesse período.</div>`}
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><h3>Clientes com mais fechamentos</h3><span class="hint">histórico completo · fidelidade com o escritório</span></div>
+    ${rkClientes.length ? `<table>
+      <thead><tr><th>Cliente</th><th>Fechamentos</th><th>Valor gerado</th><th>Vendedor(es)</th><th>1ª compra</th><th>Última compra</th></tr></thead>
+      <tbody>${rkClientes.slice(0,15).map(c=>`<tr>
+        <td><strong>${c.nome}</strong>${c.fechamentos>1?'<span class="chip gold" style="margin-left:8px;">fiel</span>':''}</td>
+        <td class="tnum">${c.fechamentos}</td>
+        <td class="tnum">${fmtEUR(c.valorTotal)}</td>
+        <td>${[...c.vendedores].join(', ')}</td>
+        <td>${fmtDate(c.primeira)}</td>
+        <td>${fmtDate(c.ultima)}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : `<div class="empty">Sem clientes registados ainda.</div>`}
+  </section>`;
 }
 
 /* =========================================================
@@ -2152,6 +2323,7 @@ function renderAll(){
     else if(STATE.view==='recurrences-paid') vp.innerHTML = renderRecurrencesPaid();
     else if(STATE.view==='sales') vp.innerHTML = renderSales();
     else if(STATE.view==='ranking') vp.innerHTML = renderRanking();
+    else if(STATE.view==='clientes') vp.innerHTML = renderClientes();
     else if(STATE.view==='seller-detail') vp.innerHTML = renderSellerDetail();
     else if(STATE.view==='config') vp.innerHTML = renderConfig();
     else if(STATE.view==='financeiro') vp.innerHTML = renderFinanceiro();
