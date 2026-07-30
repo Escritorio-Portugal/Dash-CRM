@@ -693,22 +693,27 @@ function buildEvents(){
     if(s.jaContabilizadoViaRecorrencia) return; // já entra pelo caixa da recorrência correspondente
     if((s.valorPago||0) > 0 && s.data){
       const frac = s.valorTotal>0 ? s.valorPago/s.valorTotal : 0;
-      events.push({ date:s.data, valor:s.valorPago, comissao:comissaoSale(s), ivaValor:(s.iva||0)*frac, txAdmValor:(s.txAdm||0)*frac, vendedorId:s.vendedorId, vendedorNome:s.vendedorNome, tipo:'Venda', cliente:s.cliente });
+      const ivaValor = (s.iva||0)*frac;
+      const liquido = Math.max(0, s.valorPago - ivaValor);
+      events.push({ date:s.data, valor:s.valorPago, comissao: liquido*taxaComissao(), ivaValor, txAdmValor:(s.txAdm||0)*frac, vendedorId:s.vendedorId, vendedorNome:s.vendedorNome, tipo:'Venda', cliente:s.cliente });
     }
   });
   STATE.recurrences.forEach(r=>{
     const st = recStatus(r);
-    const iva = taxaIva(), rate = taxaComissao();
+    const rate = taxaComissao();
     if((r.valorEntrada||0) > 0 && r.dataVenda){
       const fracEnt = r.valorContrato>0 ? r.valorEntrada/r.valorContrato : 0;
-      events.push({ date:r.dataVenda, valor:r.valorEntrada, comissao: Math.max(0,r.valorEntrada*(1-iva))*rate, ivaValor:(r.iva||0)*fracEnt, txAdmValor:(r.txAdm||0)*fracEnt, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Entrada', cliente:r.cliente });
+      const ivaValorEnt = (r.iva||0)*fracEnt;
+      const liquidoEnt = Math.max(0, r.valorEntrada - ivaValorEnt);
+      events.push({ date:r.dataVenda, valor:r.valorEntrada, comissao: liquidoEnt*rate, ivaValor:ivaValorEnt, txAdmValor:(r.txAdm||0)*fracEnt, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Entrada', cliente:r.cliente });
     }
     const txAdmPorParcela = st.total>0 ? (r.txAdm||0)/st.total : 0;
     const fracParcela = r.valorContrato>0 ? st.valorParcela/r.valorContrato : 0;
     r.parcelas.forEach(p=>{
       if(p.pago){
-        const liquido = st.valorParcela - (st.valorParcela*iva) - txAdmPorParcela;
-        events.push({ date: p.data || r.dataVenda, valor: st.valorParcela, comissao: Math.max(0,liquido)*rate, ivaValor:(r.iva||0)*fracParcela, txAdmValor:(r.txAdm||0)*fracParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente });
+        const ivaValorParc = (r.iva||0)*fracParcela;
+        const liquido = st.valorParcela - ivaValorParc - txAdmPorParcela;
+        events.push({ date: p.data || r.dataVenda, valor: st.valorParcela, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:(r.txAdm||0)*fracParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente });
       }
     });
   });
@@ -770,33 +775,46 @@ function taxaComissao(){ return STATE.meta.taxaComissao!=null ? STATE.meta.taxaC
 function taxaIva(){ return STATE.meta.taxaIvaPadrao!=null ? STATE.meta.taxaIvaPadrao : 0.23; }
 
 /* ---------------------------------------------------------------
-   COMISSÃO — regra de negócio:
+   COMISSÃO — regra de negócio (revisada):
+   O IVA descontado NUNCA é um percentual fixo sobre o valor recebido —
+   vem do valor de IVA já configurado para aquele serviço específico no
+   Catálogo de Serviços (Configurações), guardado em cada venda/recorrência
+   no momento da venda, e é descontado proporcionalmente ao quanto foi
+   efetivamente pago (para pagamentos parciais).
    1) Venda integral (avulsa, sem recorrência): retira-se o IVA do
-      valor pago, e a comissão é a taxa de comissão sobre o líquido.
+      serviço (proporcional ao pago), e a comissão é a taxa de comissão
+      sobre o que sobra.
    2) Entrada de uma recorrência: mesma regra da venda integral —
-      só desconta o IVA do valor da entrada, comissão sobre o líquido.
+      só desconta o IVA do serviço (proporcional à entrada), comissão
+      sobre o líquido.
    3) Parcelas de uma recorrência (marcadas manualmente como pagas):
-      desconta o IVA da parcela E a fatia diluída da taxa
-      administrativa do contrato (taxa administrativa total ÷ nº de
-      parcelas), e a comissão é a taxa de comissão sobre o que sobra.
+      desconta o IVA do serviço (proporcional à parcela) E a fatia
+      diluída da taxa administrativa do contrato (taxa administrativa
+      total ÷ nº de parcelas), e a comissão é a taxa de comissão sobre
+      o que sobra.
    --------------------------------------------------------------- */
 function comissaoSale(sale){
   const valorPago = sale.valorPago||0;
-  const liquido = valorPago * (1 - taxaIva());
-  return Math.max(0, liquido) * taxaComissao();
+  const frac = sale.valorTotal>0 ? valorPago/sale.valorTotal : 0;
+  const ivaReal = (sale.iva||0)*frac;
+  const liquido = Math.max(0, valorPago - ivaReal);
+  return liquido * taxaComissao();
 }
 function comissaoRecorrencia(rec){
   const st = recStatus(rec);
-  const iva = taxaIva();
   const rate = taxaComissao();
   let total = 0;
+  const fracEnt = rec.valorContrato>0 ? (rec.valorEntrada||0)/rec.valorContrato : 0;
   if(rec.valorEntrada > 0){
-    total += Math.max(0, rec.valorEntrada * (1 - iva)) * rate;
+    const ivaReal = (rec.iva||0)*fracEnt;
+    total += Math.max(0, rec.valorEntrada - ivaReal) * rate;
   }
   const txAdmPorParcela = st.total>0 ? (rec.txAdm||0) / st.total : 0;
+  const fracParcela = rec.valorContrato>0 ? st.valorParcela/rec.valorContrato : 0;
   rec.parcelas.forEach(p=>{
     if(p.pago){
-      const liquido = st.valorParcela - (st.valorParcela * iva) - txAdmPorParcela;
+      const ivaReal = (rec.iva||0)*fracParcela;
+      const liquido = st.valorParcela - ivaReal - txAdmPorParcela;
       total += Math.max(0, liquido) * rate;
     }
   });
@@ -993,24 +1011,27 @@ function renderVendasSubcards(filter, sellerId){
    mesma matemática de comissaoSale/comissaoRecorrencia, calculada de novo
    aqui pra mostrar exatamente quanto foi descontado de cada recebimento. */
 function comissaoBreakdownEvents(sellerId, filter){
-  const iva = taxaIva(), rate = taxaComissao();
+  const rate = taxaComissao();
   const linhas = [];
   STATE.sales.filter(s=>s.vendedorId===sellerId && !s.jaContabilizadoViaRecorrencia && (s.valorPago||0)>0 && s.data && inPeriodOrAll(s.data, filter)).forEach(s=>{
-    const ivaDesc = s.valorPago*iva;
+    const frac = s.valorTotal>0 ? s.valorPago/s.valorTotal : 0;
+    const ivaDesc = (s.iva||0)*frac;
     const liquido = Math.max(0, s.valorPago - ivaDesc);
     linhas.push({ date:s.data, cliente:s.cliente, tipo:'Venda', recebido:s.valorPago, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
   });
   STATE.recurrences.filter(r=>r.vendedorId===sellerId && inPeriodOrAll(r.dataVenda, filter)).forEach(r=>{
     const st = recStatus(r);
+    const fracEnt = r.valorContrato>0 ? (r.valorEntrada||0)/r.valorContrato : 0;
     if((r.valorEntrada||0)>0){
-      const ivaDesc = r.valorEntrada*iva;
+      const ivaDesc = (r.iva||0)*fracEnt;
       const liquido = Math.max(0, r.valorEntrada - ivaDesc);
       linhas.push({ date:r.dataVenda, cliente:r.cliente, tipo:'Entrada', recebido:r.valorEntrada, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
     }
     const txAdmPorParcela = st.total>0 ? (r.txAdm||0)/st.total : 0;
+    const fracParcela = r.valorContrato>0 ? st.valorParcela/r.valorContrato : 0;
     r.parcelas.forEach(p=>{
       if(p.pago){
-        const ivaDesc = st.valorParcela*iva;
+        const ivaDesc = (r.iva||0)*fracParcela;
         const liquido = Math.max(0, st.valorParcela - ivaDesc - txAdmPorParcela);
         linhas.push({ date: p.data||r.dataVenda, cliente:r.cliente, tipo:'Parcela '+p.numero, recebido: st.valorParcela, ivaDesc, txAdmDesc:txAdmPorParcela, liquido, comissao: liquido*rate });
       }
@@ -1028,8 +1049,9 @@ function abrirComissaoDetalhe(sellerId, filter){
     <div class="modal-head"><h3>Como a comissão de ${seller?seller.nome:'—'} foi calculada</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       <div class="field-hint" style="margin-bottom:14px;">
-        <strong>Venda integral ou entrada de recorrência:</strong> desconta-se o IVA (${fmtPct(taxaIva())}) do valor recebido — a comissão é ${fmtPct(taxaComissao())} sobre o que sobra.<br>
-        <strong>Parcela de recorrência paga:</strong> desconta-se o IVA da parcela <em>e</em> a fatia da taxa administrativa do contrato (dividida pelo nº de parcelas) — a comissão é ${fmtPct(taxaComissao())} sobre o restante.
+        O IVA descontado <strong>não é um percentual fixo sobre o valor recebido</strong> — vem do valor de IVA já configurado para aquele serviço específico (Configurações → Catálogo de serviços), proporcional ao quanto foi efetivamente pago.<br>
+        <strong>Venda integral ou entrada de recorrência:</strong> desconta-se o IVA do serviço — a comissão é ${fmtPct(taxaComissao())} sobre o que sobra.<br>
+        <strong>Parcela de recorrência paga:</strong> desconta-se o IVA do serviço <em>e</em> a fatia da taxa administrativa do contrato (dividida pelo nº de parcelas) — a comissão é ${fmtPct(taxaComissao())} sobre o restante.
       </div>
       ${linhas.length ? `<div style="max-height:50vh;overflow:auto;"><table><thead><tr><th>Data</th><th>Cliente</th><th>Tipo</th><th>Recebido</th><th>IVA descontado</th><th>Tx adm. descontada</th><th>Líquido</th><th>Comissão</th></tr></thead>
       <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${l.cliente}</td><td><span class="chip neutral">${l.tipo}</span></td><td class="tnum">${fmtEUR(l.recebido)}</td><td class="tnum">${fmtEUR(l.ivaDesc)}</td><td class="tnum">${fmtEUR(l.txAdmDesc)}</td><td class="tnum">${fmtEUR(l.liquido)}</td><td class="tnum"><strong>${fmtEUR(l.comissao)}</strong></td></tr>`).join('')}</tbody></table></div>
@@ -1844,7 +1866,7 @@ function renderConfig(){
   <section class="block">
     <div class="block-head"><h3>Serviços cadastrados (${STATE.services.length})</h3><button class="btn gold" id="btnAddService">+ Novo serviço</button></div>
     <table><thead><tr><th>Serviço</th><th>Honorário base</th><th>IVA</th><th>Taxa administrativa</th><th>Honorário final</th><th></th></tr></thead>
-    <tbody>${STATE.services.map(s=>`<tr>
+    <tbody>${[...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>`<tr>
         <td><strong>${s.nome}</strong></td>
         <td class="tnum">${fmtEUR(s.honorarioBase)}</td>
         <td class="tnum">${fmtEUR(s.iva)}</td>
@@ -1858,10 +1880,10 @@ function renderConfig(){
     <div class="block-head"><h3>Regras de comissão</h3><span class="hint">aplicadas a vendas e recorrências</span></div>
     <div style="padding:20px;max-width:460px;">
       <div class="field"><label>Percentual de comissão sobre o valor líquido (%)</label><input type="number" id="cfgTaxaComissao" min="0" max="100" step="1" value="${(taxaComissao()*100).toFixed(0)}"></div>
-      <div class="field"><label>Percentual de IVA a descontar (%)</label><input type="number" id="cfgTaxaIva" min="0" max="100" step="1" value="${(taxaIva()*100).toFixed(0)}"></div>
       <div class="field-hint" style="margin-bottom:16px;">
-        <strong>Venda integral ou entrada de uma recorrência:</strong> desconta-se o IVA do valor recebido, e a comissão é o percentual acima sobre o que sobra.<br><br>
-        <strong>Parcelas de uma recorrência</strong> (marcadas manualmente como pagas): desconta-se o IVA da parcela <em>e</em> a fatia da taxa administrativa do contrato diluída pelo nº de parcelas — a comissão é o percentual acima sobre o que sobra.
+        <strong>O IVA descontado não é mais um percentual fixo aqui</strong> — cada venda/recorrência já guarda o valor de IVA do serviço correspondente (definido no Catálogo de Serviços), e é esse valor real que entra na conta, proporcional ao quanto foi pago.<br><br>
+        <strong>Venda integral ou entrada de uma recorrência:</strong> desconta-se o IVA do serviço, e a comissão é o percentual acima sobre o que sobra.<br><br>
+        <strong>Parcelas de uma recorrência</strong> (marcadas manualmente como pagas): desconta-se o IVA do serviço <em>e</em> a fatia da taxa administrativa do contrato diluída pelo nº de parcelas — a comissão é o percentual acima sobre o que sobra.
       </div>
       <button class="btn gold" id="btnSaveComissao">Guardar regras</button>
     </div>
@@ -2003,7 +2025,7 @@ function openAddSellerModal(){
 function openQuickAddModal(initialTipo, forColaborador){
   let tipo = initialTipo || 'integral';
   const opts = activeSellers().map(s=>`<option value="${s.id}">${s.nome}</option>`).join('');
-  const serviceOpts = STATE.services.map(s=>`<option value="${s.nome}">`).join('');
+  const serviceOpts = [...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>`<option value="${s.nome}">`).join('');
   const formasPagamento = formasPagamentoList();
 
   function render(){
@@ -2118,7 +2140,7 @@ function openQuickAddModal(initialTipo, forColaborador){
 
 function openAddRecModal(forColaborador){
   const opts = activeSellers().map(s=>`<option value="${s.id}">${s.nome}</option>`).join('');
-  const serviceOpts = STATE.services.map(s=>`<option value="${s.nome}">`).join('');
+  const serviceOpts = [...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>`<option value="${s.nome}">`).join('');
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
     <div class="modal-head"><h3>Nova recorrência</h3><button id="mClose">&times;</button></div>
@@ -2415,7 +2437,6 @@ function wireViewportEvents(){
   const btnSaveComissao = document.getElementById('btnSaveComissao');
   if(btnSaveComissao) btnSaveComissao.onclick = async ()=>{
     STATE.meta.taxaComissao = (Number(document.getElementById('cfgTaxaComissao').value)||0)/100;
-    STATE.meta.taxaIvaPadrao = (Number(document.getElementById('cfgTaxaIva').value)||0)/100;
     await persist('meta'); renderAll();
   };
   const btnAddSellerCfg = document.getElementById('btnAddSellerCfg');
