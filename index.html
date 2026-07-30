@@ -574,6 +574,45 @@ async function applyDedupCustos2026(){
   await persist('meta');
 }
 
+/* Corrige as recorrências existentes: o "valor do contrato" tinha sido
+   gravado, na importação, como o valor da ENTRADA (não o honorário final
+   real do serviço), e o campo de entrada ficou zerado em todas — por isso
+   a comissão sobre a entrada de toda recorrência, de todos os vendedores,
+   nunca estava sendo contada (só parcelas já marcadas pagas entravam).
+   Usa a venda correspondente (mesmo cliente + mesma data — o mesmo
+   cruzamento já usado pra marcar jaContabilizadoViaRecorrencia) como fonte
+   do valor certo: valorContrato, honorário base, IVA e taxa administrativa
+   vêm da venda; valorEntrada passa a ser o que já foi efetivamente pago.
+   Cada venda só é usada para corrigir uma recorrência (evita usar a mesma
+   venda duas vezes quando duas recorrências caem na mesma data/cliente).
+   Roda uma única vez. */
+async function applyCorrigeEntradaRecorrencias2026(){
+  if(STATE.meta.corrigeEntradaRecorrencias2026) return;
+  const normNome = s => (s||'').trim().toUpperCase();
+  const usadas = new Set();
+  let corrigidas = 0;
+  STATE.recurrences.forEach(r=>{
+    const k = normNome(r.cliente)+'|'+r.dataVenda;
+    const match = STATE.sales.find(s=>
+      !usadas.has(s.id) && !s.pagamentoIntegral && (s.valorPago||0)>0 &&
+      (normNome(s.cliente)+'|'+s.data)===k
+    );
+    if(match && Math.abs((r.valorContrato||0) - (match.valorTotal||0)) > 0.5){
+      usadas.add(match.id);
+      r.valorContrato = Number(match.valorTotal)||0;
+      r.valorEntrada = Number(match.valorPago)||0;
+      r.honorarioBase = Number(match.honorarioBase)||0;
+      r.iva = Number(match.iva)||0;
+      r.txAdm = Number(match.txAdm)||0; // algumas vendas trazem texto ("EM REGRA NÃO APLICÁVEL") em vez de número — vira 0
+      corrigidas++;
+    }
+  });
+  STATE.meta.corrigeEntradaRecorrencias2026 = true;
+  STATE.meta.corrigeEntradaRecorrenciasCount = corrigidas;
+  await persist('recurrences');
+  await persist('meta');
+}
+
 /* A recorrência "LEANDRO MARIANO SILVA" (criada na primeiríssima importação)
    não existe mais em nenhuma aba de recorrência da planilha atual — ele só
    aparece no REGISTRO DE VENDAS e na aba individual da Larissa, ambos
@@ -1422,7 +1461,7 @@ function recurrenceTable(list, opts){
             ? `<td style="max-width:320px;">Entrou em <strong>${fmtDate(r.dataVenda)}</strong>, ${r.nParcelas} parcela${r.nParcelas>1?'s':''}${r.valorEntrada>0?' + entrada':''}, finalizada em <strong>${monthLabel(finalizacaoMes(r))}</strong>.</td>`
             : `<td>${r.valorEntrada>0?`<span class="chip gold" style="margin-right:6px;">Entrada ${fmtEUR(r.valorEntrada)}</span>`:''}${r.parcelas.map(p=>`<span class="parcela-dot ${p.pago?'pago':''}" data-rec="${r.id}" data-parcela="${p.numero}" title="Parcela ${p.numero}${p.pago?' — paga':' — clique para marcar como paga'}">${p.pago?'✓':p.numero}</span>`).join('')}</td>`}
           ${opts.paidView?'':`<td class="tnum">${st.valorPendente>0.005 ? fmtEUR(st.valorPendente) : '<span class="chip good">quitado</span>'}</td>`}
-          <td><button class="btn danger sm" data-del-rec="${r.id}">Excluir</button></td>
+          <td style="white-space:nowrap;"><button class="btn ghost sm" data-edit-rec="${r.id}">Editar</button> <button class="btn danger sm" data-del-rec="${r.id}">Excluir</button></td>
         </tr>`;
       }).join('')}
     </tbody>
@@ -2138,6 +2177,96 @@ function openQuickAddModal(initialTipo, forColaborador){
   render();
 }
 
+/* Edita uma recorrência já cadastrada: cliente, serviço, vendedor, valor do
+   contrato, valor de entrada/já pago, honorário base/IVA/taxa administrativa
+   e nº de parcelas (preservando o status pago/pendente das parcelas que
+   continuarem existindo). Serve tanto pra corrigir dados importados errado
+   quanto pra ajustar uma recorrência no dia a dia. */
+function openEditRecModal(recId){
+  const rec = STATE.recurrences.find(r=>r.id===recId);
+  if(!rec) return;
+  const opts = activeSellers().map(s=>`<option value="${s.id}" ${s.id===rec.vendedorId?'selected':''}>${s.nome}</option>`).join('');
+  const serviceOpts = [...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>`<option value="${s.nome}">`).join('');
+  const nAtual = rec.parcelas.length || rec.nParcelas || 1;
+  const opcoesParcelas = Array.from({length:8}, (_,i)=>i+1).map(n=>`<option value="${n}" ${n===nAtual?'selected':''}>${n}</option>`).join('');
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal">
+    <div class="modal-head"><h3>Editar recorrência — ${rec.cliente}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Cliente</label><input type="text" id="erCliente" value="${rec.cliente||''}"></div>
+      <div class="field"><label>Serviço</label><input list="erServiceList" id="erServico" value="${rec.servico||''}"><datalist id="erServiceList">${serviceOpts}</datalist>
+        <div class="field-hint" id="erServicoPreview">Escolher um serviço do catálogo preenche honorário base/IVA/taxa automaticamente — deixe como está se não quiser mudar.</div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Data da venda</label><input type="date" id="erData" value="${rec.dataVenda||''}"></div>
+        <div class="field"><label>Vendedor</label><select id="erVendedor">${opts}</select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Valor do contrato (€)</label><input type="number" id="erValor" min="0" step="0.01" value="${rec.valorContrato||0}"></div>
+        <div class="field"><label>Valor de entrada / já pago (€)</label><input type="number" id="erEntrada" min="0" step="0.01" value="${rec.valorEntrada||0}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Honorário base (€)</label><input type="number" id="erBase" min="0" step="0.01" value="${rec.honorarioBase||0}"></div>
+        <div class="field"><label>IVA (€)</label><input type="number" id="erIva" min="0" step="0.01" value="${rec.iva||0}"></div>
+        <div class="field"><label>Taxa administrativa (€)</label><input type="number" id="erTx" min="0" step="0.01" value="${rec.txAdm||0}"></div>
+      </div>
+      <div class="field"><label>Nº de parcelas (após a entrada)</label><select id="erParcelas">${opcoesParcelas}</select>
+        <div class="field-hint">Aumentar adiciona parcelas pendentes no fim. Reduzir remove as últimas — cuidado se alguma delas já estiver paga.</div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Guardar alterações</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+
+  const erServico = document.getElementById('erServico');
+  erServico.addEventListener('input', ()=>{
+    const matched = serviceByName(erServico.value);
+    const prev = document.getElementById('erServicoPreview');
+    if(matched){
+      document.getElementById('erValor').value = matched.honorarioFinal;
+      document.getElementById('erBase').value = matched.honorarioBase;
+      document.getElementById('erIva').value = matched.iva;
+      document.getElementById('erTx').value = matched.txAdm;
+      prev.innerHTML = `Honorário base: <strong>${fmtEUR(matched.honorarioBase)}</strong> · IVA: ${fmtEUR(matched.iva)} · Taxa adm.: ${fmtEUR(matched.txAdm)}`;
+    } else {
+      prev.textContent = 'Serviço não encontrado no catálogo — os valores acima não são alterados automaticamente.';
+    }
+  });
+
+  document.getElementById('mSave').onclick = async ()=>{
+    const cliente = document.getElementById('erCliente').value.trim();
+    const servico = erServico.value.trim();
+    const data = document.getElementById('erData').value;
+    const vendedorId = document.getElementById('erVendedor').value;
+    const valorContrato = Number(document.getElementById('erValor').value)||0;
+    const valorEntrada = Number(document.getElementById('erEntrada').value)||0;
+    const honorarioBase = Number(document.getElementById('erBase').value)||0;
+    const iva = Number(document.getElementById('erIva').value)||0;
+    const txAdm = Number(document.getElementById('erTx').value)||0;
+    const nParcelasNovo = Number(document.getElementById('erParcelas').value)||1;
+    if(!cliente || !valorContrato){ alert('Preencha ao menos cliente e valor do contrato.'); return; }
+    if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
+    const vendedor = sellerById(vendedorId);
+
+    let parcelas = rec.parcelas.slice();
+    if(nParcelasNovo > parcelas.length){
+      for(let i=parcelas.length; i<nParcelasNovo; i++) parcelas.push({numero:i+1, data:null, pago:false});
+    } else if(nParcelasNovo < parcelas.length){
+      parcelas = parcelas.slice(0, nParcelasNovo);
+    }
+    parcelas.forEach((p,i)=>{ p.numero = i+1; });
+
+    Object.assign(rec, {
+      cliente, servico, dataVenda: data || rec.dataVenda, vendedorId,
+      vendedorNome: vendedor?vendedor.nome:rec.vendedorNome,
+      valorContrato, valorEntrada, honorarioBase, iva, txAdm, nParcelas: nParcelasNovo, parcelas
+    });
+    await persist('recurrences'); closeModal(); renderAll();
+  };
+}
+
 function openAddRecModal(forColaborador){
   const opts = activeSellers().map(s=>`<option value="${s.id}">${s.nome}</option>`).join('');
   const serviceOpts = [...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>`<option value="${s.nome}">`).join('');
@@ -2350,6 +2479,10 @@ function wireViewportEvents(){
     });
   });
 
+  vp.querySelectorAll('[data-edit-rec]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openEditRecModal(btn.dataset.editRec));
+  });
+
   vp.querySelectorAll('[data-del-rec]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const recId = btn.dataset.delRec;
@@ -2545,6 +2678,7 @@ document.getElementById('btnLogout').addEventListener('click', async ()=>{
   await applyLarissaIndividualJuly();
   await applyReconciliacaoMaioJunho2026();
   await applyDedupCustos2026();
+  await applyCorrigeEntradaRecorrencias2026();
   await applyRemoveStaleLeandroRecorrencia();
   await loadSession();
   await loadAlertaDismissido();
