@@ -404,7 +404,7 @@ let STATE = {
   salesFilter: { granularity:'all', anchor: todayISO() },
   salesVendorFilter: 'all',
   clientesFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
-  financeiroFilter: { granularity:'all', anchor: todayISO().slice(0,7) },
+  financeiroFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   alertaDispensadoHoje: false,
   expandAtividade: false,
   expandAtrasadas: false
@@ -546,6 +546,31 @@ async function applyReconciliacaoMaioJunho2026(){
   }
   STATE.meta.reconciliacaoMaioJunho2026 = true;
   await persist('sales');
+  await persist('meta');
+}
+
+/* Remove custos duplicados de importações anteriores: mesmo nome (ignorando
+   sufixo "(MAIO)"/"(JUNHO)"/"(JULHO)"), categoria, vencimento e valor batendo
+   exatamente — ficavam contados duas vezes no Financeiro sempre que a visão
+   "Total histórico" somava tudo junto. Mantém uma cópia, com o nome sem
+   sufixo de mês (o sistema agora repete o custo fixo sozinho, mês a mês).
+   Roda uma única vez. */
+async function applyDedupCustos2026(){
+  if(STATE.meta.dedupCustos2026) return;
+  const limparNome = s => (s||'').trim().toUpperCase().replace(/\s*\((MAIO|JUNHO|JULHO)\)\s*$/,'').replace(/\s+/g,' ');
+  const seen = new Set();
+  const kept = [];
+  STATE.costs.forEach(c=>{
+    const nomeLimpo = limparNome(c.nome);
+    const k = nomeLimpo+'|'+c.categoria+'|'+c.vencimento+'|'+Math.round((c.valor||0)*100);
+    if(seen.has(k)) return; // duplicata exata — descarta
+    seen.add(k);
+    c.nome = nomeLimpo;
+    kept.push(c);
+  });
+  STATE.costs = kept;
+  STATE.meta.dedupCustos2026 = true;
+  await persist('costs');
   await persist('meta');
 }
 
@@ -869,8 +894,57 @@ function computeTaxes(filter){
   const txAdmDevido = events.reduce((a,e)=>a+e.txAdmValor,0);
   return { ivaDevido, txAdmDevido, total: ivaDevido+txAdmDevido, events };
 }
+function normNomeCusto(s){ return (s||'').trim().toUpperCase(); }
+
+/* Projeta um custo fixo pro mês informado, usando o vencimento mais recente
+   conhecido — é isso que faz um custo fixo "repetir" todo mês sem precisar
+   ser relançado. Se já existir um lançamento com vencimento EXATO nesse mês
+   (nome igual), esse lançamento manda — permite ajustar o valor de um mês
+   específico sem mexer nos demais. Custos variáveis nunca repetem: só contam
+   no mês exato do vencimento (por isso "zeram" a cada mês novo). */
+function custosFixosDoMes(monthKey){
+  const porNome = new Map();
+  STATE.costs.forEach(c=>{
+    if(c.categoria!=='FIXO' || !c.vencimento) return;
+    const k = normNomeCusto(c.nome);
+    if(!porNome.has(k)) porNome.set(k, []);
+    porNome.get(k).push(c);
+  });
+  const out = [];
+  porNome.forEach(arr=>{
+    arr.sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+    const exato = arr.find(c=>c.vencimento.slice(0,7)===monthKey);
+    if(exato){ out.push(exato); return; }
+    const anteriores = arr.filter(c=>c.vencimento.slice(0,7) < monthKey);
+    if(anteriores.length){
+      const base = anteriores[anteriores.length-1];
+      out.push(Object.assign({}, base, {
+        vencimento: projetarVencimentoNoMes(base.vencimento, monthKey),
+        pago: costPagoNoMes(base, monthKey),
+        _projetado: true
+      }));
+    }
+  });
+  return out;
+}
+function projetarVencimentoNoMes(vencimentoOriginal, monthKey){
+  const dia = Math.min(Number(vencimentoOriginal.slice(8,10)), daysInMonth(monthKey));
+  return `${monthKey}-${String(dia).padStart(2,'0')}`;
+}
+function costPagoNoMes(cost, monthKey){
+  if(cost.pagoPorMes && cost.pagoPorMes[monthKey]!=null) return !!cost.pagoPorMes[monthKey];
+  return false; // custo fixo projetado começa pendente em cada mês novo
+}
+
 function computeCosts(filter){
-  const list = STATE.costs.filter(c=>inPeriodOrAll(c.vencimento, filter));
+  let list;
+  if(filter && filter.granularity==='month'){
+    const monthKey = filter.anchor.slice(0,7);
+    const variaveisDoMes = STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.vencimento && c.vencimento.slice(0,7)===monthKey);
+    list = [...custosFixosDoMes(monthKey), ...variaveisDoMes];
+  } else {
+    list = STATE.costs.filter(c=>inPeriodOrAll(c.vencimento, filter));
+  }
   const fixos = list.filter(c=>c.categoria==='FIXO');
   const variaveis = list.filter(c=>c.categoria==='VARIÁVEL');
   const sum = arr=>arr.reduce((a,c)=>a+(c.valor||0),0);
@@ -1746,15 +1820,17 @@ function renderConfig(){
 function renderFinanceiro(){
   const tab = STATE.financeiroTab;
   const filter = STATE.financeiroFilter;
+  const monthKeyAtual = filter.granularity==='month' ? filter.anchor.slice(0,7) : null;
   const months = [...new Set(STATE.costs.map(c=>c.vencimento && c.vencimento.slice(0,7)).filter(Boolean))].sort().reverse();
   const costs = computeCosts(filter);
   const tax = computeTaxes(filter);
   const lucro = computeLucro(filter);
   return `
   ${renderGenericFilterBar('financeiroFilter', ['all','month'], months)}
+  <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado) — só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte.</div>
   <div class="cards">
-    <div class="card"><div class="lbl">Custos fixos</div><div class="val">${fmtEUR(costs.totalFixos)}</div></div>
-    <div class="card"><div class="lbl">Custos variáveis</div><div class="val">${fmtEUR(costs.totalVariaveis)}</div></div>
+    <div class="card"><div class="lbl">Custos fixos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val">${fmtEUR(costs.totalFixos)}</div></div>
+    <div class="card"><div class="lbl">Custos variáveis${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val">${fmtEUR(costs.totalVariaveis)}</div></div>
     <div class="card"><div class="lbl">Impostos devidos (sobre valor recebido)</div><div class="val bad">${fmtEUR(tax.total)}</div><div class="sub">IVA ${fmtEUR(tax.ivaDevido)} · Taxa adm. ${fmtEUR(tax.txAdmDevido)}</div></div>
     <div class="card accent"><div class="lbl">Lucro líquido estimado</div><div class="val ${lucro>=0?'good':'bad'}">${fmtEUR(lucro)}</div><div class="sub">recebido − impostos − custos pagos, no período</div></div>
   </div>
@@ -1764,21 +1840,21 @@ function renderFinanceiro(){
     <button data-ftab="impostos" class="${tab==='impostos'?'active':''}">Detalhamento de impostos</button>
   </div>
   <div style="margin-top:18px;">
-  ${tab==='impostos' ? renderImpostosTab(filter) : renderCostsTab(tab==='variaveis' ? costs.variaveis : costs.fixos, tab)}
+  ${tab==='impostos' ? renderImpostosTab(filter) : renderCostsTab(tab==='variaveis' ? costs.variaveis : costs.fixos, tab, monthKeyAtual)}
   </div>`;
 }
-function renderCostsTab(list, tab){
+function renderCostsTab(list, tab, monthKeyAtual){
   const label = tab==='variaveis' ? 'Custos variáveis' : 'Custos fixos';
   return `
   <section class="block">
     <div class="block-head"><h3>${label} (${list.length})</h3><button class="btn gold" id="btnAddCost" data-default-categoria="${tab==='variaveis'?'VARIÁVEL':'FIXO'}">+ Novo custo</button></div>
     ${list.length ? `<table><thead><tr><th>Nome</th><th>Valor</th><th>Vencimento</th><th>Pago</th><th></th></tr></thead>
     <tbody>${list.map(c=>`<tr>
-        <td><strong>${c.nome}</strong></td>
+        <td><strong>${c.nome}</strong>${c._projetado?'<span class="chip neutral" style="margin-left:8px;" title="Repete automaticamente a partir do lançamento anterior">repete</span>':''}</td>
         <td class="tnum">${fmtEUR(c.valor)}</td>
         <td>${fmtDate(c.vencimento)}</td>
-        <td><button class="chip ${c.pago?'good':'bad'}" data-toggle-cost="${c.id}" style="border:none;">${c.pago?'pago':'pendente'}</button></td>
-        <td style="white-space:nowrap;"><button class="btn ghost sm" data-edit-cost="${c.id}">Editar</button> <button class="btn danger sm" data-del-cost="${c.id}">Excluir</button></td>
+        <td><button class="chip ${c.pago?'good':'bad'}" data-toggle-cost="${c.id}" data-cost-month="${monthKeyAtual||''}" style="border:none;">${c.pago?'pago':'pendente'}</button></td>
+        <td style="white-space:nowrap;">${c._projetado?'':`<button class="btn ghost sm" data-edit-cost="${c.id}">Editar</button> <button class="btn danger sm" data-del-cost="${c.id}">Excluir</button>`}</td>
       </tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum custo ${tab==='variaveis'?'variável':'fixo'} nesse período.</div>`}
   </section>`;
 }
@@ -2298,7 +2374,17 @@ function wireViewportEvents(){
   if(btnAddCost) btnAddCost.onclick = ()=>openCostModal(null, btnAddCost.dataset.defaultCategoria);
   vp.querySelectorAll('[data-edit-cost]').forEach(b=> b.addEventListener('click', ()=>openCostModal(b.dataset.editCost)));
   vp.querySelectorAll('[data-toggle-cost]').forEach(b=> b.addEventListener('click', async ()=>{
-    const c = STATE.costs.find(x=>x.id===b.dataset.toggleCost); c.pago = !c.pago; await persist('costs'); renderAll();
+    const c = STATE.costs.find(x=>x.id===b.dataset.toggleCost);
+    if(!c) return;
+    const mes = b.dataset.costMonth;
+    const mesOrigem = c.vencimento ? c.vencimento.slice(0,7) : null;
+    if(c.categoria==='FIXO' && mes && mes!==mesOrigem){
+      if(!c.pagoPorMes) c.pagoPorMes = {};
+      c.pagoPorMes[mes] = !costPagoNoMes(c, mes);
+    } else {
+      c.pago = !c.pago;
+    }
+    await persist('costs'); renderAll();
   }));
   vp.querySelectorAll('[data-del-cost]').forEach(b=> b.addEventListener('click', ()=>{
     openConfirmModal({
@@ -2351,6 +2437,7 @@ document.getElementById('btnLogout').addEventListener('click', async ()=>{
   await applyJulhoUpdate();
   await applyLarissaIndividualJuly();
   await applyReconciliacaoMaioJunho2026();
+  await applyDedupCustos2026();
   await applyRemoveStaleLeandroRecorrencia();
   await loadSession();
   await loadAlertaDismissido();
