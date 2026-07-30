@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.22 — Meta da Visão Geral agora usa "Valor Vendido" (mesma base da planilha)
+- A meta do mês (número grande no topo + primeiro card) passou a comparar com **"Valor Vendido"** (total contratado, pago ou não) em vez do "Faturamento recebido" (caixa) — é exatamente a mesma base de cálculo que a "DASH INICIAL" da planilha original sempre usou pra calcular "Valor Alcançado".
+- "Faturamento recebido (caixa)" continua disponível como card separado, só que não é mais o número comparado com a meta.
+- **Explicação de uma diferença esperada**: depois de usarmos a aba individual da Larissa (mais completa) em vez da mestra, o nosso "Valor Vendido" de julho (€8.996,99) ficou **maior** que o "Valor Alcançado" da própria DASH INICIAL (€7.956,98) — isso é esperado e correto: a fórmula da planilha só enxerga a aba mestra de vendas, e não sabia das vendas extras registadas só na aba individual da Larissa.
+- Confirmado e corrigido: a venda do Leandro Mariano Silva é mesmo uma venda integral avulsa (€350, sem recorrência associada) — já estava certa no sistema.
+
+## v0.21 — Funil de vendas diário + correção da pendência fantasma do Leandro
+- **Nova aba "Funil de vendas diário"**, substituindo o funil manual antigo (3 campos soltos): agora é uma tabela dia a dia do mês, igual à planilha original — Conversas iniciadas, Respondeu 1ª mensagem, Consulta marcada, Leads Qualificados, Vendas das consultas marcadas, Reagendado, No-Show, Consultas realizadas, Vendas Fora de Consulta, Valor da venda, Pago no dia. A data e o dia da semana de cada linha são gerados automaticamente conforme o mês em exibição.
+- Aparece tanto no painel do colaborador (embaixo de "Minhas vendas") quanto no perfil completo que o gestor vê de cada vendedor.
+- Os preenchimentos diários alimentam automaticamente as Conversas iniciadas, Leads Qualificados e a Taxa de conversão usadas no resto do painel — antes eram números soltos digitados manualmente.
+- **Importante**: as colunas "Valor da venda" e "Pago no dia" aqui são só para acompanhamento do funil (no mesmo formato da planilha) — não entram na Faturamento/Comissão oficiais, que continuam vindo dos registos em Vendas/Recorrências, para não contar o mesmo dinheiro duas vezes.
+- **Corrigida uma pendência fantasma**: a recorrência "Leandro Mariano Silva" (€350, criada na primeiríssima importação) não existe mais em nenhuma aba de recorrência da planilha atual — confirmei que ele aparece só no REGISTRO DE VENDAS e na aba individual da Larissa, os dois concordando: venda avulsa, paga integralmente. Era um registo desatualizado de uma versão antiga da planilha; removido.
+
+## v0.20 — Listas limitadas a 5 itens + revalidação de Maio/Junho
+- As listas longas da Visão Geral ("Atividade no período" e "Recorrências atrasadas") agora mostram só **5 itens por padrão**, com um botão "••• Ver mais" para expandir a lista completa (e "Ver menos" para recolher de novo).
+- **Revalidação de Maio e Junho** com as planilhas atualizadas, seguindo o mesmo protocolo usado em julho (perfis individuais dos vendedores + "REGISTRO DE VENDAS" mestra, somando tudo): comparei cada linha, cliente a cliente, data a data, contra o que já está no sistema.
+  - **Maio**: nenhum vendedor tinha a seção individual de "Registro de Vendas" preenchida ainda (só passou a ser usada a partir de junho) — a única fonte disponível é mesmo a planilha mestra, que já estava 100% importada.
+  - **Junho**: a Larissa já tinha começado a preencher a seção individual, mas as 3 linhas encontradas são, na verdade, datadas de julho (não de junho) e já estavam no sistema.
+  - **Resultado: nenhum dado novo para adicionar** — a base já estava correta e completa para os dois meses.
+
+## v0.19 — Gestão de vendedores/pagamentos em Configurações, gráficos, alerta de atraso
+- **Configurações → Vendedores**: nova aba para adicionar, ativar/desativar e abrir o perfil de qualquer vendedor direto dali, sem precisar ir pela barra lateral.
+- **Configurações → Formas de pagamento**: nova aba para adicionar ou remover as formas de pagamento disponíveis — passam a ser usadas automaticamente no modal de lançamento rápido de venda.
+- **Visão Geral → Gráficos**: novo painel com duas visualizações — forma de pagamento mais utilizada (filtrada pelo período selecionado: mês/semana/dia) e faturamento por mês (histórico completo, com o melhor mês destacado em dourado).
+- **Visão Geral → Recorrências atrasadas**: novo quadro vermelho listando clientes com recorrência em atraso (mais de 30 dias sem quitar desde a venda — não há data de vencimento por parcela na planilha original, então esta é uma estimativa, não uma data contratual exata).
+- **Alerta diário dispensável**: ao abrir o painel, se houver recorrências atrasadas, aparece um aviso vermelho no topo com a contagem. Tem um "×" para fechar; ao fechar, some pelo resto do dia e volta a aparecer automaticamente no dia seguinte (guardado localmente no navegador de quem fechou, não afeta outros utilizadores).
+
+## v0.18 — Vendas individuais da Larissa substituem a fonte mestra
+- Encontrada, dentro da própria aba individual de cada vendedor, uma segunda seção **"Registro de Vendas"** (mais completa que a aba mestra) e um bloco de comissão já calculado — ambos nunca antes processados.
+- A aba individual da **Larissa** tinha 23 vendas de julho (contra ~9 que estavam na aba mestra), somando exatamente €5.882,00 — bate célula a célula com o "Valor total de vendas" e "Caixa Gerado" (€4.345,00) que já estavam calculados na própria aba dela.
+- As vendas de julho da Larissa foram **substituídas inteiramente** pelas 23 da aba individual dela, por serem mais assertivas.
+- Karoline e Bernardo não têm nada preenchido nessa seção individual em julho; a Fernanda não usa esse formato — para os três, a fonte continua sendo a aba mestra "REGISTRO DE VENDAS", por ser a única disponível.
+- **Ponto em aberto identificado, não corrigido automaticamente**: a recorrência "LEANDRO MARIANO SILVA" (criada na primeiríssima importação) ainda aparece com uma parcela de €350 pendente, mas a aba individual da Larissa mostra esse mesmo cliente como pago integralmente. Precisa de confirmação de qual está certo antes de eu mexer.
+
+## v0.17 — Reconciliação com a planilha atualizada de julho + métrica "Valor Vendido"
+- **Descoberta da fórmula real do "Faturamento"** usada pela planilha original: soma da coluna "Honorário Final" do REGISTRO DE VENDAS por vendedor, independente de estar pago ou vinculado a uma recorrência — uma métrica de "vendas fechadas" (contratado), diferente da "Faturamento recebido" (caixa) que o painel já calculava.
+- Nova métrica **"Valor Vendido"**, mostrada ao lado da "Faturamento recebido" no Ranking, no perfil de cada vendedor e na tela de Vendas — as duas convivem, com propósitos diferentes (vendido vs. recebido).
+- Importadas 9 vendas de julho que estavam faltando (Matthew William Lund ×4, João Paulo Mello Gabry, Rogério Silva, Amanda Demetrio Souza, Eulénia Pires de Almeida, Alan Santos).
+- Reintroduzidas 4 vendas (Edineia, Ravena, Gilklinton, Leandro) que haviam sido removidas por duplicidade com recorrências — elas voltam a contar no "Valor Vendido", mas ficam marcadas para não duplicar o caixa recebido.
+- Trazidos os dados reais de funil da Larissa (101 conversas iniciadas, 13 leads qualificados em julho), extraídos da aba individual dela ("Controlhe Diário") que antes não era usada.
+- **Números confirmados batendo com a planilha, célula a célula**: Larissa €4.091,99, Bernardo €244,998, Karoline €0 — a única diferença restante (Fernanda: €2.870 no painel vs. €3.620 na planilha) é uma venda de maio (Ravena) que a própria planilha soma por engano dentro do total de julho; o painel, corretamente, não conta.
+
+## v0.16 — "Visão Geral" dentro do quadro da meta, filtros agrupados à esquerda
+- O título **"Visão Geral"** saiu do topo separado e entrou dentro do próprio quadro dourado da meta, junto com o filtro de período.
+- O quadro da meta agora ocupa **100% da largura** do topo (antes 80%).
+- Título, abas Mês/Semana/Dia, setas de navegação, seletor de mês/dia e o botão "Hoje" ficam todos **agrupados à esquerda**, um do lado do outro — antes ficavam espalhados (um em cada ponta). O botão "Editar meta" continua isolado à direita.
+
 ## v0.15 — Funil manual no próprio painel do colaborador
 - A seção **"Funil manual"** (conversas iniciadas, novos contatos, fechamentos manuais, taxa de conversão) — que antes só existia na visão do gestor sobre cada vendedor — agora também aparece dentro do **painel do próprio colaborador**, logo abaixo de "Minhas vendas avulsas".
 - Cada colaborador pode preencher os seus próprios números diretamente, sem depender do gestor fazer isso por ele.

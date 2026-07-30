@@ -82,14 +82,16 @@ input,select{font-family:inherit;}
 .content{flex:1;min-width:0;display:flex;flex-direction:column;margin-left:264px;}
 .topbar{padding:16px 28px;border-bottom:1px solid var(--line);background:var(--surface);display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:nowrap;}
 .topbar h2{font-size:20px;padding-top:8px;flex-shrink:0;}
-.topbar .meta-inline{display:flex;align-items:center;flex:0 0 80%;max-width:80%;min-width:0;}
+.topbar h2:empty{display:none;}
+.topbar .meta-inline{display:flex;align-items:center;flex:1 1 100%;max-width:100%;min-width:0;}
 .progress-mini{width:180px;}
 .progress-mini .bar{height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line);}
 .progress-mini .bar > span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),#755C13);}
 .progress-mini .lbl{font-size:11px;color:var(--ink-soft);margin-top:4px;display:flex;justify-content:space-between;}
 
 .meta-hero{width:100%;background:linear-gradient(180deg,#FFFDF7,var(--surface));border:1px solid var(--gold);border-radius:var(--radius);padding:14px 18px 16px;box-shadow:var(--shadow);}
-.meta-hero-top{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;justify-content:space-between;margin-bottom:12px;}
+.meta-hero-top{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;justify-content:flex-start;margin-bottom:12px;}
+.meta-hero-title{font-size:17px;margin-right:6px;flex-shrink:0;}
 .meta-hero-top select,.meta-hero-top input[type="date"]{padding:6px 10px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;background:#fff;flex-shrink:0;}
 .meta-hero-top .period-nav{flex-shrink:0;}
 .meta-hero-top .period-tabs{flex-shrink:0;}
@@ -103,6 +105,30 @@ input,select{font-family:inherit;}
 
 .viewport{padding:24px 28px 60px;flex:1;}
 .quick-actions{display:flex;gap:10px;margin-bottom:18px;}
+
+.alert-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bad-soft);border:1px solid var(--bad);color:var(--bad);padding:12px 16px;border-radius:var(--radius);margin-bottom:18px;font-size:13px;font-weight:600;}
+.alert-banner button{background:none;border:none;color:var(--bad);font-size:20px;line-height:1;font-weight:700;padding:0 4px;}
+.alert-banner button:hover{opacity:.6;}
+
+.atraso-block{border-color:var(--bad);}
+.atraso-block .block-head{background:var(--bad-soft);}
+.atraso-block .block-head h3{color:var(--bad);}
+
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:18px 20px;}
+.chart-col h4{font-size:13px;margin-bottom:14px;color:var(--ink-soft);font-weight:600;}
+.hbar-row{display:grid;grid-template-columns:120px 1fr 80px;align-items:center;gap:8px;margin-bottom:8px;}
+.hbar-label{font-size:12px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hbar-track{height:14px;border-radius:7px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line);}
+.hbar-track > span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),#755C13);}
+.hbar-val{font-family:'IBM Plex Mono',monospace;font-size:11.5px;text-align:right;}
+.vbar-chart{display:flex;align-items:flex-end;gap:10px;height:150px;padding-top:10px;}
+.vbar-col{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;}
+.vbar-track{flex:1;width:100%;display:flex;align-items:flex-end;}
+.vbar-track > span{display:block;width:100%;background:var(--wine);border-radius:4px 4px 0 0;min-height:2px;}
+.vbar-track > span.best{background:linear-gradient(180deg,var(--gold),#755C13);}
+.vbar-val{font-size:10px;color:var(--ink-soft);margin-top:4px;font-family:'IBM Plex Mono',monospace;}
+.vbar-label{font-size:11px;color:var(--ink-soft);margin-top:2px;text-transform:capitalize;}
+@media(max-width:880px){ .charts-grid{grid-template-columns:1fr;} }
 
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:26px;}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
@@ -182,6 +208,16 @@ tr:hover td{background:#FBFBFA;}
 .funnel .fitem{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;}
 .funnel .fitem label{display:block;font-size:10.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;letter-spacing:.4px;}
 .funnel .fitem input{width:100%;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;background:#fff;}
+
+.funil-diario-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+.funil-diario-table th{white-space:nowrap;padding:6px 8px;font-size:9.5px;text-transform:uppercase;letter-spacing:.2px;background:var(--surface-2);border-bottom:1px solid var(--line);color:var(--ink-soft);position:sticky;top:0;}
+.funil-diario-table td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:center;}
+.funil-diario-table tfoot td{background:var(--surface-2);font-weight:700;border-top:2px solid var(--line);}
+.funil-data-cell{text-align:left !important;white-space:nowrap;}
+.funil-weekday{font-size:9px;color:var(--ink-soft);text-transform:uppercase;}
+.funil-input{width:52px;border:1px solid var(--line);border-radius:5px;padding:4px 2px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;}
+.funil-input.funil-money{width:66px;}
+.funil-input:focus{outline:2px solid var(--gold-soft);border-color:var(--gold);}
 
 .modal-backdrop{position:fixed;inset:0;background:rgba(20,24,34,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
 .modal{background:#fff;border-radius:12px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:88vh;overflow-y:auto;}
@@ -277,6 +313,10 @@ window.addEventListener('unhandledrejection', e=>{ showErrorToast((e.reason && e
    applyHistoricalImport) para não duplicar dados já existentes
    nem sobrescrever edições feitas ao vivo no Supabase.
    ========================================================= */
+const LARISSA_INDIVIDUAL_SALES = [{"id": "vda-larissa-ind-001", "data": "2026-07-01", "cliente": "Karanbir", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "TRAFEGO", "servico": "PRESENCIAL", "valorTotal": 100.0, "valorPago": 100, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-001", "obs": null, "honorarioBase": 81.3, "iva": 18.7, "txAdm": 0.0}, {"id": "vda-larissa-ind-002", "data": "2026-07-02", "cliente": "Jucyê Lazzari", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "TRAFEGO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-002", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-003", "data": "2026-07-08", "cliente": "Ramy", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "SITE/GOOGLE", "servico": "PRESENCIAL", "valorTotal": 100.0, "valorPago": 100, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-003", "obs": null, "honorarioBase": 81.3, "iva": 18.7, "txAdm": 0.0}, {"id": "vda-larissa-ind-004", "data": "2026-07-10", "cliente": "Freddy", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-004", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-005", "data": "2026-07-10", "cliente": "Adeilza", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-005", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-006", "data": "2026-07-10", "cliente": "Adeilza", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-006", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0.0}, {"id": "vda-larissa-ind-007", "data": "2026-07-13", "cliente": "Erica Barros", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-007", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-008", "data": "2026-07-13", "cliente": "Marco Pescoran", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-008", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-009", "data": "2026-07-14", "cliente": "Ramy", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "SITE/GOOGLE", "servico": "NIF", "valorTotal": 150.0, "valorPago": 150, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-009", "obs": null, "honorarioBase": 121.95, "iva": 28.05, "txAdm": 0.0}, {"id": "vda-larissa-ind-010", "data": "2026-07-15", "cliente": "Vanessa", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-010", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-011", "data": "2026-07-15", "cliente": "Gabriel", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-011", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0.0}, {"id": "vda-larissa-ind-012", "data": "2026-07-16", "cliente": "Leandro", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "NOTIFICAÇÃO EXTRAJUDICIAL", "valorTotal": 350, "valorPago": 350, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-012", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-larissa-ind-013", "data": "2026-07-16", "cliente": "Ben", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "SITE/GOOGLE", "servico": "PRESENCIAL", "valorTotal": 100.0, "valorPago": 100, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-013", "obs": null, "honorarioBase": 81.3, "iva": 18.7, "txAdm": 0.0}, {"id": "vda-larissa-ind-014", "data": "2026-07-17", "cliente": "Paulo", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "AÇÃO DE INTIMAÇÃO ", "valorTotal": 750.0, "valorPago": 750, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-014", "obs": null, "honorarioBase": 609.76, "iva": 140.24, "txAdm": 0.0}, {"id": "vda-larissa-ind-015", "data": "2026-07-20", "cliente": "Tatiely", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-015", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-016", "data": "2026-07-20", "cliente": "Rodrigo", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-016", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-017", "data": "2026-07-20", "cliente": "Victoria", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "CONSULTA BRASIL ", "valorTotal": 50, "valorPago": 50, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-017", "obs": null, "honorarioBase": 40.65, "iva": 9.35, "txAdm": 0}, {"id": "vda-larissa-ind-018", "data": "2026-07-21", "cliente": "Amanda", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INSTAGRAM", "servico": "RENOVAÇÃO ADMINISTRATIVA TITULO RESIDÊNCIA", "valorTotal": 350.0, "valorPago": 175, "pagamentoIntegral": false, "nParcelas": 2, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-018", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0.0}, {"id": "vda-larissa-ind-019", "data": "2026-07-22", "cliente": "Eulenia", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "TRAFEGO", "servico": "AÇÃO DE IMPUGNAÇÃO DE SAIDA VOLUNTARIA + CAUTELAR", "valorTotal": 2112.0, "valorPago": 750, "pagamentoIntegral": false, "nParcelas": 2, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-019", "obs": null, "honorarioBase": 1219.51, "iva": 280.49, "txAdm": 612.0}, {"id": "vda-larissa-ind-020", "data": "2026-07-23", "cliente": "Eduardo", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-020", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-021", "data": "2026-07-24", "cliente": "Reginaldo", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "MB WAY", "registro": "VND-07-021", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0.0}, {"id": "vda-larissa-ind-022", "data": "2026-07-27", "cliente": "Sara", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "TIKTOK", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-022", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}, {"id": "vda-larissa-ind-023", "data": "2026-07-27", "cliente": "Beatriz", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-023", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0.0}];
+
+const JULHO_UPDATE = {"sales": [{"id": "vda-vendido-001", "data": "2026-07-01", "cliente": "EDINEIA DE SOUZA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "AÇÃO DE INTIMAÇÃO", "valorTotal": 750.0048, "valorPago": 225.0, "pagamentoIntegral": false, "nParcelas": 2, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-002", "obs": null, "honorarioBase": 609.76, "iva": 140.24, "txAdm": 0, "jaContabilizadoViaRecorrencia": true}, {"id": "vda-vendido-002", "data": "2026-05-15", "cliente": "RAVENA GABRIELE DA SILVA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "AÇÃO DE INTIMAÇÃO", "valorTotal": 750.0048, "valorPago": 250.0, "pagamentoIntegral": false, "nParcelas": 2, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-005", "obs": null, "honorarioBase": 609.76, "iva": 140.24, "txAdm": 0, "jaContabilizadoViaRecorrencia": true}, {"id": "vda-vendido-003", "data": "2026-07-15", "cliente": "GILKLINTON GILVAN DE LIMA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "AÇÃO DE INTIMAÇÃO", "valorTotal": 750.0048, "valorPago": 250.0, "pagamentoIntegral": false, "nParcelas": 2, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-006", "obs": null, "honorarioBase": 609.76, "iva": 140.24, "txAdm": 0, "jaContabilizadoViaRecorrencia": true}, {"id": "vda-vendido-004", "data": "2026-07-16", "cliente": "LEANDRO MARIANO SILVA", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INDICAÇÃO", "servico": "NOTIFICAÇÃO EXTRAJUDICIAL", "valorTotal": 349.9965, "valorPago": 350.0, "pagamentoIntegral": false, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-008", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0, "jaContabilizadoViaRecorrencia": true}, {"id": "vda-jul2-001", "data": "2026-07-17", "cliente": "MATTHEW WILLIAM LUND", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "ACOMPANHAMENTO BRAGA E ARREDORES", "valorTotal": 249.9975, "valorPago": 250.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-009", "obs": null, "honorarioBase": 203.25, "iva": 46.75, "txAdm": 0}, {"id": "vda-jul2-002", "data": "2026-07-17", "cliente": "MATTHEW WILLIAM LUND", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "ACOMPANHAMENTO BRAGA E ARREDORES", "valorTotal": 249.9975, "valorPago": 250.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-010", "obs": null, "honorarioBase": 203.25, "iva": 46.75, "txAdm": 0}, {"id": "vda-jul2-003", "data": "2026-07-17", "cliente": "MATTHEW WILLIAM LUND", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "ACOMPANHAMENTO BRAGA E ARREDORES", "valorTotal": 249.9975, "valorPago": 250.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-011", "obs": null, "honorarioBase": 203.25, "iva": 46.75, "txAdm": 0}, {"id": "vda-jul2-004", "data": "2026-07-17", "cliente": "MATTHEW WILLIAM LUND", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "ACOMPANHAMENTO BRAGA E ARREDORES", "valorTotal": 249.9975, "valorPago": 250.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-012", "obs": null, "honorarioBase": 203.25, "iva": 46.75, "txAdm": 0}, {"id": "vda-jul2-005", "data": "2026-07-21", "cliente": "JOAO PAULO MELLO GABRY", "vendedorId": "bernardo", "vendedorNome": "Bernardo Maciel", "origem": "RECORRENCIA", "servico": "BUSCA DE CURSOS PARA REGULARIZAÇÃO", "valorTotal": 149.9985, "valorPago": 150.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-014", "obs": null, "honorarioBase": 121.95, "iva": 28.05, "txAdm": 0}, {"id": "vda-jul2-006", "data": "2026-07-03", "cliente": "ROGERIO SILVA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "CERTIFICAÇÕES DE PASSAPORTE INTEGRAL", "valorTotal": 69.9993, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-017", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-jul2-007", "data": "2026-07-21", "cliente": "AMANDA DEMETRIO SOUZA", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INSTAGRAM", "servico": "RENOVAÇÃO ADMINISTRATIVA TITULO RESIDÊNCIA", "valorTotal": 349.9965, "valorPago": 175.0, "pagamentoIntegral": false, "nParcelas": 1, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-013", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-jul2-008", "data": "2026-07-22", "cliente": "EULENIA PIRES DE ALMEIDA", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "TRAFEGO", "servico": "AÇÃO DE IMPUGNAÇÃO DE SAIDA VOLUNTARIA + CAUTELAR", "valorTotal": 2111.9973, "valorPago": 750.0, "pagamentoIntegral": false, "nParcelas": 2, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-015", "obs": null, "honorarioBase": 1219.51, "iva": 280.49, "txAdm": 612}, {"id": "vda-jul2-009", "data": "2026-07-24", "cliente": "ALAN SANTOS", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "ALTERAR REPRESENTANTE FISCAL", "valorTotal": 299.997, "valorPago": 150.0, "pagamentoIntegral": false, "nParcelas": 1, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-07-016", "obs": null, "honorarioBase": 243.9, "iva": 56.1, "txAdm": 0}], "funil": {"larissa": {"conversasIniciadas": 101, "novosContatos": 13}}};
+
 const HISTORICAL_IMPORT = { "sales": [{"id": "vda-junho-001", "data": "2026-06-01", "cliente": "SAULO ROCHA", "vendedorId": "bernardo", "vendedorNome": "Bernardo Maciel", "origem": "TRAFEGO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-002", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-junho-002", "data": "2026-06-26", "cliente": "RODRIGO PEIXOTO ", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "ACOMPANHAMENTO BRAGA E ARREDORES", "valorTotal": 250.0, "valorPago": 250.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-005", "obs": null, "honorarioBase": 203.25, "iva": 46.75, "txAdm": 0}, {"id": "vda-junho-003", "data": "2026-06-29", "cliente": "KEBBA GOMEZ", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "INSTAGRAM", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-007", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-junho-004", "data": "2026-06-29", "cliente": "ERICA ARAUJO DA SILVA", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "TRAFEGO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-008", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-junho-005", "data": "2026-06-06", "cliente": "SAULO ROCHA", "vendedorId": "bernardo", "vendedorNome": "Bernardo Maciel", "origem": "TRAFEGO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-012", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-junho-006", "data": "2026-06-25", "cliente": "ROBERT PATRICK", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "PREPARO E ANÁLISE DE PASTA", "valorTotal": 250.0, "valorPago": 250.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-015", "obs": null, "honorarioBase": 203.25, "iva": 46.75, "txAdm": 0}, {"id": "vda-junho-007", "data": "2026-06-24", "cliente": "MICHELE  CONSOLAÇÃO  VIEGAS", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "TRAFEGO", "servico": "POR TEMPO RESIDÊNCIA ART 6.1", "valorTotal": 865, "valorPago": 865.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "KLARNA", "registro": "VND-06-016", "obs": null, "honorarioBase": 500, "iva": 115, "txAdm": 250}, {"id": "vda-junho-008", "data": "2026-06-30", "cliente": "JOSE AUGUSTO MARTINS FILHO", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "TRAFEGO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-017", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-junho-009", "data": "2026-06-24", "cliente": "AMERICA ANDREI DONNARUMMA ", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-019", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-junho-010", "data": "2026-06-20", "cliente": "MARCILENE MAIA DOS SANTOS ", "vendedorId": "bernardo", "vendedorNome": "Bernardo Maciel", "origem": "INDICAÇÃO", "servico": "RENOVAÇÃO ADMINISTRATIVA TITULO RESIDÊNCIA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-020", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-junho-011", "data": "2026-06-11", "cliente": "BARBARA PICKUP", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "GERAR NOVO DUC", "valorTotal": 150.0, "valorPago": 150.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-023", "obs": null, "honorarioBase": 121.95, "iva": 28.05, "txAdm": 0}, {"id": "vda-junho-012", "data": "2026-06-15", "cliente": "NILZA MARA ", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "TRAFEGO", "servico": "RENOVAÇÃO ADMINISTRATIVA TITULO RESIDÊNCIA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "KLARNA", "registro": "VND-06-025", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-junho-013", "data": "2026-06-15", "cliente": "LUCAS SIMÕES ", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "CONTAGEM DE TEMPO", "valorTotal": 185.0, "valorPago": 185.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "KLARNA", "registro": "VND-06-026", "obs": null, "honorarioBase": 150.41, "iva": 34.59, "txAdm": 0}, {"id": "vda-junho-014", "data": "2026-06-15", "cliente": "NILZA MARA ", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "AGENDAMENTO PASSAPORTE BRASILEIRO ", "valorTotal": 200.0, "valorPago": 0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "KLARNA", "registro": "VND-06-027", "obs": null, "honorarioBase": 162.6, "iva": 37.4, "txAdm": 0}, {"id": "vda-junho-015", "data": "2026-06-16", "cliente": "BALVINDER SING", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "PRESENCIAL", "valorTotal": 100.0, "valorPago": 100.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-028", "obs": null, "honorarioBase": 81.3, "iva": 18.7, "txAdm": 0}, {"id": "vda-junho-016", "data": "2026-06-18", "cliente": "VITORIO RUAN ALEXANDRE DUT", "vendedorId": "bernardo", "vendedorNome": "Bernardo Maciel", "origem": "INDICAÇÃO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "KLARNA", "registro": "VND-06-030", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-junho-017", "data": "2026-06-05", "cliente": "GILDENIR DANTAS", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "CONSULTA DE PROCESSO", "valorTotal": 250.0, "valorPago": 250.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-06-031", "obs": null, "honorarioBase": 203.25, "iva": 46.75, "txAdm": 0}, {"id": "vda-junho-018", "data": "2026-06-30", "cliente": "MARIA FILOMENA DO ESPIRITO ", "vendedorId": "larissa", "vendedorNome": "Larissa", "origem": "TRAFEGO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "KLARNA", "registro": "VND-06-033", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-maio-019", "data": "2026-05-21", "cliente": "EMERSON SAMUEL", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "CERTIFICAÇÕES DE PASSAPORTE INTEGRAL", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "MB WAY", "registro": "VND-05-001", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-maio-020", "data": "2026-05-21", "cliente": "ELIAS MARTINS", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "CERTIFICAÇÕES DE PASSAPORTE INTEGRAL", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "MB WAY", "registro": "VND-05-002", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-maio-021", "data": "2026-05-14", "cliente": "FELIX ANDRES", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INSTAGRAM", "servico": "EMISSÃO DE CERTIDÃO", "valorTotal": 100.0, "valorPago": 100.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "MB WAY", "registro": "VND-05-005", "obs": null, "honorarioBase": 81.3, "iva": 18.7, "txAdm": 0}, {"id": "vda-maio-022", "data": "2026-05-11", "cliente": "EDSON SOUZA GOMES", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-009", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-maio-023", "data": "2026-05-07", "cliente": "VALESSA FRADIQUE", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-010", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-maio-024", "data": "2026-05-07", "cliente": "SONIA DIVINA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-ƒ-011", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-maio-025", "data": "2026-05-07", "cliente": "VALESSA FRADIQUE", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-012", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-maio-026", "data": "2026-05-05", "cliente": "CARLOS ROBERTO", "vendedorId": "bernardo", "vendedorNome": "Bernardo Maciel", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": null, "registro": "VND-05-013", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-maio-027", "data": "2026-05-22", "cliente": "IVONE AMBROSIO", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "CERTIFICAÇÕES DE FOTOCOPIA", "valorTotal": 25.0, "valorPago": 25.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "MB WAY", "registro": "VND-05-015", "obs": null, "honorarioBase": 20.32, "iva": 4.67, "txAdm": 0}, {"id": "vda-maio-028", "data": "2026-05-22", "cliente": "IVONE AMBROSIO", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "CERTIFICAÇÕES DE FOTOCOPIA", "valorTotal": 25.0, "valorPago": 25.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "MB WAY", "registro": "VND-05-016", "obs": null, "honorarioBase": 20.32, "iva": 4.67, "txAdm": 0}, {"id": "vda-maio-029", "data": "2026-05-05", "cliente": "CLAUDEMIRO CARLOS JORGE", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "TRAFEGO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-020", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-maio-030", "data": "2026-05-08", "cliente": "DANIEL SILVA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "TRAFEGO", "servico": "PRESENCIAL", "valorTotal": 100.0, "valorPago": 100.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-022", "obs": null, "honorarioBase": 81.3, "iva": 18.7, "txAdm": 0}, {"id": "vda-maio-031", "data": "2026-05-08", "cliente": "KAAR UYGUR", "vendedorId": "karoline", "vendedorNome": "Karoline Neto", "origem": "SITE/GOOGLE", "servico": "PRESENCIAL", "valorTotal": 100.0, "valorPago": 100.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-024", "obs": null, "honorarioBase": 81.3, "iva": 18.7, "txAdm": 0}, {"id": "vda-maio-032", "data": "2026-05-11", "cliente": "JORGE FONSECA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INSTAGRAM", "servico": "CERTIFICAÇÕES DE FOTOCOPIA", "valorTotal": 25.0, "valorPago": 25.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-027", "obs": null, "honorarioBase": 20.32, "iva": 4.67, "txAdm": 0}, {"id": "vda-maio-033", "data": "2026-05-13", "cliente": "DUARTE ASCENÇAO", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "TRAFEGO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-028", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-maio-034", "data": "2026-05-19", "cliente": "NAEEM AHMED", "vendedorId": "karoline", "vendedorNome": "Karoline Neto", "origem": "RECORRENCIA", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-030", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-maio-035", "data": "2026-05-21", "cliente": "DANIEL SILVA", "vendedorId": "karoline", "vendedorNome": "Karoline Neto", "origem": "TRAFEGO", "servico": "BUSCA DE CURSOS PARA REGULARIZAÇÃO", "valorTotal": 150.0, "valorPago": 150.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-031", "obs": null, "honorarioBase": 121.95, "iva": 28.05, "txAdm": 0}, {"id": "vda-maio-036", "data": "2026-05-13", "cliente": "EDGAR KEBE", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-040", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-maio-037", "data": "2026-05-04", "cliente": "ELIAS MODESTO JUNIOR", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "CONSULTA DE PROCESSO EM ANDAMENTO JUNTO À AIMA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "KLARNA", "registro": "VND-05-043", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-maio-038", "data": "2026-05-15", "cliente": "NILZA MARA VIEIRA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "AGENDAMENTO PASSAPORTE BRASILEIRO ", "valorTotal": 200.0, "valorPago": 200.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "KLARNA", "registro": "VND-05-044", "obs": null, "honorarioBase": 162.6, "iva": 37.4, "txAdm": 0}, {"id": "vda-maio-039", "data": "2026-05-15", "cliente": "NILZA MARA VIEIRA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "RENOVAÇÃO ADMINISTRATIVA TITULO RESIDÊNCIA", "valorTotal": 350.0, "valorPago": 350.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "KLARNA", "registro": "VND-05-045", "obs": null, "honorarioBase": 284.55, "iva": 65.45, "txAdm": 0}, {"id": "vda-maio-040", "data": "2026-05-08", "cliente": "MONICA MANOTA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "BUSCA DE CURSOS PARA REGULARIZAÇÃO", "valorTotal": 150.0, "valorPago": 150.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-048", "obs": null, "honorarioBase": 121.95, "iva": 28.05, "txAdm": 0}, {"id": "vda-maio-041", "data": "2026-05-14", "cliente": "FLAVIO FRAJOLA", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "RECORRENCIA", "servico": "PRESENCIAL", "valorTotal": 100.0, "valorPago": 100.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-049", "obs": null, "honorarioBase": 81.3, "iva": 18.7, "txAdm": 0}, {"id": "vda-maio-042", "data": "2026-05-15", "cliente": "ANA CAROLINA SANTOS", "vendedorId": "luisa", "vendedorNome": "Luisa Ennes", "origem": "TRAFEGO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-050", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-maio-043", "data": "2026-05-22", "cliente": "ELISAMA MELO", "vendedorId": "fernanda", "vendedorNome": "Fernanda Mendes", "origem": "INDICAÇÃO", "servico": "AGENDAMENTO PASSAPORTE BRASILEIRO ", "valorTotal": 200.0, "valorPago": 200.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-052", "obs": null, "honorarioBase": 162.6, "iva": 37.4, "txAdm": 0}, {"id": "vda-maio-044", "data": "2026-05-11", "cliente": "GEANE KRULL", "vendedorId": "karoline", "vendedorNome": "Karoline Neto", "origem": "INDICAÇÃO", "servico": "ONLINE", "valorTotal": 70.0, "valorPago": 70.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-056", "obs": null, "honorarioBase": 56.91, "iva": 13.09, "txAdm": 0}, {"id": "vda-maio-045", "data": "2026-05-28", "cliente": "RUTH DAVENPORT", "vendedorId": "karoline", "vendedorNome": "Karoline Neto", "origem": "SITE/GOOGLE", "servico": "PRESENCIAL", "valorTotal": 100.0, "valorPago": 100.0, "pagamentoIntegral": true, "nParcelas": null, "formaPagamento": "TRANSFERÊNCIA BANCARIA", "registro": "VND-05-057", "obs": null, "honorarioBase": 81.3, "iva": 18.7, "txAdm": 0}], "costs": [{"id": "cst-100", "nome": "ALUGUEL (MAIO)", "valor": 357.56, "categoria": "FIXO", "vencimento": "2026-05-11", "pago": true}, {"id": "cst-101", "nome": "AGUA (MAIO)", "valor": 44.45, "categoria": "VARIÁVEL", "vencimento": "2026-05-23", "pago": true}, {"id": "cst-102", "nome": "LUZ (MAIO)", "valor": 57.05, "categoria": "VARIÁVEL", "vencimento": "2026-05-11", "pago": true}, {"id": "cst-103", "nome": "TELEFONE (MAIO)", "valor": 72.67, "categoria": "VARIÁVEL", "vencimento": "2026-05-06", "pago": true}, {"id": "cst-104", "nome": "CPAS (MAIO)", "valor": 597.9, "categoria": "FIXO", "vencimento": "2026-05-14", "pago": true}, {"id": "cst-105", "nome": "CHATGPT (MAIO)", "valor": 24.6, "categoria": "FIXO", "vencimento": "2026-05-22", "pago": true}, {"id": "cst-106", "nome": "ESTACIONAMENTO (MAIO)", "valor": 45.0, "categoria": "FIXO", "vencimento": "2026-05-01", "pago": true}, {"id": "cst-107", "nome": "SEG SOCIAL (MAIO)", "valor": 78.05, "categoria": "FIXO", "vencimento": "2026-05-05", "pago": true}, {"id": "cst-108", "nome": "LIMPEZA (MAIO)", "valor": 40.0, "categoria": "FIXO", "vencimento": "2026-05-20", "pago": true}, {"id": "cst-109", "nome": "CONTABILISTA (MAIO)", "valor": 50.0, "categoria": "FIXO", "vencimento": "2026-05-10", "pago": true}, {"id": "cst-110", "nome": "CLAUD (MAIO)", "valor": 22.15, "categoria": "FIXO", "vencimento": "2026-05-20", "pago": true}, {"id": "cst-111", "nome": "SPOTFY (MAIO)", "valor": 9.0, "categoria": "FIXO", "vencimento": "2026-05-20", "pago": true}, {"id": "cst-112", "nome": "IA (MAIO)", "valor": 206.0, "categoria": "FIXO", "vencimento": "2026-05-10", "pago": true}, {"id": "cst-113", "nome": "REPOSIÇÃO (MAIO)", "valor": 150.0, "categoria": "VARIÁVEL", "vencimento": "2026-05-10", "pago": true}, {"id": "cst-114", "nome": "PAPELARIA (MAIO)", "valor": 25.0, "categoria": "VARIÁVEL", "vencimento": "2026-05-10", "pago": true}, {"id": "cst-115", "nome": "VIA VERDE (MAIO)", "valor": 32.82, "categoria": "VARIÁVEL", "vencimento": "2026-05-10", "pago": true}, {"id": "cst-116", "nome": "COMBUSTIVEL (MAIO)", "valor": 150.0, "categoria": "FIXO", "vencimento": "2026-05-10", "pago": true}, {"id": "cst-117", "nome": "CORREIO (MAIO)", "valor": 50.0, "categoria": "VARIÁVEL", "vencimento": "2026-05-10", "pago": true}, {"id": "cst-118", "nome": "CERTIDÕES (MAIO)", "valor": 60.0, "categoria": "VARIÁVEL", "vencimento": "2026-05-10", "pago": true}, {"id": "cst-119", "nome": "TRAFEGO (MAIO)", "valor": 320.0, "categoria": "VARIÁVEL", "vencimento": "2026-05-30", "pago": true}, {"id": "cst-120", "nome": "GESTOR MATHEUS (MAIO)", "valor": 150.0, "categoria": "FIXO", "vencimento": "2026-05-08", "pago": true}, {"id": "cst-121", "nome": "BERNARDO (MAIO)", "valor": 1337.5, "categoria": "FIXO", "vencimento": "2026-05-08", "pago": true}, {"id": "cst-122", "nome": "EVELIN (MAIO)", "valor": 1040.0, "categoria": "FIXO", "vencimento": "2026-05-08", "pago": true}, {"id": "cst-123", "nome": "FERNANDA (MAIO)", "valor": 1200.0, "categoria": "FIXO", "vencimento": "2026-05-08", "pago": true}, {"id": "cst-124", "nome": "PABLO (MAIO)", "valor": 2500.0, "categoria": "FIXO", "vencimento": "2026-05-08", "pago": true}, {"id": "cst-125", "nome": "ALUGUEL (JUNHO)", "valor": 357.56, "categoria": "FIXO", "vencimento": "2026-06-11", "pago": true}, {"id": "cst-126", "nome": "CPAS (JUNHO)", "valor": 296.26, "categoria": "FIXO", "vencimento": "2026-06-11", "pago": true}, {"id": "cst-127", "nome": "CHATGPT (JUNHO)", "valor": 24.6, "categoria": "FIXO", "vencimento": "2026-06-22", "pago": true}, {"id": "cst-128", "nome": "ESTACIONAMENTO (JUNHO)", "valor": 45.0, "categoria": "FIXO", "vencimento": "2026-06-01", "pago": true}, {"id": "cst-129", "nome": "SEG SOCIAL (JUNHO)", "valor": 78.05, "categoria": "FIXO", "vencimento": "2026-06-05", "pago": true}, {"id": "cst-130", "nome": "LIMPEZA (JUNHO)", "valor": 40.0, "categoria": "FIXO", "vencimento": "2026-06-20", "pago": true}, {"id": "cst-131", "nome": "CONTABILISTA (JUNHO)", "valor": 50.0, "categoria": "FIXO", "vencimento": "2026-06-10", "pago": true}, {"id": "cst-132", "nome": "CLAUD (JUNHO)", "valor": 22.15, "categoria": "FIXO", "vencimento": "2026-06-20", "pago": true}, {"id": "cst-133", "nome": "SPOTFY (JUNHO)", "valor": 9.0, "categoria": "FIXO", "vencimento": "2026-06-20", "pago": true}, {"id": "cst-134", "nome": "IA (JUNHO)", "valor": 206.0, "categoria": "FIXO", "vencimento": "2026-06-10", "pago": true}, {"id": "cst-135", "nome": "VIA VERDE (JUNHO)", "valor": 89.54, "categoria": "VARIÁVEL", "vencimento": "2026-06-20", "pago": true}, {"id": "cst-136", "nome": "COMBUSTIVEL (JUNHO)", "valor": 150.0, "categoria": "FIXO", "vencimento": "2026-06-10", "pago": true}, {"id": "cst-137", "nome": "GESTOR MATHEUS (JUNHO)", "valor": 150.0, "categoria": "FIXO", "vencimento": "2026-06-08", "pago": true}, {"id": "cst-138", "nome": "BERNARDO (JUNHO)", "valor": 1200.0, "categoria": "FIXO", "vencimento": "2026-05-08", "pago": true}, {"id": "cst-139", "nome": "KAROLINE (JUNHO)", "valor": 553.0, "categoria": "FIXO", "vencimento": "2026-06-08", "pago": true}, {"id": "cst-140", "nome": "FERNANDA (JUNHO)", "valor": 1200.0, "categoria": "FIXO", "vencimento": "2026-06-08", "pago": true}, {"id": "cst-141", "nome": "PABLO (JUNHO)", "valor": 2500.0, "categoria": "FIXO", "vencimento": "2026-06-08", "pago": true}, {"id": "cst-142", "nome": "LUIZA (JUNHO)", "valor": 350.55, "categoria": "FIXO", "vencimento": "2026-06-08", "pago": true}] };
 
 
@@ -362,8 +402,14 @@ let STATE = {
   paidMonthFilter: 'all',
   salesFilter: { granularity:'all', anchor: todayISO() },
   salesVendorFilter: 'all',
-  financeiroFilter: { granularity:'all', anchor: todayISO().slice(0,7) }
+  financeiroFilter: { granularity:'all', anchor: todayISO().slice(0,7) },
+  alertaDispensadoHoje: false,
+  expandAtividade: false,
+  expandAtrasadas: false
 };
+function formasPagamentoList(){
+  return (STATE.meta.formasPagamento && STATE.meta.formasPagamento.length) ? STATE.meta.formasPagamento : ['TRANSFERÊNCIA BANCARIA','MB WAY','KLARNA','DINHEIRO','OUTRO'];
+}
 
 async function loadState(){
   STATE.sellers = await DB.get('crm:sellers', SEED_DATA.sellers);
@@ -378,6 +424,15 @@ async function loadSession(){
   if(s){ STATE.role = s.role; STATE.myOwnSellerId = s.myOwnSellerId; }
 }
 async function saveSession(){ await SessionDB.set('crm:session', {role:STATE.role, myOwnSellerId:STATE.myOwnSellerId}); }
+
+async function loadAlertaDismissido(){
+  const dataDispensada = await SessionDB.get('crm:alertaAtrasoDispensadoEm', null);
+  STATE.alertaDispensadoHoje = (dataDispensada === todayISO());
+}
+async function dismissAlertaHoje(){
+  STATE.alertaDispensadoHoje = true;
+  await SessionDB.set('crm:alertaAtrasoDispensadoEm', todayISO());
+}
 
 /* Aplica, uma única vez, as vendas e custos novos de Maio/Junho vindos das
    planilhas complementares. Protegido por STATE.meta.importMaioJunho2026 para
@@ -418,6 +473,69 @@ async function applyDedupSalesVsRecurrences(){
   await persist('meta');
 }
 
+/* Atualização de Julho com base na planilha revista pelo utilizador: vendas novas
+   que faltavam no REGISTRO DE VENDAS, mais 4 vendas que já existiam como
+   recorrência mas também precisam contar no "Valor Vendido" (marcadas com
+   jaContabilizadoViaRecorrencia para não duplicar o caixa), e o funil manual
+   real da Larissa (extraído da aba individual "Controlhe Diário" dela).
+   Roda uma única vez, protegida por meta.julhoAtualizacao2026. */
+async function applyJulhoUpdate(){
+  if(STATE.meta.julhoAtualizacao2026) return;
+  const existingSaleIds = new Set(STATE.sales.map(s=>s.id));
+  JULHO_UPDATE.sales.forEach(s=>{ if(!existingSaleIds.has(s.id)) STATE.sales.push(s); });
+  Object.entries(JULHO_UPDATE.funil).forEach(([sellerId, vals])=>{
+    const s = sellerById(sellerId);
+    if(s){ Object.assign(s, vals); }
+  });
+  STATE.meta.julhoAtualizacao2026 = true;
+  await persist('sales');
+  await persist('sellers');
+  await persist('meta');
+}
+
+/* A planilha individual de cada vendedor ("Registro de Vendas" dentro da aba
+   dela) é mais completa e assertiva que a aba mestra "REGISTRO DE VENDAS" —
+   por isso as vendas de julho da Larissa são substituídas inteiramente pelas
+   23 registadas na aba individual dela (bate exatamente com o "Valor total
+   de vendas" e "Caixa Gerado" que já estavam calculados lá). Karoline e
+   Bernardo não têm nada preenchido na aba individual deles em julho, e a
+   Fernanda não usa esse formato — para eles, a fonte continua sendo a
+   REGISTRO DE VENDAS mestra. Roda uma única vez. */
+async function applyLarissaIndividualJuly(){
+  if(STATE.meta.larissaIndividualJulho2026) return;
+  STATE.sales = STATE.sales.filter(s=>!(s.vendedorId==='larissa' && s.data && s.data.startsWith('2026-07')));
+  const normC = s => (s||'').trim().toUpperCase();
+  const recFp = {};
+  STATE.recurrences.forEach(r=>{
+    const k = normC(r.cliente)+'|'+r.dataVenda;
+    recFp[k] = (recFp[k]||0) + 1;
+  });
+  LARISSA_INDIVIDUAL_SALES.forEach(s=>{
+    const k = normC(s.cliente)+'|'+s.data;
+    if(!s.pagamentoIntegral && recFp[k] > 0){ s.jaContabilizadoViaRecorrencia = true; }
+  });
+  STATE.sales.push(...LARISSA_INDIVIDUAL_SALES);
+  STATE.meta.larissaIndividualJulho2026 = true;
+  await persist('sales');
+  await persist('meta');
+}
+
+/* A recorrência "LEANDRO MARIANO SILVA" (criada na primeiríssima importação)
+   não existe mais em nenhuma aba de recorrência da planilha atual — ele só
+   aparece no REGISTRO DE VENDAS e na aba individual da Larissa, ambos
+   concordando: venda avulsa de €350, paga integralmente em 16/07. A
+   recorrência era um registo desatualizado de uma versão antiga da planilha
+   e mostrava uma pendência de €350 que não existe de verdade. Removida uma
+   única vez. */
+async function applyRemoveStaleLeandroRecorrencia(){
+  if(STATE.meta.removeuRecorrenciaLeandro2026) return;
+  const before = STATE.recurrences.length;
+  STATE.recurrences = STATE.recurrences.filter(r=>r.cliente.trim().toUpperCase() !== 'LEANDRO MARIANO SILVA');
+  if(STATE.recurrences.length !== before){ await persist('recurrences'); }
+  STATE.meta.removeuRecorrenciaLeandro2026 = true;
+  await persist('meta');
+}
+
 
 async function persist(part){
   if(part==='sellers') await DB.set('crm:sellers', STATE.sellers);
@@ -443,6 +561,33 @@ function sellerById(id){ return STATE.sellers.find(s=>s.id===id); }
    PERÍODO — mês / semana / dia
    ========================================================= */
 const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS_SEMANA_PT = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+function daysInMonth(ym){ const [y,m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
+function weekdayLabel(dateStr){ return DIAS_SEMANA_PT[new Date(dateStr+'T00:00:00').getDay()]; }
+const FUNIL_DIARIO_COLS = [
+  ['conversas','Conversas iniciadas'],
+  ['respondeu','Respondeu 1ª msg'],
+  ['consultaMarcada','Consulta marcada'],
+  ['leadsQualificados','Leads Qualificados'],
+  ['vendasConsultaMarcada','Vendas consultas marcadas'],
+  ['reagendado','Reagendado'],
+  ['noShow','No-Show'],
+  ['consultaRealizada','Consultas realizadas'],
+  ['vendaForaConsulta','Vendas Fora de Consulta'],
+];
+/* Soma as colunas do funil diário de um vendedor dentro do período informado —
+   é isso que faz o preenchimento dia a dia "alimentar" as estatísticas gerais. */
+function sumFunilDiario(seller, filter){
+  const dias = seller.funilDiario || {};
+  const out = { conversas:0, respondeu:0, consultaMarcada:0, leadsQualificados:0, vendasConsultaMarcada:0, reagendado:0, noShow:0, consultaRealizada:0, vendaForaConsulta:0, valorVenda:0, pagoNoDia:0 };
+  Object.entries(dias).forEach(([date, d])=>{
+    if(!inPeriodOrAll(date, filter)) return;
+    Object.keys(out).forEach(k=>{ out[k] += Number(d[k])||0; });
+  });
+  out.fechamentos = out.vendasConsultaMarcada + out.vendaForaConsulta;
+  return out;
+}
+
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function monthLabel(key){ if(!key) return '—'; const [y,m] = key.split('-'); return `${MESES_PT[parseInt(m,10)-1]} de ${y}`; }
 function fmtDateShort(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'}) : '—'; }
@@ -491,6 +636,7 @@ function shiftPeriod(filter, dir){
 function buildEvents(){
   const events = [];
   STATE.sales.forEach(s=>{
+    if(s.jaContabilizadoViaRecorrencia) return; // já entra pelo caixa da recorrência correspondente
     if((s.valorPago||0) > 0 && s.data){
       const frac = s.valorTotal>0 ? s.valorPago/s.valorTotal : 0;
       events.push({ date:s.data, valor:s.valorPago, comissao:comissaoSale(s), ivaValor:(s.iva||0)*frac, txAdmValor:(s.txAdm||0)*frac, vendedorId:s.vendedorId, vendedorNome:s.vendedorNome, tipo:'Venda', cliente:s.cliente });
@@ -547,6 +693,21 @@ function recStatus(rec){
   const valorPendente = Math.max(0, rec.valorContrato - valorPago);
   return { valorParcela, pagas, total, valorPago, valorPendente, quitada: valorPendente<=0.005, entrada };
 }
+/* "Atrasada" = ainda não quitada e já passou mais de 30 dias desde a venda.
+   A planilha não guarda data de vencimento por parcela, então esta é uma
+   estimativa razoável (não uma data de vencimento contratual exata). */
+const DIAS_TOLERANCIA_ATRASO = 30;
+function diasAtraso(rec){
+  const st = recStatus(rec);
+  if(st.quitada) return 0;
+  const inicio = new Date(rec.dataVenda+'T00:00:00');
+  const hoje = new Date(todayISO()+'T00:00:00');
+  const dias = Math.floor((hoje - inicio) / 86400000);
+  return dias > DIAS_TOLERANCIA_ATRASO ? dias : 0;
+}
+function recorrenciasAtrasadas(){
+  return STATE.recurrences.filter(r=>diasAtraso(r) > 0).sort((a,b)=>diasAtraso(b)-diasAtraso(a));
+}
 function saleStatus(sale){
   const valorPendente = Math.max(0, (sale.valorTotal||0) - (sale.valorPago||0));
   return { valorPendente, quitada: sale.pagamentoIntegral || valorPendente<=0.005 };
@@ -599,14 +760,20 @@ function computeSellerStats(sellerId, filter){
   let valorPendente=0, deals=0;
   sales.forEach(s=>{ valorPendente+=saleStatus(s).valorPendente; deals++; });
   recs.forEach(r=>{ valorPendente+=recStatus(r).valorPendente; deals++; });
+  // "Valor vendido" = valor total contratado nas vendas do período (igual à métrica
+  // clássica da planilha: soma do Honorário Final, independente de estar pago ou não)
+  const valorVendido = sales.reduce((a,s)=>a+(s.valorTotal||0),0);
   const seller = sellerById(sellerId) || {};
-  const conversas = seller.conversasIniciadas||0;
+  const funil = sumFunilDiario(seller, filter);
+  const temFunilDiario = Object.keys(seller.funilDiario||{}).length > 0;
+  const conversas = temFunilDiario ? funil.conversas : (seller.conversasIniciadas||0);
+  const novosContatos = temFunilDiario ? funil.leadsQualificados : (seller.novosContatos||0);
   const fechamentosManual = seller.fechamentosManual||0;
   const taxaConversao = conversas>0 ? (fechamentosManual||deals)/conversas : null;
   return {
-    valorFaturado, valorPendente, comissao, deals,
+    valorFaturado, valorPendente, comissao, deals, valorVendido,
     ticketMedio: deals>0 ? valorFaturado/deals : 0,
-    conversas, novosContatos: seller.novosContatos||0, fechamentosManual, taxaConversao,
+    conversas, novosContatos, fechamentosManual, taxaConversao, funil, temFunilDiario,
     recorrenciaAtiva: recs.filter(r=>!recStatus(r).quitada).reduce((a,r)=>a+recStatus(r).valorPendente,0),
     nSales: sales.length, nRecs: recs.length
   };
@@ -644,16 +811,19 @@ function computeGlobalForPeriod(filter){
     if(!st.quitada) recorrenciaAtivaValor += st.valorPendente;
   });
   const valorFaturado = buildEvents().filter(e=>inPeriodOrAll(e.date, filter)).reduce((a,e)=>a+e.valor,0);
+  // "Valor vendido" = total contratado (Honorário Final) das vendas do período,
+  // pago ou não — é a mesma base que a meta do mês sempre usou na planilha original.
+  const valorVendido = salesIn.reduce((a,s)=>a+(s.valorTotal||0),0);
   const fechamentos = salesIn.length + recsIn.length;
   let conversas = 0;
-  activeSellers().forEach(s=>{ conversas += s.conversasIniciadas||0; });
+  activeSellers().forEach(s=>{ conversas += sumFunilDiario(s, filter).conversas || s.conversasIniciadas||0; });
   const taxaConversao = conversas>0 ? fechamentos/conversas : null;
   const meta = STATE.meta.valorMeta || 0;
   return {
-    valorFaturado, valorPendente, recorrenciaAtivaValor, taxaConversao, fechamentos, conversas,
+    valorFaturado, valorVendido, valorPendente, recorrenciaAtivaValor, taxaConversao, fechamentos, conversas,
     nRecsAbertas: recsIn.filter(r=>!recStatus(r).quitada).length,
-    metaPct: meta>0 ? valorFaturado/meta : 0,
-    metaRestante: Math.max(0, meta - valorFaturado)
+    metaPct: meta>0 ? valorVendido/meta : 0,
+    metaRestante: Math.max(0, meta - valorVendido)
   };
 }
 
@@ -838,7 +1008,7 @@ function renderSidebar(){
 
 function renderTopbar(){
   const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', sales:'Vendas', ranking:'Ranking de Vendedores', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas'};
-  document.getElementById('pageTitle').textContent = titles[STATE.view] || '';
+  document.getElementById('pageTitle').textContent = STATE.view==='overview' ? '' : (titles[STATE.view] || '');
   const inline = document.getElementById('metaInline');
   if(STATE.view==='overview'){
     const f = STATE.periodFilter;
@@ -849,6 +1019,7 @@ function renderTopbar(){
     inline.innerHTML = `
     <div class="meta-hero">
       <div class="meta-hero-top">
+        <h2 class="meta-hero-title">Visão Geral</h2>
         <div class="period-tabs">
           <button data-gran="month" class="${gran==='month'?'active':''}">Mês</button>
           <button data-gran="week" class="${gran==='week'?'active':''}">Semana</button>
@@ -862,12 +1033,12 @@ function renderTopbar(){
         ${gran==='month' ? `<select id="periodMonthSelect">${months.map(mk=>`<option value="${mk}" ${mk===f.anchor.slice(0,7)?'selected':''}>${monthLabel(mk)}</option>`).join('')}${months.length?'':`<option value="${f.anchor}" selected>${monthLabel(f.anchor)}</option>`}</select>`
           : `<input type="date" id="periodDateSelect" value="${f.anchor}">`}
         <button class="btn ghost sm" id="periodToday">Hoje</button>
-        <button class="btn gold sm" id="btnEditMeta">Editar meta</button>
+        <button class="btn gold sm" id="btnEditMeta" style="margin-left:auto;">Editar meta</button>
       </div>
       <div class="meta-hero-bottom">
         <div class="meta-hero-numbers">
-          <span class="meta-hero-val">${fmtEUR(g.valorFaturado)}</span>
-          <span class="meta-hero-of">de ${fmtEUR(STATE.meta.valorMeta)} · meta do mês</span>
+          <span class="meta-hero-val">${fmtEUR(g.valorVendido)}</span>
+          <span class="meta-hero-of">de ${fmtEUR(STATE.meta.valorMeta)} · meta do mês (valor vendido)</span>
           <span class="meta-hero-pct">${fmtPct(g.metaPct)}</span>
         </div>
         <div class="meta-hero-bar"><span style="width:${pct}%"></span></div>
@@ -902,6 +1073,7 @@ function renderPeriodActivity(){
   const comissaoTotal = filtered.reduce((a,e)=>a+e.comissao,0);
   const n = filtered.length;
   const ticket = n>0 ? total/n : 0;
+  const shown = STATE.expandAtividade ? filtered : filtered.slice(0,5);
   return `
   <section class="block">
     <div class="block-head"><h3>Atividade em ${periodLabelText(STATE.periodFilter)}</h3><span class="hint">vendas, entradas e parcelas recebidas nesse período</span></div>
@@ -912,7 +1084,8 @@ function renderPeriodActivity(){
       <div class="card"><div class="lbl">Comissão gerada</div><div class="val">${fmtEUR(comissaoTotal)}</div></div>
     </div>
     ${filtered.length ? `<table style="margin-top:16px;"><thead><tr><th>Data</th><th>Cliente</th><th>Tipo</th><th>Vendedor</th><th>Valor</th></tr></thead>
-    <tbody>${filtered.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${e.cliente}</td><td><span class="chip neutral">${e.tipo}</span></td><td>${e.vendedorNome||'—'}</td><td class="tnum">${fmtEUR(e.valor)}</td></tr>`).join('')}</tbody></table>`
+    <tbody>${shown.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${e.cliente}</td><td><span class="chip neutral">${e.tipo}</span></td><td>${e.vendedorNome||'—'}</td><td class="tnum">${fmtEUR(e.valor)}</td></tr>`).join('')}</tbody></table>
+    ${filtered.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandAtividade">${STATE.expandAtividade ? 'Ver menos' : `••• Ver mais (${filtered.length-5})`}</button></div>` : ''}`
     : `<div class="empty">Nenhum recebimento neste período.</div>`}
   </section>`;
 }
@@ -920,20 +1093,93 @@ function renderPeriodActivity(){
 /* =========================================================
    OVERVIEW
    ========================================================= */
+function renderAlertaAtraso(){
+  const atrasadas = recorrenciasAtrasadas();
+  if(!atrasadas.length) return '';
+  if(STATE.alertaDispensadoHoje) return '';
+  return `
+  <div class="alert-banner" id="alertaAtrasoBanner">
+    <span>⚠️ <strong>${atrasadas.length}</strong> cliente(s) com recorrência em atraso (mais de ${DIAS_TOLERANCIA_ATRASO} dias sem quitar) — regularize os pagamentos.</span>
+    <button id="btnFecharAlerta" title="Fechar por hoje">×</button>
+  </div>`;
+}
+function renderRecorrenciasAtrasadasBox(){
+  const atrasadas = recorrenciasAtrasadas();
+  if(!atrasadas.length) return '';
+  const shown = STATE.expandAtrasadas ? atrasadas : atrasadas.slice(0,5);
+  return `
+  <section class="block atraso-block">
+    <div class="block-head"><h3>⚠️ Recorrências atrasadas (${atrasadas.length})</h3><span class="hint">sem quitar há mais de ${DIAS_TOLERANCIA_ATRASO} dias</span></div>
+    <table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Dias em atraso</th><th>Pendente</th></tr></thead>
+    <tbody>${shown.map(r=>{
+      const st = recStatus(r);
+      return `<tr><td><strong>${r.cliente}</strong></td><td>${r.vendedorNome||'—'}</td><td><span class="chip bad">${diasAtraso(r)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td></tr>`;
+    }).join('')}</tbody></table>
+    ${atrasadas.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandAtrasadas">${STATE.expandAtrasadas ? 'Ver menos' : `••• Ver mais (${atrasadas.length-5})`}</button></div>` : ''}
+  </section>`;
+}
+function renderChartsPanel(){
+  // Forma de pagamento mais utilizada, no período selecionado
+  const salesInPeriod = STATE.sales.filter(s=>inPeriodOrAll(s.data, STATE.periodFilter));
+  const porForma = {};
+  salesInPeriod.forEach(s=>{ const f = s.formaPagamento || 'Não informado'; porForma[f] = (porForma[f]||0) + (s.valorPago||0); });
+  const formasOrdenadas = Object.entries(porForma).sort((a,b)=>b[1]-a[1]);
+  const maxForma = formasOrdenadas.length ? formasOrdenadas[0][1] : 1;
+
+  // Faturamento por mês (todos os meses com dados — comparação natural entre meses)
+  const events = buildEvents();
+  const porMes = {};
+  events.forEach(e=>{ if(!e.date) return; const mk = e.date.slice(0,7); porMes[mk] = (porMes[mk]||0) + e.valor; });
+  const mesesOrdenados = Object.entries(porMes).sort((a,b)=>a[0].localeCompare(b[0]));
+  const maxMes = mesesOrdenados.length ? Math.max(...mesesOrdenados.map(m=>m[1])) : 1;
+  const melhorMes = mesesOrdenados.length ? mesesOrdenados.reduce((a,b)=>b[1]>a[1]?b:a) : null;
+
+  return `
+  <section class="block">
+    <div class="block-head"><h3>Gráficos</h3><span class="hint">forma de pagamento no período selecionado · faturamento por mês (histórico completo)</span></div>
+    <div class="charts-grid">
+      <div class="chart-col">
+        <h4>Forma de pagamento mais utilizada</h4>
+        ${formasOrdenadas.length ? formasOrdenadas.map(([f,v])=>`
+          <div class="hbar-row">
+            <span class="hbar-label">${f}</span>
+            <div class="hbar-track"><span style="width:${(v/maxForma*100)}%"></span></div>
+            <span class="hbar-val">${fmtEUR(v)}</span>
+          </div>`).join('') : `<div class="empty">Sem vendas nesse período.</div>`}
+      </div>
+      <div class="chart-col">
+        <h4>Faturamento por mês ${melhorMes ? `<span class="chip gold" style="margin-left:6px;">melhor: ${monthLabel(melhorMes[0])}</span>` : ''}</h4>
+        ${mesesOrdenados.length ? `<div class="vbar-chart">
+          ${mesesOrdenados.map(([mk,v])=>`
+            <div class="vbar-col">
+              <div class="vbar-track"><span style="height:${(v/maxMes*100)}%" class="${melhorMes && mk===melhorMes[0]?'best':''}"></span></div>
+              <div class="vbar-val">${fmtEUR(v)}</div>
+              <div class="vbar-label">${monthLabel(mk).split(' de ')[0].slice(0,3)}</div>
+            </div>`).join('')}
+        </div>` : `<div class="empty">Sem dados ainda.</div>`}
+      </div>
+    </div>
+  </section>`;
+}
+
 function renderOverview(){
   const g = computeGlobalForPeriod(STATE.periodFilter);
   const rk = ranking(STATE.periodFilter).slice(0,3);
   return `
+  ${renderAlertaAtraso()}
   <div class="quick-actions">
     <button class="btn gold" id="btnQuickSale">+ Adicionar venda</button>
     <button class="btn ghost" id="btnQuickRec">+ Adicionar recorrência</button>
   </div>
   <div class="cards">
-    <div class="card accent"><div class="lbl">Faturamento recebido (${periodLabelText(STATE.periodFilter)})</div><div class="val good">${fmtEUR(g.valorFaturado)}</div><div class="sub">Meta do mês: ${fmtEUR(STATE.meta.valorMeta)} · faltam ${fmtEUR(g.metaRestante)}</div></div>
+    <div class="card accent"><div class="lbl">Valor vendido (${periodLabelText(STATE.periodFilter)})</div><div class="val good">${fmtEUR(g.valorVendido)}</div><div class="sub">Meta do mês: ${fmtEUR(STATE.meta.valorMeta)} · faltam ${fmtEUR(g.metaRestante)}</div></div>
+    <div class="card"><div class="lbl">Faturamento recebido (caixa)</div><div class="val good">${fmtEUR(g.valorFaturado)}</div><div class="sub">dinheiro que já entrou, no período</div></div>
     <div class="card"><div class="lbl">Pendências (a receber)</div><div class="val bad">${fmtEUR(g.valorPendente)}</div><div class="sub">Vendas e recorrências originadas no período</div></div>
     <div class="card"><div class="lbl">Recorrência em andamento</div><div class="val">${fmtEUR(g.recorrenciaAtivaValor)}</div><div class="sub">${g.nRecsAbertas} contrato(s) com parcela pendente</div></div>
     <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${g.taxaConversao!==null ? fmtPct(g.taxaConversao) : '—'}</div><div class="sub">${g.taxaConversao!==null ? g.fechamentos+' fechamentos no período / '+g.conversas+' conversas totais' : 'informe conversas iniciadas por vendedor'}</div></div>
   </div>
+  ${renderChartsPanel()}
+  ${renderRecorrenciasAtrasadasBox()}
   ${renderPeriodActivity()}
   <section class="block">
     <div class="block-head"><h3>Top vendedores</h3><span class="hint">no período selecionado</span></div>
@@ -1064,6 +1310,7 @@ function renderSales(){
     .filter(s=>STATE.salesVendorFilter==='all' || s.vendedorId===STATE.salesVendorFilter)
     .sort((a,b)=> b.data.localeCompare(a.data));
   const totalRecebido = list.reduce((a,s)=>a+(s.valorPago||0),0);
+  const totalVendido = list.reduce((a,s)=>a+(s.valorTotal||0),0);
   return `
   ${renderGenericFilterBar('salesFilter', ['all','month','day'], months)}
   <div class="period-bar" style="margin-bottom:20px;">
@@ -1077,7 +1324,7 @@ function renderSales(){
   </div>
   <section class="block">
     <div class="block-head"><h3>Registo de vendas (${list.length})</h3><button class="btn gold" id="btnAddSale">+ Nova venda</button></div>
-    <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">vendas avulsas — não recorrentes · recebido no período: ${fmtEUR(totalRecebido)}</span></div>
+    <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">vendas avulsas — não recorrentes · vendido no período: ${fmtEUR(totalVendido)} · recebido: ${fmtEUR(totalRecebido)}</span></div>
     ${list.length ? `<table>
       <thead><tr><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Origem</th><th>Serviço</th><th>Total</th><th>Recebido</th><th>Status</th></tr></thead>
       <tbody>${list.map(s=>{
@@ -1098,9 +1345,9 @@ function renderRanking(){
   ${renderPeriodMiniBar()}
   <section class="block"><div class="block-head"><h3>Ranking de vendedores</h3><span class="hint">faturamento recebido em ${periodLabelText(STATE.periodFilter)}</span></div>
     <div class="rank-list">${rk.length ? rk.map((r,i)=>rankRow(r,i,STATE.periodFilter)).join('') : `<div class="empty">Sem dados nesse período.</div>`}</div></section>
-  <section class="block"><div class="block-head"><h3>Comparativo</h3></div>
-    <table><thead><tr><th>Vendedor</th><th>Faturado</th><th>Pendente</th><th>Ticket médio</th><th>Comissão</th><th>Fechamentos</th><th>Conversão</th></tr></thead>
-    <tbody>${rk.map(r=>`<tr><td><strong>${r.seller.nome}</strong></td><td class="tnum">${fmtEUR(r.stats.valorFaturado)}</td><td class="tnum">${fmtEUR(r.stats.valorPendente)}</td><td class="tnum">${fmtEUR(r.stats.ticketMedio)}</td><td class="tnum">${fmtEUR(r.stats.comissao)}</td><td>${r.stats.deals}</td><td>${r.stats.taxaConversao!==null?fmtPct(r.stats.taxaConversao):'—'}</td></tr>`).join('')}</tbody>
+  <section class="block"><div class="block-head"><h3>Comparativo</h3><span class="hint">"Valor vendido" = total contratado nas vendas do período, pago ou não · "Faturado" = o que já entrou em caixa</span></div>
+    <table><thead><tr><th>Vendedor</th><th>Valor vendido</th><th>Faturado (caixa)</th><th>Pendente</th><th>Ticket médio</th><th>Comissão</th><th>Fechamentos</th><th>Conversão</th></tr></thead>
+    <tbody>${rk.map(r=>`<tr><td><strong>${r.seller.nome}</strong></td><td class="tnum">${fmtEUR(r.stats.valorVendido)}</td><td class="tnum">${fmtEUR(r.stats.valorFaturado)}</td><td class="tnum">${fmtEUR(r.stats.valorPendente)}</td><td class="tnum">${fmtEUR(r.stats.ticketMedio)}</td><td class="tnum">${fmtEUR(r.stats.comissao)}</td><td>${r.stats.deals}</td><td>${r.stats.taxaConversao!==null?fmtPct(r.stats.taxaConversao):'—'}</td></tr>`).join('')}</tbody>
     </table></section>`;
 }
 
@@ -1108,17 +1355,44 @@ function renderRanking(){
    DETALHE DO VENDEDOR (visão do gestor)
    ========================================================= */
 function renderFunilManual(seller, st){
+  const ym = STATE.periodFilter.granularity==='month' ? STATE.periodFilter.anchor.slice(0,7) : todayISO().slice(0,7);
+  const nDias = daysInMonth(ym);
+  const diasData = seller.funilDiario || {};
+  const rows = [];
+  for(let d=1; d<=nDias; d++){ rows.push(ym+'-'+String(d).padStart(2,'0')); }
   return `
   <section class="block">
-    <div class="block-head"><h3>Funil manual</h3><span class="hint">preenchimento manual — a planilha original não separa estes números por vendedor</span></div>
-    <div style="padding:16px 20px;">
-      <div class="funnel">
-        <div class="fitem"><label>Conversas iniciadas</label><input type="number" min="0" id="fConversas" value="${seller.conversasIniciadas||0}"></div>
-        <div class="fitem"><label>Novos contatos</label><input type="number" min="0" id="fContatos" value="${seller.novosContatos||0}"></div>
-        <div class="fitem"><label>Fechamentos (manual, opcional)</label><input type="number" min="0" id="fFechamentos" value="${seller.fechamentosManual||0}"></div>
-        <div class="fitem"><label>Taxa de conversão</label><input type="text" value="${st.taxaConversao!==null?fmtPct(st.taxaConversao):'—'}" disabled></div>
-      </div>
+    <div class="block-head">
+      <h3>Funil de vendas diário — ${monthLabel(ym)}</h3>
+      <span class="hint">preenchido dia a dia por vendedor · alimenta automaticamente conversas, leads e taxa de conversão</span>
     </div>
+    <div class="cards" style="margin:16px 20px 0;">
+      <div class="card"><div class="lbl">Conversas iniciadas (mês)</div><div class="val">${st.conversas}</div></div>
+      <div class="card"><div class="lbl">Leads qualificados (mês)</div><div class="val">${st.novosContatos}</div></div>
+      <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${st.taxaConversao!==null?fmtPct(st.taxaConversao):'—'}</div></div>
+    </div>
+    <div style="overflow-x:auto;padding-bottom:8px;">
+    <table class="funil-diario-table">
+      <thead><tr><th>Data</th>${FUNIL_DIARIO_COLS.map(c=>`<th>${c[1]}</th>`).join('')}<th>Valor da venda</th><th>Pago no dia</th></tr></thead>
+      <tbody>${rows.map(dateStr=>{
+        const dia = diasData[dateStr] || {};
+        const dNum = dateStr.slice(8,10);
+        return `<tr>
+          <td class="funil-data-cell"><strong>${dNum}/${ym.slice(5,7)}</strong><div class="funil-weekday">${weekdayLabel(dateStr).slice(0,3)}</div></td>
+          ${FUNIL_DIARIO_COLS.map(c=>`<td><input type="number" min="0" class="funil-input" data-fdate="${dateStr}" data-fcol="${c[0]}" value="${dia[c[0]]||''}" placeholder="0"></td>`).join('')}
+          <td><input type="number" min="0" step="0.01" class="funil-input funil-money" data-fdate="${dateStr}" data-fcol="valorVenda" value="${dia.valorVenda||''}" placeholder="0"></td>
+          <td><input type="number" min="0" step="0.01" class="funil-input funil-money" data-fdate="${dateStr}" data-fcol="pagoNoDia" value="${dia.pagoNoDia||''}" placeholder="0"></td>
+        </tr>`;
+      }).join('')}</tbody>
+      <tfoot><tr>
+        <td><strong>Total</strong></td>
+        ${FUNIL_DIARIO_COLS.map(c=>`<td class="tnum">${st.funil[c[0]]||0}</td>`).join('')}
+        <td class="tnum">${fmtEUR(st.funil.valorVenda)}</td>
+        <td class="tnum">${fmtEUR(st.funil.pagoNoDia)}</td>
+      </tr></tfoot>
+    </table>
+    </div>
+    <div class="field-hint" style="padding:0 20px 16px;">Os campos "Valor da venda" e "Pago no dia" aqui são só para acompanhamento do funil, no mesmo formato da tua planilha — o faturamento e a comissão oficiais continuam vindo dos registos em Vendas/Recorrências, para não contar o mesmo dinheiro duas vezes.</div>
   </section>`;
 }
 
@@ -1136,9 +1410,9 @@ function renderSellerDetail(){
     <div style="margin-left:auto;display:flex;gap:8px;">${seller.ativo ? `<button class="btn danger sm" id="btnToggleSeller">Desativar</button>` : `<button class="btn gold sm" id="btnToggleSeller">Reativar</button>`}</div>
   </div>
   <div class="cards">
-    <div class="card accent"><div class="lbl">Valor faturado</div><div class="val good">${fmtEUR(st.valorFaturado)}</div></div>
+    <div class="card accent"><div class="lbl">Valor vendido (contratado)</div><div class="val good">${fmtEUR(st.valorVendido)}</div><div class="sub">${st.nSales} venda(s) — pago ou não</div></div>
+    <div class="card"><div class="lbl">Faturado (caixa)</div><div class="val good">${fmtEUR(st.valorFaturado)}</div></div>
     <div class="card"><div class="lbl">Pendente</div><div class="val bad">${fmtEUR(st.valorPendente)}</div></div>
-    <div class="card"><div class="lbl">Ticket médio</div><div class="val">${fmtEUR(st.ticketMedio)}</div></div>
     <div class="card"><div class="lbl">Comissão (${fmtPct(taxaComissao())} sobre o líquido de IVA)</div><div class="val">${fmtEUR(st.comissao)}</div></div>
   </div>
   <section class="block">
@@ -1198,6 +1472,8 @@ function renderConfig(){
   <div class="subtabs">
     <button data-ctab="servicos" class="${tab==='servicos'?'active':''}">Catálogo de serviços</button>
     <button data-ctab="comissao" class="${tab==='comissao'?'active':''}">Regras de comissão</button>
+    <button data-ctab="vendedores" class="${tab==='vendedores'?'active':''}">Vendedores</button>
+    <button data-ctab="pagamentos" class="${tab==='pagamentos'?'active':''}">Formas de pagamento</button>
   </div>
   <div style="margin-top:18px;">
   ${tab==='servicos' ? `
@@ -1212,7 +1488,8 @@ function renderConfig(){
         <td class="tnum"><strong>${fmtEUR(s.honorarioFinal)}</strong></td>
         <td style="white-space:nowrap;"><button class="btn ghost sm" data-edit-service="${s.id}">Editar</button> <button class="btn danger sm" data-del-service="${s.id}">Excluir</button></td>
       </tr>`).join('')}</tbody></table>
-  </section>` : `
+  </section>` : ''}
+  ${tab==='comissao' ? `
   <section class="block">
     <div class="block-head"><h3>Regras de comissão</h3><span class="hint">aplicadas a vendas e recorrências</span></div>
     <div style="padding:20px;max-width:460px;">
@@ -1224,7 +1501,34 @@ function renderConfig(){
       </div>
       <button class="btn gold" id="btnSaveComissao">Guardar regras</button>
     </div>
-  </section>`}
+  </section>` : ''}
+  ${tab==='vendedores' ? `
+  <section class="block">
+    <div class="block-head"><h3>Vendedores (${STATE.sellers.length})</h3><button class="btn gold" id="btnAddSellerCfg">+ Adicionar vendedor</button></div>
+    <table><thead><tr><th>Nome</th><th>Status</th><th>Senha definida</th><th></th></tr></thead>
+    <tbody>${STATE.sellers.map(s=>`<tr>
+        <td><strong>${s.nome}</strong></td>
+        <td><span class="chip ${s.ativo?'good':'bad'}">${s.ativo?'ativo':'inativo'}</span></td>
+        <td>${s.senha ? '<span class="chip neutral">sim</span>' : '<span class="chip neutral">não</span>'}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn ghost sm" data-view-seller="${s.id}">Ver perfil</button>
+          ${s.ativo ? `<button class="btn danger sm" data-toggle-seller-cfg="${s.id}">Desativar</button>` : `<button class="btn gold sm" data-toggle-seller-cfg="${s.id}">Reativar</button>`}
+        </td>
+      </tr>`).join('')}</tbody></table>
+  </section>` : ''}
+  ${tab==='pagamentos' ? `
+  <section class="block">
+    <div class="block-head"><h3>Formas de pagamento (${formasPagamentoList().length})</h3></div>
+    <div style="padding:16px 20px;">
+      <div class="field-row" style="align-items:flex-end;max-width:460px;">
+        <div class="field" style="flex:1;"><label>Nova forma de pagamento</label><input type="text" id="novaFormaPagamento" placeholder="Ex.: PIX"></div>
+        <button class="btn gold sm" id="btnAddFormaPagamento" style="margin-bottom:14px;">Adicionar</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+        ${formasPagamentoList().map(f=>`<span class="chip neutral" style="padding:6px 10px;">${f} <button data-del-forma-pagamento="${f}" style="border:none;background:none;color:var(--bad);cursor:pointer;font-weight:700;margin-left:4px;">×</button></span>`).join('')}
+      </div>
+    </div>
+  </section>` : ''}
   </div>`;
 }
 
@@ -1334,7 +1638,7 @@ function openQuickAddModal(initialTipo, forColaborador){
   let tipo = initialTipo || 'integral';
   const opts = activeSellers().map(s=>`<option value="${s.id}">${s.nome}</option>`).join('');
   const serviceOpts = STATE.services.map(s=>`<option value="${s.nome}">`).join('');
-  const formasPagamento = ['TRANSFERÊNCIA BANCARIA','MB WAY','KLARNA','DINHEIRO','OUTRO'];
+  const formasPagamento = formasPagamentoList();
 
   function render(){
     document.getElementById('modalRoot').innerHTML = `
@@ -1674,6 +1978,11 @@ function wireViewportEvents(){
   if(btnAddRec) btnAddRec.onclick = ()=>openAddRecModal(false);
   const btnAddRecColab = document.getElementById('btnAddRecColab');
   if(btnAddRecColab) btnAddRecColab.onclick = ()=>openAddRecModal(true);
+  vp.querySelectorAll('[data-toggle-expand]').forEach(b=>{
+    b.addEventListener('click', ()=>{ STATE[b.dataset.toggleExpand] = !STATE[b.dataset.toggleExpand]; renderAll(); });
+  });
+  const btnFecharAlerta = document.getElementById('btnFecharAlerta');
+  if(btnFecharAlerta) btnFecharAlerta.onclick = async ()=>{ await dismissAlertaHoje(); renderAll(); };
   const btnQuickSale = document.getElementById('btnQuickSale');
   if(btnQuickSale) btnQuickSale.onclick = ()=>openQuickAddModal('integral', STATE.role==='colaborador');
   const btnQuickRec = document.getElementById('btnQuickRec');
@@ -1683,22 +1992,20 @@ function wireViewportEvents(){
   const salesVendorSelect = document.getElementById('salesVendorSelect');
   if(salesVendorSelect) salesVendorSelect.addEventListener('change', ()=>{ STATE.salesVendorFilter = salesVendorSelect.value; renderAll(); });
 
-  const fConversas = document.getElementById('fConversas');
-  const fContatos = document.getElementById('fContatos');
-  const fFechamentos = document.getElementById('fFechamentos');
-  if(fConversas){
-    const funilSellerId = STATE.view==='my-panel' ? STATE.myOwnSellerId : STATE.selectedSellerId;
-    const save = async ()=>{
+  vp.querySelectorAll('.funil-input').forEach(input=>{
+    input.addEventListener('change', async ()=>{
+      const funilSellerId = STATE.view==='my-panel' ? STATE.myOwnSellerId : STATE.selectedSellerId;
       const s = sellerById(funilSellerId);
-      s.conversasIniciadas = Number(fConversas.value)||0;
-      s.novosContatos = Number(fContatos.value)||0;
-      s.fechamentosManual = Number(fFechamentos.value)||0;
+      if(!s) return;
+      if(!s.funilDiario) s.funilDiario = {};
+      const date = input.dataset.fdate, col = input.dataset.fcol;
+      if(!s.funilDiario[date]) s.funilDiario[date] = {};
+      const val = Number(input.value)||0;
+      if(val===0) delete s.funilDiario[date][col]; else s.funilDiario[date][col] = val;
+      if(Object.keys(s.funilDiario[date]).length===0) delete s.funilDiario[date];
       await persist('sellers'); renderAll();
-    };
-    fConversas.addEventListener('change', save);
-    fContatos.addEventListener('change', save);
-    fFechamentos.addEventListener('change', save);
-  }
+    });
+  });
 
   const btnSaveSenha = document.getElementById('btnSaveSenha');
   if(btnSaveSenha){
@@ -1745,6 +2052,37 @@ function wireViewportEvents(){
     STATE.meta.taxaIvaPadrao = (Number(document.getElementById('cfgTaxaIva').value)||0)/100;
     await persist('meta'); renderAll();
   };
+  const btnAddSellerCfg = document.getElementById('btnAddSellerCfg');
+  if(btnAddSellerCfg) btnAddSellerCfg.onclick = openAddSellerModal;
+  vp.querySelectorAll('[data-view-seller]').forEach(b=> b.addEventListener('click', ()=>{
+    STATE.selectedSellerId = b.dataset.viewSeller; STATE.view = 'seller-detail'; renderAll();
+  }));
+  vp.querySelectorAll('[data-toggle-seller-cfg]').forEach(b=> b.addEventListener('click', ()=>{
+    const s = sellerById(b.dataset.toggleSellerCfg);
+    if(s.ativo){
+      openConfirmModal({
+        title:'Desativar vendedor', danger:true, confirmLabel:'Desativar',
+        message:`<strong>${s.nome}</strong> deixará de aparecer no ranking e na lista ativa. O histórico é mantido e pode ser reativado a qualquer momento.`,
+        onConfirm: async ()=>{ s.ativo=false; await persist('sellers'); renderAll(); }
+      });
+    } else { s.ativo = true; persist('sellers').then(renderAll); }
+  }));
+  const btnAddFormaPagamento = document.getElementById('btnAddFormaPagamento');
+  if(btnAddFormaPagamento) btnAddFormaPagamento.onclick = async ()=>{
+    const input = document.getElementById('novaFormaPagamento');
+    const val = input.value.trim().toUpperCase();
+    if(!val) return;
+    const lista = formasPagamentoList();
+    if(!lista.includes(val)){
+      STATE.meta.formasPagamento = [...lista, val];
+      await persist('meta'); renderAll();
+    }
+  };
+  vp.querySelectorAll('[data-del-forma-pagamento]').forEach(b=> b.addEventListener('click', async ()=>{
+    const val = b.dataset.delFormaPagamento;
+    STATE.meta.formasPagamento = formasPagamentoList().filter(f=>f!==val);
+    await persist('meta'); renderAll();
+  }));
 
   // Financeiro
   vp.querySelectorAll('[data-ftab]').forEach(b=> b.addEventListener('click', ()=>{ STATE.financeiroTab=b.dataset.ftab; renderAll(); }));
@@ -1800,7 +2138,11 @@ document.getElementById('btnLogout').addEventListener('click', async ()=>{
   await loadState();
   await applyHistoricalImport();
   await applyDedupSalesVsRecurrences();
+  await applyJulhoUpdate();
+  await applyLarissaIndividualJuly();
+  await applyRemoveStaleLeandroRecorrencia();
   await loadSession();
+  await loadAlertaDismissido();
   const availableMonths = [...new Set(buildEvents().map(e=>e.date && e.date.slice(0,7)).filter(Boolean))].sort();
   if(availableMonths.length && !availableMonths.includes(STATE.periodFilter.anchor.slice(0,7))){
     STATE.periodFilter.anchor = availableMonths[availableMonths.length-1];
