@@ -613,6 +613,26 @@ async function applyCorrigeEntradaRecorrencias2026(){
   await persist('meta');
 }
 
+/* Preenche a forma de pagamento das recorrências existentes, usando a venda
+   correspondente (mesmo cliente + mesma data) como referência — necessário
+   pro gráfico "Forma de pagamento mais utilizada" da Visão Geral também
+   refletir o caixa das recorrências, não só das vendas avulsas. Roda uma
+   única vez. */
+async function applyFormaPagamentoRecorrencias2026(){
+  if(STATE.meta.formaPagamentoRecorrencias2026) return;
+  const normNome = s => (s||'').trim().toUpperCase();
+  const usadas = new Set();
+  STATE.recurrences.forEach(r=>{
+    if(r.formaPagamento) return;
+    const k = normNome(r.cliente)+'|'+r.dataVenda;
+    const match = STATE.sales.find(s=> !usadas.has(s.id) && s.formaPagamento && (normNome(s.cliente)+'|'+s.data)===k);
+    if(match){ usadas.add(match.id); r.formaPagamento = match.formaPagamento; }
+  });
+  STATE.meta.formaPagamentoRecorrencias2026 = true;
+  await persist('recurrences');
+  await persist('meta');
+}
+
 /* A recorrência "LEANDRO MARIANO SILVA" (criada na primeiríssima importação)
    não existe mais em nenhuma aba de recorrência da planilha atual — ele só
    aparece no REGISTRO DE VENDAS e na aba individual da Larissa, ambos
@@ -1363,10 +1383,22 @@ function renderRecorrenciasAtrasadasBox(){
   </section>`;
 }
 function renderChartsPanel(){
-  // Forma de pagamento mais utilizada, no período selecionado
-  const salesInPeriod = STATE.sales.filter(s=>inPeriodOrAll(s.data, STATE.periodFilter));
+  // Forma de pagamento mais utilizada, no período selecionado — inclui vendas
+  // avulsas (exceto as já contabilizadas via recorrência, pra não duplicar) E
+  // o caixa das recorrências (entrada + parcelas pagas), pela forma de
+  // pagamento gravada no contrato.
   const porForma = {};
-  salesInPeriod.forEach(s=>{ const f = s.formaPagamento || 'Não informado'; porForma[f] = (porForma[f]||0) + (s.valorPago||0); });
+  const soma = (forma, valor)=>{ const f = forma || 'Não informado'; porForma[f] = (porForma[f]||0) + valor; };
+  STATE.sales
+    .filter(s=>!s.jaContabilizadoViaRecorrencia && inPeriodOrAll(s.data, STATE.periodFilter))
+    .forEach(s=>soma(s.formaPagamento, s.valorPago||0));
+  STATE.recurrences.forEach(r=>{
+    const st = recStatus(r);
+    if((r.valorEntrada||0)>0 && inPeriodOrAll(r.dataVenda, STATE.periodFilter)) soma(r.formaPagamento, r.valorEntrada);
+    r.parcelas.forEach(p=>{
+      if(p.pago && inPeriodOrAll(p.data||r.dataVenda, STATE.periodFilter)) soma(r.formaPagamento, st.valorParcela);
+    });
+  });
   const formasOrdenadas = Object.entries(porForma).sort((a,b)=>b[1]-a[1]);
   const maxForma = formasOrdenadas.length ? formasOrdenadas[0][1] : 1;
 
@@ -1380,7 +1412,7 @@ function renderChartsPanel(){
 
   return `
   <section class="block">
-    <div class="block-head"><h3>Gráficos</h3><span class="hint">forma de pagamento no período selecionado · faturamento por mês (histórico completo)</span></div>
+    <div class="block-head"><h3>Gráficos</h3><span class="hint">forma de pagamento no período selecionado (vendas + recorrências) · faturamento por mês (histórico completo)</span></div>
     <div class="charts-grid">
       <div class="chart-col">
         <h4>Forma de pagamento mais utilizada</h4>
@@ -2096,7 +2128,10 @@ function openQuickAddModal(initialTipo, forColaborador){
             <div class="field"><label>Valor do contrato (€)</label><input type="number" id="qValorContrato" min="0" step="0.01"></div>
             <div class="field"><label>Valor de entrada (€)</label><input type="number" id="qEntrada" min="0" step="0.01" value="0"></div>
           </div>
-          <div class="field"><label>Nº de parcelas (após a entrada)</label><select id="qParcelas"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+          <div class="field-row">
+            <div class="field"><label>Nº de parcelas (após a entrada)</label><select id="qParcelas"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+            <div class="field"><label>Forma de pagamento</label><select id="qFormaPagamentoRec">${formasPagamento.map(f=>`<option>${f}</option>`).join('')}</select></div>
+          </div>
         </div>
       </div>
       <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Criar</button></div>
@@ -2160,11 +2195,12 @@ function openQuickAddModal(initialTipo, forColaborador){
         const valorContrato = Number(document.getElementById('qValorContrato').value)||0;
         const valorEntrada = Number(document.getElementById('qEntrada').value)||0;
         const nParcelas = Number(document.getElementById('qParcelas').value)||1;
+        const formaPagamento = document.getElementById('qFormaPagamentoRec').value;
         if(!valorContrato){ alert('Informe o valor do contrato.'); return; }
         if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
         const parcelas = Array.from({length:nParcelas}, (_,i)=>({numero:i+1, data:null, pago:false}));
         STATE.recurrences.push({
-          id:'rec-'+Date.now(), dataVenda:data, cliente, servico, nParcelas, valorEntrada,
+          id:'rec-'+Date.now(), dataVenda:data, cliente, servico, nParcelas, valorEntrada, formaPagamento,
           honorarioBase: matchedService?matchedService.honorarioBase:valorContrato,
           iva: matchedService?matchedService.iva:0, txAdm: matchedService?matchedService.txAdm:0,
           valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'—', parcelas, origemSheet:'manual'
@@ -2204,6 +2240,9 @@ function openEditRecModal(recId){
       <div class="field-row">
         <div class="field"><label>Valor do contrato (€)</label><input type="number" id="erValor" min="0" step="0.01" value="${rec.valorContrato||0}"></div>
         <div class="field"><label>Valor de entrada / já pago (€)</label><input type="number" id="erEntrada" min="0" step="0.01" value="${rec.valorEntrada||0}"></div>
+      </div>
+      <div class="field"><label>Forma de pagamento</label><select id="erFormaPagamento">${formasPagamentoList().map(f=>`<option ${f===rec.formaPagamento?'selected':''}>${f}</option>`).join('')}</select>
+        <div class="field-hint">Usada no gráfico "Forma de pagamento mais utilizada" da Visão Geral — vale pra entrada e parcelas desse contrato.</div>
       </div>
       <div class="field-row">
         <div class="field"><label>Honorário base (€)</label><input type="number" id="erBase" min="0" step="0.01" value="${rec.honorarioBase||0}"></div>
@@ -2245,6 +2284,7 @@ function openEditRecModal(recId){
     const honorarioBase = Number(document.getElementById('erBase').value)||0;
     const iva = Number(document.getElementById('erIva').value)||0;
     const txAdm = Number(document.getElementById('erTx').value)||0;
+    const formaPagamento = document.getElementById('erFormaPagamento').value;
     const nParcelasNovo = Number(document.getElementById('erParcelas').value)||1;
     if(!cliente || !valorContrato){ alert('Preencha ao menos cliente e valor do contrato.'); return; }
     if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
@@ -2261,7 +2301,7 @@ function openEditRecModal(recId){
     Object.assign(rec, {
       cliente, servico, dataVenda: data || rec.dataVenda, vendedorId,
       vendedorNome: vendedor?vendedor.nome:rec.vendedorNome,
-      valorContrato, valorEntrada, honorarioBase, iva, txAdm, nParcelas: nParcelasNovo, parcelas
+      valorContrato, valorEntrada, honorarioBase, iva, txAdm, formaPagamento, nParcelas: nParcelasNovo, parcelas
     });
     await persist('recurrences'); closeModal(); renderAll();
   };
@@ -2286,7 +2326,10 @@ function openAddRecModal(forColaborador){
         <div class="field"><label>Valor do contrato (€)</label><input type="number" id="rValor" min="0" step="0.01"></div>
         <div class="field"><label>Valor de entrada (€)</label><input type="number" id="rEntrada" min="0" step="0.01" value="0"></div>
       </div>
-      <div class="field"><label>Nº de parcelas (após a entrada)</label><select id="rParcelas"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+      <div class="field-row">
+        <div class="field"><label>Nº de parcelas (após a entrada)</label><select id="rParcelas"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+        <div class="field"><label>Forma de pagamento</label><select id="rFormaPagamento">${formasPagamentoList().map(f=>`<option>${f}</option>`).join('')}</select></div>
+      </div>
     </div>
     <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Criar</button></div>
   </div></div>`;
@@ -2315,13 +2358,14 @@ function openAddRecModal(forColaborador){
     const valorContrato = Number(document.getElementById('rValor').value)||0;
     const valorEntrada = Number(document.getElementById('rEntrada').value)||0;
     const nParcelas = Number(document.getElementById('rParcelas').value)||1;
+    const formaPagamento = document.getElementById('rFormaPagamento').value;
     if(!cliente || !valorContrato){ alert('Preencha ao menos cliente e valor do contrato.'); return; }
     if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
     const vendedor = sellerById(vendedorId);
     const parcelas = Array.from({length:nParcelas}, (_,i)=>({numero:i+1, data:null, pago:false}));
     STATE.recurrences.push({
       id:'rec-'+Date.now(), dataVenda:data||new Date().toISOString().slice(0,10), cliente, servico,
-      nParcelas, valorEntrada,
+      nParcelas, valorEntrada, formaPagamento,
       honorarioBase: matchedService?matchedService.honorarioBase:valorContrato,
       iva: matchedService?matchedService.iva:0,
       txAdm: matchedService?matchedService.txAdm:0,
@@ -2679,6 +2723,7 @@ document.getElementById('btnLogout').addEventListener('click', async ()=>{
   await applyReconciliacaoMaioJunho2026();
   await applyDedupCustos2026();
   await applyCorrigeEntradaRecorrencias2026();
+  await applyFormaPagamentoRecorrencias2026();
   await applyRemoveStaleLeandroRecorrencia();
   await loadSession();
   await loadAlertaDismissido();
