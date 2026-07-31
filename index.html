@@ -1712,10 +1712,13 @@ function funilAgregado(filter){
   return out;
 }
 
-/* Composição do pipeline por origem do lead, no período — de onde vieram
-   as vendas (avulsas), por valor. */
+/* Composição do "Valor Vendido" por origem do lead, no período — de onde
+   vieram as vendas, por valor. Conta TODAS as vendas (mesmo as que também
+   têm uma recorrência associada) porque "Valor Vendido" sempre conta assim
+   em todo o resto do sistema — jaContabilizadoViaRecorrencia só existe pra
+   não duplicar CAIXA/comissão, não afeta valor vendido. */
 function composicaoPorOrigem(filter){
-  const salesIn = STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && inPeriodOrAll(s.data, filter));
+  const salesIn = STATE.sales.filter(s=>inPeriodOrAll(s.data, filter));
   const map = {};
   salesIn.forEach(s=>{
     const o = s.origem || 'NÃO INFORMADO';
