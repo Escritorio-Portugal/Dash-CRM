@@ -14,8 +14,8 @@ Painel interno de controlo de vendas, recorrências, comissões e financeiro do 
 - **Configurações** — catálogo de serviços (honorário base, IVA, taxa administrativa) e regra de comissão.
 - **Financeiro** — custos fixos/variáveis, impostos devidos (calculados proporcionalmente ao valor efetivamente recebido), lucro líquido estimado.
 - **Dois perfis de acesso**:
-  - **Gestor(a)** — acesso total, protegido por senha administrativa.
-  - **Colaborador(a)** — vê apenas as suas próprias vendas, recorrências e comissões; pode registar novas recorrências, que alimentam automaticamente a visão do gestor. Acesso individual protegido por senha própria (definida pelo gestor no perfil de cada vendedor).
+  - **Gestor(a)** — acesso total, login com e-mail/senha (Supabase Auth).
+  - **Colaborador(a)** — vê apenas as suas próprias vendas, recorrências e comissões; pode registar novas recorrências, que alimentam automaticamente a visão do gestor. Login próprio com e-mail/senha (Supabase Auth), gerido pelo gestor no painel do Supabase.
 
 ## Estrutura do repositório
 
@@ -23,10 +23,12 @@ Painel interno de controlo de vendas, recorrências, comissões e financeiro do 
 ├── index.html               # aplicação completa (HTML + CSS + JS num único ficheiro)
 ├── vercel.json              # configuração mínima para deploy estático na Vercel
 ├── supabase/
-│   └── schema.sql          # script para criar a tabela e as políticas no Supabase
+│   ├── schema.sql               # script base: cria a tabela app_state
+│   └── migration_v2_auth_rls.sql # migração de segurança: Supabase Auth + RLS por utilizador
 ├── docs/
-│   ├── CHANGELOG.md        # histórico de versões
-│   └── DEPLOY_CHECKLIST.md # passo a passo para publicar sem erros
+│   ├── CHANGELOG.md            # histórico de versões
+│   ├── DEPLOY_CHECKLIST.md     # passo a passo para publicar sem erros
+│   └── SECURITY_MIGRATION.md   # passo a passo da migração de segurança v2
 └── README.md
 ```
 
@@ -57,24 +59,39 @@ Este repositório já inclui um `vercel.json` mínimo (`cleanUrls: true`) para r
 ## Como implantar
 
 1. **Criar o projeto Supabase** (se ainda não tiver um) em [supabase.com](https://supabase.com).
-2. **Rodar o schema**: abra o SQL Editor do projeto e execute o conteúdo de [`supabase/schema.sql`](supabase/schema.sql).
-3. **Configurar as credenciais**: abra `index.html` e localize as constantes `SUPABASE_URL` e `SUPABASE_KEY` perto do topo do `<script>`. Substitua pelos valores do seu projeto (Project Settings → API → Project URL / anon public key).
-4. **Abrir o ficheiro**: `index.html` pode ser aberto diretamente num navegador (duplo clique), hospedado em qualquer servidor estático (GitHub Pages, Netlify, Vercel, etc.), ou carregado como artefacto no Claude.
-5. Na primeira abertura, o painel encontra a tabela `app_state` vazia e semeia-a automaticamente com os dados iniciais.
+2. **Rodar o schema base**: abra o SQL Editor do projeto e execute [`supabase/schema.sql`](supabase/schema.sql).
+3. **Rodar a migração de segurança v2** (Supabase Auth + RLS por utilizador): execute [`supabase/migration_v2_auth_rls.sql`](supabase/migration_v2_auth_rls.sql) e siga o passo a passo em [`docs/SECURITY_MIGRATION.md`](docs/SECURITY_MIGRATION.md) para criar as contas de login.
+4. **Configurar as credenciais**: abra `index.html` e localize as constantes `SUPABASE_URL` e `SUPABASE_KEY` perto do topo do `<script>`. Substitua pelos valores do seu projeto (Project Settings → API → Project URL / anon public key — esta chave é pública por natureza, a segurança vem do RLS, não de a esconder).
+5. **Abrir o ficheiro**: `index.html` pode ser hospedado em qualquer servidor estático (GitHub Pages, Netlify, Vercel, etc.).
+6. Na primeira abertura (com uma sessão de gestor), o painel encontra a tabela `app_state` vazia e semeia-a automaticamente com os dados iniciais.
 
-## Senhas
+## Modelo de dados
 
-- **Senha do gestor**: definida diretamente no código (constante dentro do `<script>` — procure pela verificação de senha no fluxo de login). Troque-a antes de publicar o repositório se ele for deixar de ser privado.
-- **Senha de cada colaborador**: definida pelo gestor ao adicionar o vendedor, ou depois no perfil individual dele ("Acesso do colaborador").
+Em vez de tabelas relacionais separadas, os dados ficam guardados como blobs JSON numa única tabela chave/valor (`app_state`). Desde a v2, a granularidade da chave varia conforme quem pode acessar o quê:
+- `crm:sellers`, `crm:services`, `crm:meta` — partilhados (leitura para qualquer autenticado, escrita só do gestor).
+- `crm:costs` — exclusivo do gestor (leitura e escrita).
+- `crm:sales:<sellerId>`, `crm:recurrences:<sellerId>`, `crm:funil:<sellerId>` — uma linha por vendedor, com RLS restringindo cada colaborador à sua própria linha.
+
+Essa escolha (chave/valor em vez de tabelas relacionais) simplificou a migração de `window.storage` para Supabase sem reescrever a lógica da aplicação. O custo é não conseguir fazer consultas SQL diretas sobre os dados — se isso vier a ser necessário (relatórios, BI), migrar para tabelas relacionais é o próximo passo natural.
+
+## Contas de acesso
+
+Desde a v2, o login é feito com **e-mail e senha reais, verificados pelo
+Supabase Auth** — não há mais nenhuma senha guardada ou comparada dentro do
+`index.html`. Criar/editar/remover contas é feito no painel do Supabase
+(Authentication → Users), ligado a um papel (gestor/colaborador) pela tabela
+`profiles`. Ver o passo a passo completo em
+[`docs/SECURITY_MIGRATION.md`](docs/SECURITY_MIGRATION.md).
 
 ## Segurança e limitações conhecidas
 
-Este projeto foi desenhado para uso interno, entre pessoas de confiança, e tem limitações de segurança que qualquer pessoa a mexer no código deve conhecer:
+Este projeto foi desenhado para uso interno, entre pessoas de confiança.
+Desde a v2 (Supabase Auth + RLS por utilizador):
 
-1. **As senhas (gestor e colaboradores) são verificadas no navegador, não no servidor.** Elas ficam visíveis a quem inspecionar o código-fonte ou o histórico do repositório. Não são proteção contra alguém com intenção de contornar — servem como fricção para uso casual.
-2. **As políticas do Supabase (RLS) são permissivas**: qualquer pessoa com a chave `anon`/`publishable` consegue ler e escrever na tabela `app_state`. Isso é necessário porque não há Supabase Auth real ligado ao painel.
-3. **Não faça o repositório público** enquanto ele contiver a chave do Supabase e as senhas em texto simples no histórico de commits.
-4. **Caminho recomendado para evoluir a segurança**: adotar Supabase Auth (login com e-mail/senha por colaborador, validado no servidor) e reescrever as políticas de RLS para restringir cada leitura/escrita ao próprio utilizador autenticado.
+1. **As senhas são verificadas no servidor** (Supabase Auth), não mais no navegador — não existe nenhuma senha guardada em texto simples no código nem nos dados.
+2. **As políticas do Supabase (RLS) exigem sessão autenticada** para qualquer leitura ou escrita — a chave `anon`/`publishable` sozinha não dá mais acesso a nada. Um colaborador só consegue ler/escrever as **suas próprias** vendas, recorrências e funil diário; o financeiro (custos) é exclusivo do gestor.
+3. **Ainda não faça o repositório público** enquanto ele contiver a chave do Supabase — ela continua a ser necessária para inicializar o cliente (é uma chave pública por definição, mas revelar a URL do projeto sem necessidade não traz benefício).
+4. Ver [`supabase/migration_v2_auth_rls.sql`](supabase/migration_v2_auth_rls.sql) para o detalhe exato das políticas de RLS aplicadas.
 
 ## Modelo de dados
 
