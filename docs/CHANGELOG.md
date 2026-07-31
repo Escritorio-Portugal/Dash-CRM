@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.1 — Editar/excluir vendas, ordenação por data, criar conta pelo painel
+- **Editar e excluir vendas**: botões novos em Vendas (gestor), no perfil do vendedor e em Minhas Vendas — mesmo padrão que já existia para recorrências. Serve pra corrigir dados e remover duplicatas direto pela interface, sem precisar mexer no Supabase.
+- **Ordenação por data em todas as listas de Vendas e Recorrências**: mais recente no topo, dia 1 do mês no fim da lista — consistente em Vendas, Recorrências (em aberto e pagas), Visão Geral (recorrências em andamento) e nas telas individuais do vendedor.
+- **Botão "Criar conta"**: cria login (e-mail/senha) + perfil (gestor/colaborador) direto pelo painel, sem precisar ir ao Supabase manualmente. Implementado como uma Edge Function (`supabase/functions/create-user`) porque criar uma conta pra outra pessoa exige a chave `service_role`, que nunca pode ficar no código que roda no navegador — a função confirma no servidor que quem está a chamar é o gestor antes de criar qualquer coisa. Requer publicar a função uma vez (passo a passo em `docs/SECURITY_MIGRATION.md`); sem isso, o botão continua visível mas mostra um erro claro ao clicar.
+
 ## v2.0 — Segurança: Supabase Auth real + RLS por utilizador
 - **Login real, verificado no servidor**: substituído o fluxo antigo (escolher "Sou gestor/Sou colaborador" + senha comparada no navegador — incluindo a senha do gestor, que estava em texto simples no próprio código) por login com e-mail/senha via Supabase Auth. Sem uma sessão válida, o Supabase agora recusa qualquer leitura ou escrita — a chave `anon`/`publishable` sozinha não dá mais acesso a nada.
 - **RLS por utilizador**: nova tabela `profiles` liga cada conta de login a um papel (gestor/colaborador) e, se for colaborador, ao vendedor correspondente. Políticas novas: gestor tem acesso total; qualquer autenticado lê vendedores/catálogo/configurações gerais; **um colaborador só lê e escreve as suas próprias vendas, recorrências e funil diário** — nunca as de outro colaborador nem o financeiro (custos), que ficam exclusivos do gestor.
