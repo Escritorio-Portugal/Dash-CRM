@@ -41,12 +41,14 @@ No projeto → **Settings → General**:
 ## 5. Testar o link
 
 - [ ] Abra o link de produção (ex.: `dash-crm-psi.vercel.app`) numa aba anônima/privada — evita que o cache do navegador esconda um problema já corrigido.
-- [ ] O painel deve abrir a tela de login (Gestor / Colaborador). Se baixar um ficheiro em vez disso, volte ao passo 3 — normalmente é o Framework Preset.
+- [ ] O painel deve abrir a tela de login (e-mail + senha). Se baixar um ficheiro em vez disso, volte ao passo 3 — normalmente é o Framework Preset.
 
-## 6. Checklist do Supabase (se os dados não salvarem)
+## 6. Checklist do Supabase (se os dados não salvarem, ou ninguém conseguir entrar)
 
 - [ ] O projeto Supabase está ativo (não pausado por inatividade — projetos gratuitos pausam sozinhos depois de um tempo sem uso).
 - [ ] A tabela `app_state` existe (SQL Editor → rodar `select * from app_state;` deve funcionar sem erro).
+- [ ] A migração `supabase/migration_v2_auth_rls.sql` já foi executada (SQL Editor → rodar `select * from profiles;` deve funcionar sem erro e mostrar pelo menos uma linha para o gestor).
+- [ ] Cada pessoa que usa o painel tem uma conta em **Authentication → Users** e uma linha correspondente em `profiles` (ver `docs/SECURITY_MIGRATION.md`).
 - [ ] `SUPABASE_URL` e `SUPABASE_KEY` dentro do `index.html` correspondem ao projeto certo (Project Settings → API).
 - [ ] Se aparecer o aviso vermelho de erro no próprio painel, copie o texto exato dele — é a forma mais rápida de eu identificar a causa.
 
