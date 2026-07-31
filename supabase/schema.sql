@@ -1,6 +1,6 @@
 -- ============================================================
 -- Pablo Mendes Advocacia — Controlo Geral (CRM)
--- Schema do Supabase
+-- Schema do Supabase (base)
 --
 -- Este projeto usa UMA tabela chave/valor (app_state) em vez de
 -- tabelas relacionais separadas por entidade. Cada "chave" guarda
@@ -14,6 +14,13 @@
 -- Se no futuro for necessário gerar relatórios via SQL/BI, migrar
 -- para tabelas relacionais (sellers, sales, recurrences, services,
 -- costs) é o próximo passo recomendado.
+--
+-- IMPORTANTE: este ficheiro cria a tabela com políticas de RLS
+-- permissivas (histórico, v1). Depois de rodar isto, execute SEMPRE
+-- também supabase/migration_v2_auth_rls.sql — ele substitui essas
+-- políticas por outras que exigem login real (Supabase Auth) e
+-- restringem cada colaborador aos seus próprios dados. Ver
+-- docs/SECURITY_MIGRATION.md para o passo a passo completo.
 -- ============================================================
 
 create table if not exists app_state (
@@ -25,18 +32,10 @@ create table if not exists app_state (
 alter table app_state enable row level security;
 
 -- ------------------------------------------------------------
--- ATENÇÃO — políticas permissivas
---
--- As políticas abaixo permitem que QUALQUER pessoa com a chave
--- publishable (anon key) do projeto leia e escreva nesta tabela.
--- Isso é aceitável para uso interno entre pessoas de confiança,
--- mas não deve ser considerado seguro para uso público, já que
--- o painel não tem autenticação de servidor (Supabase Auth) —
--- os "logins" de gestor/colaborador são apenas uma camada de
--- interface, não uma verificação no banco de dados.
---
--- Para uma proteção real, o próximo passo é adotar Supabase Auth
--- e reescrever estas políticas para checar auth.uid() por linha.
+-- Políticas iniciais (v1) — substituídas pela migration_v2 logo
+-- a seguir. Ficam aqui só para o "create table" não deixar a
+-- tabela sem nenhuma política por um instante durante o setup
+-- inicial de um projeto novo.
 -- ------------------------------------------------------------
 
 create policy "allow anon read" on app_state
