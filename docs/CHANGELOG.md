@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.3 — IVA de recorrência recalculado por pagamento + isenção de taxa administrativa
+- **Correção na fórmula de IVA para recorrências**: cada entrada e cada parcela agora desconta o IVA (23% por padrão, configurável) **sobre o valor efetivamente pago naquele momento** — antes, o sistema rateava proporcionalmente o IVA total do contrato, o que dava um valor diferente do esperado. Exemplo conferido: contrato de €2.112,60, entrada de €750 → IVA descontado agora é €172,50 (23% de 750), comissão €57,75.
+  - Vendas integrais (avulsas, pagas de uma vez) **não mudaram** — continuam usando o IVA real do serviço, como já estava certo.
+  - O campo "Percentual de IVA a descontar" voltou a aparecer em Configurações → Regras de comissão (agora só se aplica a entradas/parcelas de recorrência).
+- **Novo: isenção de taxa administrativa por contrato.** Botão "isento de tx. adm." na tabela de recorrências (aparece só quando o contrato tem taxa administrativa) — clique pra ativar/desativar. Quando isento, nenhuma parcela desse contrato cobra a taxa administrativa, mesmo com o valor preenchido no cadastro. Também disponível como checkbox no modal de editar recorrência.
+
+## v2.2 — Pedido de acesso pela tela de login, com aprovação do gestor
+- Novo link **"Peça acesso aqui"** na tela de login: a pessoa preenche nome, e-mail e senha e o pedido fica **pendente** — ela só vê "aguardando aprovação", nunca entra direto no painel.
+- Nova aba **Configurações → Solicitações de acesso**: o gestor vê os pedidos pendentes (nome, e-mail), escolhe o papel e o vendedor correspondente, e aprova ou recusa. Depois de aprovado, a pessoa já entra normalmente com a senha que ela mesma definiu.
+- Segurança garantida por um **trigger no próprio banco de dados** (`supabase/migration_v3_signup_approval.sql`), não só por uma checagem no navegador: qualquer pedido feito por alguém que não é gestor nasce sempre pendente, sem papel nem vendedor — não tem como se auto-aprovar adulterando o que é enviado pelo site.
+- Isso substitui, na prática, a necessidade de criar cada conta manualmente em Authentication → Users — o gestor só aprova pelo próprio painel.
+
 ## v2.1 — Editar/excluir vendas, ordenação por data, criar conta pelo painel
 - **Editar e excluir vendas**: botões novos em Vendas (gestor), no perfil do vendedor e em Minhas Vendas — mesmo padrão que já existia para recorrências. Serve pra corrigir dados e remover duplicatas direto pela interface, sem precisar mexer no Supabase.
 - **Ordenação por data em todas as listas de Vendas e Recorrências**: mais recente no topo, dia 1 do mês no fim da lista — consistente em Vendas, Recorrências (em aberto e pagas), Visão Geral (recorrências em andamento) e nas telas individuais do vendedor.
