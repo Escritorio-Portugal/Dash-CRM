@@ -383,7 +383,7 @@ async function resolveProfile(){
     console.error('Não encontrei perfil para este login', error);
     return null;
   }
-  return { role: data.role, sellerId: data.seller_id, email: session.user.email };
+  return { role: data.role, sellerId: data.seller_id, email: session.user.email, status: data.status || 'approved' };
 }
 
 
@@ -411,6 +411,7 @@ let STATE = {
   clientesFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   financeiroFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   alertaDispensadoHoje: false,
+  accessRequests: [],
   expandAtividade: false,
   expandAtrasadas: false
 };
@@ -1187,48 +1188,121 @@ function renderLoginScreen(mode, extra){
   document.getElementById('shell').classList.remove('visible');
   document.getElementById('loginScreen').classList.add('visible');
 
-  card.innerHTML = `
-    <h2>Entrar no painel</h2>
-    <p class="sub">Inicie sessao com o e-mail e a senha da sua conta.</p>
-    <div class="field"><label>E-mail</label><input type="email" id="loginEmail" placeholder="voce@exemplo.com" autocomplete="username"></div>
-    <div class="field"><label>Senha</label><input type="password" id="loginPass" placeholder="Digite a senha" autocomplete="current-password"></div>
-    <div id="loginError" style="color:var(--bad);font-size:12.5px;margin:-6px 0 12px;display:none;"></div>
-    <button class="btn gold" id="btnLogin" style="width:100%;justify-content:center;">Entrar</button>
-    <p class="sub" style="margin-top:14px;font-size:11.5px;">Nao tem conta? Peca ao gestor para a criar (Supabase - Authentication).</p>
-  `;
-  const emailInput = document.getElementById('loginEmail');
-  const passInput = document.getElementById('loginPass');
-  const errBox = document.getElementById('loginError');
-  const btnLogin = document.getElementById('btnLogin');
-  const tryEnter = async ()=>{
-    errBox.style.display = 'none';
-    btnLogin.disabled = true; btnLogin.textContent = 'A entrar...';
-    const { data, error } = await supa.auth.signInWithPassword({
-      email: emailInput.value.trim(), password: passInput.value
-    });
-    if(error || !data.session){
-      errBox.textContent = 'E-mail ou senha incorretos.';
-      errBox.style.display = 'block';
-      btnLogin.disabled = false; btnLogin.textContent = 'Entrar';
-      passInput.value = ''; passInput.focus();
-      return;
-    }
-    const profile = await resolveProfile();
-    if(!profile){
-      errBox.textContent = 'Login valido, mas sem perfil configurado - peca ao gestor para o adicionar em "profiles".';
-      errBox.style.display = 'block';
-      btnLogin.disabled = false; btnLogin.textContent = 'Entrar';
+  if(mode==='signin'){
+    card.innerHTML = `
+      <h2>Entrar no painel</h2>
+      <p class="sub">Inicie sessão com o e-mail e a senha da sua conta.</p>
+      <div class="field"><label>E-mail</label><input type="email" id="loginEmail" placeholder="voce@exemplo.com" autocomplete="username"></div>
+      <div class="field"><label>Senha</label><input type="password" id="loginPass" placeholder="Digite a senha" autocomplete="current-password"></div>
+      <div id="loginError" style="color:var(--bad);font-size:12.5px;margin:-6px 0 12px;display:none;"></div>
+      <button class="btn gold" id="btnLogin" style="width:100%;justify-content:center;">Entrar</button>
+      <p class="sub" style="margin-top:14px;font-size:11.5px;">Não tem conta? <a href="#" id="linkPedirAcesso">Peça acesso aqui</a>.</p>
+    `;
+    const emailInput = document.getElementById('loginEmail');
+    const passInput = document.getElementById('loginPass');
+    const errBox = document.getElementById('loginError');
+    const btnLogin = document.getElementById('btnLogin');
+    const tryEnter = async ()=>{
+      errBox.style.display = 'none';
+      btnLogin.disabled = true; btnLogin.textContent = 'A entrar…';
+      const { data, error } = await supa.auth.signInWithPassword({
+        email: emailInput.value.trim(), password: passInput.value
+      });
+      if(error || !data.session){
+        errBox.textContent = 'E-mail ou senha incorretos.';
+        errBox.style.display = 'block';
+        btnLogin.disabled = false; btnLogin.textContent = 'Entrar';
+        passInput.value = ''; passInput.focus();
+        return;
+      }
+      const profile = await resolveProfile();
+      if(!profile){
+        errBox.textContent = 'Login válido, mas sem perfil configurado — peça ao gestor para o adicionar em "profiles".';
+        errBox.style.display = 'block';
+        btnLogin.disabled = false; btnLogin.textContent = 'Entrar';
+        await supa.auth.signOut();
+        return;
+      }
+      if(profile.status==='pending'){ await supa.auth.signOut(); renderLoginScreen('pending'); return; }
+      if(profile.status==='rejected'){ await supa.auth.signOut(); renderLoginScreen('rejected'); return; }
+      STATE.role = profile.role;
+      STATE.myOwnSellerId = profile.sellerId;
+      STATE.myEmail = profile.email;
+      await bootAfterLogin();
+    };
+    btnLogin.onclick = tryEnter;
+    [emailInput, passInput].forEach(el=> el.addEventListener('keydown', e=>{ if(e.key==='Enter') tryEnter(); }));
+    document.getElementById('linkPedirAcesso').onclick = (e)=>{ e.preventDefault(); renderLoginScreen('signup'); };
+    emailInput.focus();
+
+  } else if(mode==='signup'){
+    card.innerHTML = `
+      <h2>Pedir acesso</h2>
+      <p class="sub">Preencha os seus dados. Sua conta fica <strong>pendente</strong> até o gestor aprovar — você só consegue entrar depois disso.</p>
+      <div class="field"><label>Nome</label><input type="text" id="suNome" placeholder="O seu nome"></div>
+      <div class="field"><label>E-mail</label><input type="email" id="suEmail" placeholder="voce@exemplo.com" autocomplete="username"></div>
+      <div class="field"><label>Senha</label><input type="password" id="suSenha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+      <div class="field"><label>Confirmar senha</label><input type="password" id="suSenha2" placeholder="Repita a senha" autocomplete="new-password"></div>
+      <div id="suError" style="color:var(--bad);font-size:12.5px;margin:-6px 0 12px;display:none;"></div>
+      <button class="btn gold" id="btnSignup" style="width:100%;justify-content:center;">Pedir acesso</button>
+      <p class="sub" style="margin-top:14px;font-size:11.5px;"><a href="#" id="linkVoltarLogin">&larr; Voltar para o login</a></p>
+    `;
+    document.getElementById('linkVoltarLogin').onclick = (e)=>{ e.preventDefault(); renderLoginScreen('signin'); };
+    document.getElementById('btnSignup').onclick = async ()=>{
+      const errBox = document.getElementById('suError');
+      errBox.style.display = 'none';
+      const nome = document.getElementById('suNome').value.trim();
+      const email = document.getElementById('suEmail').value.trim();
+      const senha = document.getElementById('suSenha').value;
+      const senha2 = document.getElementById('suSenha2').value;
+      if(!nome || !email || !senha){ errBox.textContent = 'Preencha todos os campos.'; errBox.style.display='block'; return; }
+      if(senha.length < 6){ errBox.textContent = 'A senha precisa de pelo menos 6 caracteres.'; errBox.style.display='block'; return; }
+      if(senha !== senha2){ errBox.textContent = 'As senhas não coincidem.'; errBox.style.display='block'; return; }
+      const btn = document.getElementById('btnSignup');
+      btn.disabled = true; btn.textContent = 'A enviar…';
+      const { data, error } = await supa.auth.signUp({ email, password: senha });
+      if(error || !data.user){
+        errBox.textContent = error && error.message==='User already registered' ? 'Já existe uma conta com este e-mail.' : (error ? error.message : 'Não consegui criar a conta.');
+        errBox.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Pedir acesso';
+        return;
+      }
+      if(!data.session){
+        // Projeto exige confirmação por e-mail — o pedido não pode ficar
+        // pendente do lado do gestor até essa confirmação acontecer.
+        errBox.textContent = 'Conta criada, mas este projeto exige confirmar o e-mail antes de continuar — confirme e depois tente entrar normalmente. Se você é o gestor, desligue "Confirm email" em Authentication → Providers no Supabase pra evitar isso no futuro.';
+        errBox.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Pedir acesso';
+        return;
+      }
+      const { error: profErr } = await supa.from('profiles').insert({ id: data.user.id, nome, email, status:'pending' });
       await supa.auth.signOut();
-      return;
-    }
-    STATE.role = profile.role;
-    STATE.myOwnSellerId = profile.sellerId;
-    STATE.myEmail = profile.email;
-    await bootAfterLogin();
-  };
-  btnLogin.onclick = tryEnter;
-  [emailInput, passInput].forEach(el=> el.addEventListener('keydown', e=>{ if(e.key==='Enter') tryEnter(); }));
-  emailInput.focus();
+      if(profErr){
+        errBox.textContent = 'A conta foi criada, mas não consegui registar o pedido — avise o gestor: ' + profErr.message;
+        errBox.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Pedir acesso';
+        return;
+      }
+      renderLoginScreen('pending');
+    };
+    document.getElementById('suNome').focus();
+
+  } else if(mode==='pending'){
+    card.innerHTML = `
+      <h2>Pedido enviado</h2>
+      <p class="sub">O seu acesso está <strong>a aguardar aprovação do gestor</strong>. Assim que for aprovado, você já consegue entrar com o e-mail e a senha que definiu.</p>
+      <button class="btn ghost" id="btnVoltarLogin2" style="width:100%;justify-content:center;">&larr; Voltar para o login</button>
+    `;
+    document.getElementById('btnVoltarLogin2').onclick = ()=> renderLoginScreen('signin');
+
+  } else if(mode==='rejected'){
+    card.innerHTML = `
+      <h2>Acesso não aprovado</h2>
+      <p class="sub">O seu pedido de acesso não foi aprovado. Fale diretamente com o gestor do escritório.</p>
+      <button class="btn ghost" id="btnVoltarLogin3" style="width:100%;justify-content:center;">&larr; Voltar para o login</button>
+    `;
+    document.getElementById('btnVoltarLogin3').onclick = ()=> renderLoginScreen('signin');
+  }
 }
 /* Roda as migracoes de dados uma vez so - so o gestor tem permissao de
    escrita ampla o suficiente pra elas; um colaborador simplesmente pula
@@ -1245,9 +1319,16 @@ async function runGestorMigrationsIfNeeded(){
   await applyFormaPagamentoRecorrencias2026();
   await applyRemoveStaleLeandroRecorrencia();
 }
+async function loadAccessRequests(){
+  if(STATE.role!=='gestor'){ STATE.accessRequests = []; return; }
+  const { data, error } = await supa.from('profiles').select('*').eq('status','pending').order('created_at');
+  if(error){ console.error('Não consegui carregar pedidos de acesso', error); STATE.accessRequests = []; return; }
+  STATE.accessRequests = data || [];
+}
 async function bootAfterLogin(){
   await loadState();
   await runGestorMigrationsIfNeeded();
+  await loadAccessRequests();
   await loadAlertaDismissido();
   const availableMonths = [...new Set(buildEvents().map(e=>e.date && e.date.slice(0,7)).filter(Boolean))].sort();
   if(availableMonths.length && !availableMonths.includes(STATE.periodFilter.anchor.slice(0,7))){
@@ -2027,8 +2108,21 @@ function renderConfig(){
     <button data-ctab="comissao" class="${tab==='comissao'?'active':''}">Regras de comissão</button>
     <button data-ctab="vendedores" class="${tab==='vendedores'?'active':''}">Vendedores</button>
     <button data-ctab="pagamentos" class="${tab==='pagamentos'?'active':''}">Formas de pagamento</button>
+    <button data-ctab="acesso" class="${tab==='acesso'?'active':''}">Solicitações de acesso${STATE.accessRequests.length?` (${STATE.accessRequests.length})`:''}</button>
   </div>
   <div style="margin-top:18px;">
+  ${tab==='acesso' ? `
+  <section class="block">
+    <div class="block-head"><h3>Pedidos de acesso pendentes (${STATE.accessRequests.length})</h3><span class="hint">quem pediu acesso pela tela de login, aguardando aprovação</span></div>
+    ${STATE.accessRequests.length ? STATE.accessRequests.map(r=>`
+      <div style="padding:16px 20px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+        <div style="min-width:160px;"><div class="lbl" style="font-size:11px;color:var(--ink-soft);">Nome</div><strong>${r.nome||'—'}</strong><div style="font-size:11.5px;color:var(--ink-soft);">${r.email||''}</div></div>
+        <div class="field" style="margin:0;"><label>Papel</label><select id="reqRole-${r.id}"><option value="colaborador">Colaborador(a)</option><option value="gestor">Gestor(a)</option></select></div>
+        <div class="field" style="margin:0;" id="reqSellerField-${r.id}"><label>Vendedor</label><select id="reqSeller-${r.id}">${STATE.sellers.map(s=>`<option value="${s.id}">${s.nome}</option>`).join('')}</select></div>
+        <button class="btn gold sm" data-approve-request="${r.id}">Aprovar</button>
+        <button class="btn danger sm" data-reject-request="${r.id}">Recusar</button>
+      </div>`).join('') : `<div class="empty">Nenhum pedido pendente no momento.</div>`}
+  </section>` : ''}
   ${tab==='servicos' ? `
   <section class="block">
     <div class="block-head"><h3>Serviços cadastrados (${STATE.services.length})</h3><button class="btn gold" id="btnAddService">+ Novo serviço</button></div>
@@ -2773,6 +2867,37 @@ function wireViewportEvents(){
     btn.addEventListener('click', ()=> openCreateAccountModal(btn.dataset.criarContaSeller || null));
   });
 
+  STATE.accessRequests.forEach(r=>{
+    const roleSel = document.getElementById('reqRole-'+r.id);
+    const sellerField = document.getElementById('reqSellerField-'+r.id);
+    if(roleSel) roleSel.addEventListener('change', ()=>{ sellerField.style.display = roleSel.value==='gestor' ? 'none' : ''; });
+  });
+  vp.querySelectorAll('[data-approve-request]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const reqId = btn.dataset.approveRequest;
+      const role = document.getElementById('reqRole-'+reqId).value;
+      const sellerId = role==='colaborador' ? document.getElementById('reqSeller-'+reqId).value : null;
+      btn.disabled = true; btn.textContent = 'A aprovar…';
+      const { error } = await supa.from('profiles').update({ role, seller_id: sellerId, status:'approved' }).eq('id', reqId);
+      if(error){ alert('Não consegui aprovar: '+error.message); btn.disabled=false; btn.textContent='Aprovar'; return; }
+      await loadAccessRequests(); renderAll();
+    });
+  });
+  vp.querySelectorAll('[data-reject-request]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const reqId = btn.dataset.rejectRequest;
+      openConfirmModal({
+        title:'Recusar pedido de acesso', danger:true, confirmLabel:'Recusar',
+        message:'Tem a certeza que deseja recusar este pedido de acesso? A pessoa vai ver uma mensagem de acesso não aprovado ao tentar entrar.',
+        onConfirm: async ()=>{
+          const { error } = await supa.from('profiles').update({ status:'rejected' }).eq('id', reqId);
+          if(error){ alert('Não consegui recusar: '+error.message); return; }
+          await loadAccessRequests(); renderAll();
+        }
+      });
+    });
+  });
+
   vp.querySelectorAll('[data-edit-sale]').forEach(btn=>{
     btn.addEventListener('click', ()=> openEditSaleModal(btn.dataset.editSale));
   });
@@ -2978,7 +3103,7 @@ document.getElementById('btnLogout').addEventListener('click', async ()=>{
   const { data: { session } } = await supa.auth.getSession();
   if(session){
     const profile = await resolveProfile();
-    if(profile){
+    if(profile && profile.status==='approved'){
       STATE.role = profile.role;
       STATE.myOwnSellerId = profile.sellerId;
       STATE.myEmail = profile.email;
@@ -2986,6 +3111,8 @@ document.getElementById('btnLogout').addEventListener('click', async ()=>{
       return;
     }
     await supa.auth.signOut();
+    if(profile && profile.status==='pending'){ renderLoginScreen('pending'); return; }
+    if(profile && profile.status==='rejected'){ renderLoginScreen('rejected'); return; }
   }
   renderLoginScreen('signin');
 })();
