@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/logo/favicon.png" />
+  <title>Acomodações — Aldeias Palace Hotel</title>
+  <meta name="description" content="Conheça as 11 categorias de apartamento do Aldeias Palace Hotel em Tucumã, PA: configuração, comodidades e diária." />
+  <link rel="stylesheet" href="/src/tokens.css" />
+  <link rel="stylesheet" href="/src/rooms.css" />
+  <link rel="stylesheet" href="/src/nav.css" />
+  <style>
+    body { margin: 0; padding-top: 108px; background: var(--rc-page-bg); }
+  </style>
+</head>
+<body>
+  <div id="site-header-root"></div>
+
+  <div id="rooms-root"></div>
+
+  <div id="site-footer-root"></div>
+
+  <script type="module">
+    import { initHeader, initFooter } from '/src/nav.js';
+    import { renderRoomsGrid } from '/src/rooms-render.js';
+    import { animate } from 'animejs';
+
+    initHeader();
+    initFooter();
+    renderRoomsGrid('#rooms-root');
+
+    document.querySelectorAll('.room-card__cta').forEach((btn) => {
+      btn.addEventListener('mouseenter', () => {
+        animate(btn, { scale: 1.04, duration: 200, ease: 'outQuad' });
+      });
+      btn.addEventListener('mouseleave', () => {
+        animate(btn, { scale: 1, duration: 200, ease: 'outQuad' });
+      });
+    });
+  </script>
+</body>
+</html>
