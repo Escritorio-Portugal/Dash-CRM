@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.4 — Busca por nome, extrato do dia, e sistema "ao vivo"
+- **Busca por nome** em Recorrências, Recorrências pagas, Vendas, Clientes e Financeiro — filtra a lista na hora, enquanto digita.
+- **Extrato do dia** (nova aba dentro de Financeiro): escolhe uma data e vê tudo que mexeu no caixa naquele dia — vendas recebidas, entrada/parcelas de recorrência, custos fixos e variáveis (pagos ou pendentes) — com totais de entrou/saiu/saldo do dia.
+- **Sistema "ao vivo"**: corrigido um bug em que a Visão Geral (e outras telas) travavam no último mês que tinha dados registados, em vez de mostrar o mês real de hoje. Agora, se a aba ficar aberta e a data virar (troca de dia ou de mês), os filtros que estavam acompanhando "hoje"/"este mês" avançam sozinhos, sem precisar recarregar a página — só isso, sem mexer em filtros que o utilizador tenha mudado manualmente para outro período.
+
 ## v2.3 — IVA de recorrência recalculado por pagamento + isenção de taxa administrativa
 - **Correção na fórmula de IVA para recorrências**: cada entrada e cada parcela agora desconta o IVA (23% por padrão, configurável) **sobre o valor efetivamente pago naquele momento** — antes, o sistema rateava proporcionalmente o IVA total do contrato, o que dava um valor diferente do esperado. Exemplo conferido: contrato de €2.112,60, entrada de €750 → IVA descontado agora é €172,50 (23% de 750), comissão €57,75.
   - Vendas integrais (avulsas, pagas de uma vez) **não mudaram** — continuam usando o IVA real do serviço, como já estava certo.
