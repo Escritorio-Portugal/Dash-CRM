@@ -212,15 +212,17 @@ tr:hover td{background:#FBFBFA;}
 .funnel .fitem label{display:block;font-size:10.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;letter-spacing:.4px;}
 .funnel .fitem input{width:100%;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;background:#fff;}
 
-.funil-diario-table{width:100%;border-collapse:collapse;font-size:11.5px;}
-.funil-diario-table th{white-space:nowrap;padding:6px 8px;font-size:9.5px;text-transform:uppercase;letter-spacing:.2px;background:var(--surface-2);border-bottom:1px solid var(--line);color:var(--ink-soft);position:sticky;top:0;}
-.funil-diario-table td{padding:3px 6px;border-bottom:1px solid var(--line);text-align:center;}
-.funil-diario-table tfoot td{background:var(--surface-2);font-weight:700;border-top:2px solid var(--line);}
-.funil-data-cell{text-align:left !important;white-space:nowrap;}
-.funil-weekday{font-size:9px;color:var(--ink-soft);text-transform:uppercase;}
-.funil-input{width:52px;border:1px solid var(--line);border-radius:5px;padding:4px 2px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;}
-.funil-input.funil-money{width:66px;}
-.funil-input:focus{outline:2px solid var(--gold-soft);border-color:var(--gold);}
+.funil-day-nav{display:flex;align-items:center;justify-content:center;gap:16px;padding:18px 20px 6px;flex-wrap:wrap;}
+.funil-day-current{text-align:center;min-width:150px;}
+.funil-day-current strong{display:block;font-family:'Source Serif 4',serif;font-size:17px;color:var(--wine);}
+.funil-day-current span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--ink-soft);}
+.funil-day-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 20px;}
+.funil-field{display:flex;flex-direction:column;gap:6px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;}
+.funil-field label{font-size:11px;color:var(--ink-soft);font-weight:600;line-height:1.25;}
+.funil-field .funil-input{width:100%;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-family:'IBM Plex Mono',monospace;font-size:14px;background:var(--surface);color:var(--ink);}
+.funil-field .funil-input:focus{outline:2px solid var(--gold-soft);border-color:var(--gold);}
+.funil-field-money{background:var(--gold-soft);border-color:var(--gold);}
+.funil-field-money label{color:var(--wine);}
 
 .modal-backdrop{position:fixed;inset:0;background:rgba(20,24,34,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
 .modal{background:#fff;border-radius:12px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:88vh;overflow-y:auto;}
@@ -424,6 +426,7 @@ let STATE = {
   searchClientes: '',
   searchFinanceiro: '',
   extratoData: todayISO(),
+  funilDiarioData: todayISO(),
   expandAtividade: false,
   expandAtrasadas: false
 };
@@ -798,6 +801,7 @@ const DIAS_SEMANA_PT = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','
 function daysInMonth(ym){ const [y,m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
 function weekdayLabel(dateStr){ return DIAS_SEMANA_PT[new Date(dateStr+'T00:00:00').getDay()]; }
 const FUNIL_DIARIO_COLS = [
+  ['ligacoesFeitas','Ligações feitas'],
   ['conversas','Conversas iniciadas'],
   ['respondeu','Respondeu 1ª msg'],
   ['consultaMarcada','Consulta marcada'],
@@ -812,7 +816,7 @@ const FUNIL_DIARIO_COLS = [
    é isso que faz o preenchimento dia a dia "alimentar" as estatísticas gerais. */
 function sumFunilDiario(seller, filter){
   const dias = seller.funilDiario || {};
-  const out = { conversas:0, respondeu:0, consultaMarcada:0, leadsQualificados:0, vendasConsultaMarcada:0, reagendado:0, noShow:0, consultaRealizada:0, vendaForaConsulta:0, valorVenda:0, pagoNoDia:0 };
+  const out = { ligacoesFeitas:0, conversas:0, respondeu:0, consultaMarcada:0, leadsQualificados:0, vendasConsultaMarcada:0, reagendado:0, noShow:0, consultaRealizada:0, vendaForaConsulta:0, valorVenda:0, pagoNoDia:0 };
   Object.entries(dias).forEach(([date, d])=>{
     if(!inPeriodOrAll(date, filter)) return;
     Object.keys(out).forEach(k=>{ out[k] += Number(d[k])||0; });
@@ -822,6 +826,7 @@ function sumFunilDiario(seller, filter){
 }
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
+function addDays(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
 function monthLabel(key){ if(!key) return '—'; const [y,m] = key.split('-'); return `${MESES_PT[parseInt(m,10)-1]} de ${y}`; }
 function fmtDateShort(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'}) : '—'; }
 
@@ -888,10 +893,10 @@ function buildEvents(){
     }
     const txAdmPorParcela = (r.isentoTaxaAdm || st.total<=0) ? 0 : (r.txAdm||0)/st.total;
     r.parcelas.forEach(p=>{
-      if(p.pago){
+      if(p.pago && p.data){ // sem data confirmada, não entra em nenhum mês — ver "Sem data de pagamento"
         const ivaValorParc = st.valorParcela*iva;
         const liquido = st.valorParcela - ivaValorParc - txAdmPorParcela;
-        events.push({ date: p.data || r.dataVenda, valor: st.valorParcela, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:txAdmPorParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente });
+        events.push({ date: p.data, valor: st.valorParcela, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:txAdmPorParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente });
       }
     });
   });
@@ -1206,10 +1211,10 @@ function comissaoBreakdownEvents(sellerId, filter){
     }
     const txAdmPorParcela = (r.isentoTaxaAdm || st.total<=0) ? 0 : (r.txAdm||0)/st.total;
     r.parcelas.forEach(p=>{
-      if(p.pago){
+      if(p.pago && p.data){
         const ivaDesc = st.valorParcela*iva;
         const liquido = Math.max(0, st.valorParcela - ivaDesc - txAdmPorParcela);
-        linhas.push({ date: p.data||r.dataVenda, cliente:r.cliente, tipo:'Parcela '+p.numero+(r.isentoTaxaAdm?' (isento tx. adm.)':''), recebido: st.valorParcela, ivaDesc, txAdmDesc:txAdmPorParcela, liquido, comissao: liquido*rate });
+        linhas.push({ date: p.data, cliente:r.cliente, tipo:'Parcela '+p.numero+(r.isentoTaxaAdm?' (isento tx. adm.)':''), recebido: st.valorParcela, ivaDesc, txAdmDesc:txAdmPorParcela, liquido, comissao: liquido*rate });
       }
     });
   });
@@ -1433,6 +1438,7 @@ const NAV_GESTOR = [
   {view:'overview', label:'Visão Geral'},
   {view:'recurrences', label:'Recorrências'},
   {view:'recurrences-paid', label:'Recorrências pagas'},
+  {view:'recurrences-nodate', label:'Sem data de pagamento'},
   {view:'sales', label:'Vendas'},
   {view:'ranking', label:'Ranking'},
   {view:'clientes', label:'Clientes'},
@@ -1479,7 +1485,7 @@ function renderSidebar(){
 }
 
 function renderTopbar(){
-  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', sales:'Vendas', ranking:'Ranking de Vendedores', clientes:'Clientes', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
+  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', 'recurrences-nodate':'Sem data de pagamento', sales:'Vendas', ranking:'Ranking de Vendedores', clientes:'Clientes', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
   document.getElementById('pageTitle').textContent = STATE.view==='overview' ? '' : (titles[STATE.view] || '');
   const inline = document.getElementById('metaInline');
   if(STATE.view==='overview'){
@@ -1648,7 +1654,7 @@ function renderChartsPanel(){
     const st = recStatus(r);
     if((r.valorEntrada||0)>0 && inPeriodOrAll(r.dataVenda, STATE.periodFilter)) soma(r.formaPagamento, r.valorEntrada);
     r.parcelas.forEach(p=>{
-      if(p.pago && inPeriodOrAll(p.data||r.dataVenda, STATE.periodFilter)) soma(r.formaPagamento, st.valorParcela);
+      if(p.pago && p.data && inPeriodOrAll(p.data, STATE.periodFilter)) soma(r.formaPagamento, st.valorParcela);
     });
   });
   const formasOrdenadas = Object.entries(porForma).sort((a,b)=>b[1]-a[1]);
@@ -1730,22 +1736,27 @@ function rankRow(r,i,filter){
    ========================================================= */
 function recurrenceTable(list, opts){
   opts = opts || {};
+  const podeGerir = STATE.role==='gestor';
   if(!list.length) return `<div class="empty"><div class="big">✓</div>Nenhuma recorrência aqui.</div>`;
   return `<table>
-    <thead><tr><th>Cliente</th><th>Serviço</th>${opts.hideVendedor?'':'<th>Vendedor</th>'}<th>Contrato</th><th>${opts.paidView?'Resumo':'Entrada + Parcelas'}</th>${opts.paidView?'':'<th>Pendente</th>'}<th></th></tr></thead>
+    <thead><tr><th>Cliente</th><th>Serviço</th>${opts.hideVendedor?'':'<th>Vendedor</th>'}<th>Contrato</th><th>${opts.paidView?'Resumo':'Entrada + Parcelas'}</th>${opts.paidView?'':'<th>Pendente</th>'}${podeGerir?'<th></th>':''}</tr></thead>
     <tbody>
       ${list.map(r=>{
         const st = recStatus(r);
         return `<tr data-rec="${r.id}">
-          <td><strong>${r.cliente}</strong><div class="sub" style="color:var(--ink-soft);font-size:11px;">${fmtDate(r.dataVenda)}</div>${(r.txAdm>0) ? `<button class="chip ${r.isentoTaxaAdm?'gold':'neutral'} sm" data-toggle-isento="${r.id}" style="margin-top:4px;border:none;cursor:pointer;" title="Clique pra ${r.isentoTaxaAdm?'voltar a cobrar':'isentar'} a taxa administrativa nas parcelas">${r.isentoTaxaAdm?'✓ isento de tx. adm.':'isento de tx. adm.'}</button>` : ''}</td>
+          <td><strong>${r.cliente}</strong><div class="sub" style="color:var(--ink-soft);font-size:11px;">${fmtDate(r.dataVenda)}</div>${(r.txAdm>0 && podeGerir) ? `<button class="chip ${r.isentoTaxaAdm?'gold':'neutral'} sm" data-toggle-isento="${r.id}" style="margin-top:4px;border:none;cursor:pointer;" title="Clique pra ${r.isentoTaxaAdm?'voltar a cobrar':'isentar'} a taxa administrativa nas parcelas">${r.isentoTaxaAdm?'✓ isento de tx. adm.':'isento de tx. adm.'}</button>` : (r.isentoTaxaAdm ? `<span class="chip gold" style="margin-top:4px;">✓ isento de tx. adm.</span>` : '')}</td>
           <td>${r.servico}</td>
           ${opts.hideVendedor?'':`<td>${r.vendedorNome||'—'}</td>`}
           <td class="tnum">${fmtEUR(r.valorContrato)}</td>
           ${opts.paidView
             ? `<td style="max-width:320px;">Entrou em <strong>${fmtDate(r.dataVenda)}</strong>, ${r.nParcelas} parcela${r.nParcelas>1?'s':''}${r.valorEntrada>0?' + entrada':''}, finalizada em <strong>${monthLabel(finalizacaoMes(r))}</strong>.</td>`
-            : `<td>${r.valorEntrada>0?`<span class="chip gold" style="margin-right:6px;">Entrada ${fmtEUR(r.valorEntrada)}</span>`:''}${r.parcelas.map(p=>`<span class="parcela-dot ${p.pago?'pago':''}" data-rec="${r.id}" data-parcela="${p.numero}" title="Parcela ${p.numero}${p.pago?' — paga':' — clique para marcar como paga'}">${p.pago?'✓':p.numero}</span>`).join('')}</td>`}
+            : `<td>${r.valorEntrada>0?`<span class="chip gold" style="margin-right:6px;">Entrada ${fmtEUR(r.valorEntrada)}</span>`:''}${r.parcelas.map(p=>
+                podeGerir
+                  ? `<span class="parcela-dot ${p.pago?'pago':''}" data-rec="${r.id}" data-parcela="${p.numero}" title="Parcela ${p.numero}${p.pago?' — paga':' — clique para marcar como paga'}">${p.pago?'✓':p.numero}</span>`
+                  : `<span class="parcela-dot ${p.pago?'pago':''}" style="cursor:default;" title="Parcela ${p.numero}${p.pago?' — paga':' — pendente'}">${p.pago?'✓':p.numero}</span>`
+              ).join('')}</td>`}
           ${opts.paidView?'':`<td class="tnum">${st.valorPendente>0.005 ? fmtEUR(st.valorPendente) : '<span class="chip good">quitado</span>'}</td>`}
-          <td style="white-space:nowrap;"><button class="btn ghost sm" data-edit-rec="${r.id}">Editar</button> <button class="btn danger sm" data-del-rec="${r.id}">Excluir</button></td>
+          ${podeGerir?`<td style="white-space:nowrap;"><button class="btn ghost sm" data-edit-rec="${r.id}">Editar</button> <button class="btn danger sm" data-del-rec="${r.id}">Excluir</button></td>`:''}
         </tr>`;
       }).join('')}
     </tbody>
@@ -1760,6 +1771,38 @@ function renderSearchBar(stateKey, placeholder){
 function matchesSearch(text, query){
   if(!query) return true;
   return (text||'').toString().toUpperCase().includes(query.trim().toUpperCase());
+}
+
+/* Lista achatada de parcelas marcadas como pagas mas sem data confirmada —
+   esse dinheiro está fora de qualquer cálculo de Faturamento/comissão por
+   mês até alguém preencher a data real aqui. */
+function parcelasSemData(){
+  const out = [];
+  STATE.recurrences.forEach(r=>{
+    r.parcelas.forEach(p=>{
+      if(p.pago && !p.data) out.push({ recId:r.id, cliente:r.cliente, vendedorNome:r.vendedorNome, dataVenda:r.dataVenda, numero:p.numero, valor: recStatus(r).valorParcela });
+    });
+  });
+  return out.sort((a,b)=> (a.dataVenda||'').localeCompare(b.dataVenda||''));
+}
+function renderRecurrencesNoDate(){
+  const lista = parcelasSemData().filter(l=>matchesSearch(l.cliente, STATE.searchRecorrencias));
+  return `
+  ${renderSearchBar('searchRecorrencias','Buscar por nome do cliente…')}
+  <div class="field-hint" style="margin-bottom:14px;">Essas parcelas já foram marcadas como pagas, mas a data real do pagamento não é conhecida — por isso não entram em nenhum mês de Faturamento, comissão ou gráficos até você preencher a data aqui. Preencha e clique em Salvar pra que o valor passe a contar no mês certo.</div>
+  <section class="block">
+    <div class="block-head"><h3>Parcelas pagas sem data (${lista.length})</h3></div>
+    ${lista.length ? `<table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Venda original</th><th>Parcela</th><th>Valor</th><th>Data do pagamento</th><th></th></tr></thead>
+    <tbody>${lista.map(l=>`<tr>
+        <td><strong>${l.cliente}</strong></td>
+        <td>${l.vendedorNome||'—'}</td>
+        <td>${fmtDate(l.dataVenda)}</td>
+        <td>${l.numero}</td>
+        <td class="tnum">${fmtEUR(l.valor)}</td>
+        <td><input type="date" id="ndData-${l.recId}-${l.numero}" min="${l.dataVenda}"></td>
+        <td><button class="btn gold sm" data-save-nodate="${l.recId}" data-parcela-num="${l.numero}">Salvar</button></td>
+      </tr>`).join('')}</tbody></table>` : `<div class="empty">${STATE.searchRecorrencias ? 'Nenhuma encontrada com esse nome.' : 'Nenhuma parcela pendente de data no momento.'}</div>`}
+  </section>`;
 }
 
 function renderRecurrences(){
@@ -2071,42 +2114,41 @@ function renderClientes(){
    DETALHE DO VENDEDOR (visão do gestor)
    ========================================================= */
 function renderFunilManual(seller, st){
-  const ym = STATE.periodFilter.granularity==='month' ? STATE.periodFilter.anchor.slice(0,7) : todayISO().slice(0,7);
-  const nDias = daysInMonth(ym);
+  const dataAtual = STATE.funilDiarioData || todayISO();
   const diasData = seller.funilDiario || {};
-  const rows = [];
-  for(let d=1; d<=nDias; d++){ rows.push(ym+'-'+String(d).padStart(2,'0')); }
+  const dia = diasData[dataAtual] || {};
+  const ehHoje = dataAtual === todayISO();
   return `
   <section class="block">
     <div class="block-head">
-      <h3>Funil de vendas diário — ${monthLabel(ym)}</h3>
-      <span class="hint">preenchido dia a dia por vendedor · alimenta automaticamente conversas, leads e taxa de conversão</span>
+      <h3>Funil de vendas diário</h3>
+      <span class="hint">preenchido dia a dia · alimenta automaticamente conversas, leads e taxa de conversão</span>
     </div>
     <div class="cards" style="margin:16px 20px 0;">
       <div class="card"><div class="lbl">Conversas iniciadas (mês)</div><div class="val">${st.conversas}</div></div>
       <div class="card"><div class="lbl">Leads qualificados (mês)</div><div class="val">${st.novosContatos}</div></div>
       <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${st.taxaConversao!==null?fmtPct(st.taxaConversao):'—'}</div></div>
     </div>
-    <div style="overflow-x:auto;padding-bottom:8px;">
-    <table class="funil-diario-table">
-      <thead><tr><th>Data</th>${FUNIL_DIARIO_COLS.map(c=>`<th>${c[1]}</th>`).join('')}<th>Valor da venda</th><th>Pago no dia</th></tr></thead>
-      <tbody>${rows.map(dateStr=>{
-        const dia = diasData[dateStr] || {};
-        const dNum = dateStr.slice(8,10);
-        return `<tr>
-          <td class="funil-data-cell"><strong>${dNum}/${ym.slice(5,7)}</strong><div class="funil-weekday">${weekdayLabel(dateStr).slice(0,3)}</div></td>
-          ${FUNIL_DIARIO_COLS.map(c=>`<td><input type="number" min="0" class="funil-input" data-fdate="${dateStr}" data-fcol="${c[0]}" value="${dia[c[0]]||''}" placeholder="0"></td>`).join('')}
-          <td><input type="number" min="0" step="0.01" class="funil-input funil-money" data-fdate="${dateStr}" data-fcol="valorVenda" value="${dia.valorVenda||''}" placeholder="0"></td>
-          <td><input type="number" min="0" step="0.01" class="funil-input funil-money" data-fdate="${dateStr}" data-fcol="pagoNoDia" value="${dia.pagoNoDia||''}" placeholder="0"></td>
-        </tr>`;
-      }).join('')}</tbody>
-      <tfoot><tr>
-        <td><strong>Total</strong></td>
-        ${FUNIL_DIARIO_COLS.map(c=>`<td class="tnum">${st.funil[c[0]]||0}</td>`).join('')}
-        <td class="tnum">${fmtEUR(st.funil.valorVenda)}</td>
-        <td class="tnum">${fmtEUR(st.funil.pagoNoDia)}</td>
-      </tr></tfoot>
-    </table>
+    <div class="funil-day-nav">
+      <button class="btn ghost sm" data-funil-nav="-1">&larr; Dia anterior</button>
+      <div class="funil-day-current"><strong>${fmtDate(dataAtual)}</strong><span>${weekdayLabel(dataAtual)}</span></div>
+      <button class="btn ghost sm" data-funil-nav="1" ${ehHoje?'disabled':''}>Dia seguinte &rarr;</button>
+      ${!ehHoje ? `<button class="btn gold sm" data-funil-hoje>Voltar para hoje</button>` : ''}
+    </div>
+    <div class="funil-day-grid">
+      ${FUNIL_DIARIO_COLS.map(c=>`
+        <div class="funil-field">
+          <label>${c[1]}</label>
+          <input type="number" min="0" class="funil-input" data-fdate="${dataAtual}" data-fcol="${c[0]}" value="${dia[c[0]]||''}" placeholder="0">
+        </div>`).join('')}
+      <div class="funil-field funil-field-money">
+        <label>Valor da venda (€)</label>
+        <input type="number" min="0" step="0.01" class="funil-input funil-money" data-fdate="${dataAtual}" data-fcol="valorVenda" value="${dia.valorVenda||''}" placeholder="0">
+      </div>
+      <div class="funil-field funil-field-money">
+        <label>Pago no dia (€)</label>
+        <input type="number" min="0" step="0.01" class="funil-input funil-money" data-fdate="${dataAtual}" data-fcol="pagoNoDia" value="${dia.pagoNoDia||''}" placeholder="0">
+      </div>
     </div>
     <div class="field-hint" style="padding:0 20px 16px;">Os campos "Valor da venda" e "Pago no dia" aqui são só para acompanhamento do funil, no mesmo formato da tua planilha — o faturamento e a comissão oficiais continuam vindo dos registos em Vendas/Recorrências, para não contar o mesmo dinheiro duas vezes.</div>
   </section>`;
@@ -2180,7 +2222,7 @@ function renderMyPanel(){
     <div class="block-head"><h3>Minhas recorrências (${recs.length})</h3><button class="btn gold" id="btnAddRecColab">+ Nova recorrência</button></div>
     ${recurrenceTable([...recs].sort((a,b)=> (b.dataVenda||'').localeCompare(a.dataVenda||'')),{hideVendedor:true})}
   </section>
-  <section class="block"><div class="block-head"><h3>Minhas vendas avulsas (${sales.length})</h3></div>
+  <section class="block"><div class="block-head"><h3>Minhas vendas avulsas (${sales.length})</h3><button class="btn gold" id="btnAddSaleColab">+ Nova venda</button></div>
     ${salesTable(sales)}
   </section>`;
 }
@@ -3094,6 +3136,8 @@ function wireViewportEvents(){
   const btnAddRec = document.getElementById('btnAddRec');
   if(btnAddRec) btnAddRec.onclick = ()=>openAddRecModal(false);
   const btnAddRecColab = document.getElementById('btnAddRecColab');
+  const btnAddSaleColab = document.getElementById('btnAddSaleColab');
+  if(btnAddSaleColab) btnAddSaleColab.onclick = ()=>openQuickAddModal('integral', true);
   if(btnAddRecColab) btnAddRecColab.onclick = ()=>openAddRecModal(true);
   vp.querySelectorAll('[data-toggle-expand]').forEach(b=>{
     b.addEventListener('click', ()=>{ STATE[b.dataset.toggleExpand] = !STATE[b.dataset.toggleExpand]; renderAll(); });
@@ -3108,6 +3152,15 @@ function wireViewportEvents(){
   if(btnAddSale) btnAddSale.onclick = ()=>openQuickAddModal('integral', STATE.role==='colaborador');
   const salesVendorSelect = document.getElementById('salesVendorSelect');
   if(salesVendorSelect) salesVendorSelect.addEventListener('change', ()=>{ STATE.salesVendorFilter = salesVendorSelect.value; renderAll(); });
+
+  vp.querySelectorAll('[data-funil-nav]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      STATE.funilDiarioData = addDays(STATE.funilDiarioData || todayISO(), Number(btn.dataset.funilNav));
+      renderAll();
+    });
+  });
+  const btnFunilHoje = document.querySelector('[data-funil-hoje]');
+  if(btnFunilHoje) btnFunilHoje.addEventListener('click', ()=>{ STATE.funilDiarioData = todayISO(); renderAll(); });
 
   vp.querySelectorAll('.funil-input').forEach(input=>{
     input.addEventListener('change', async ()=>{
@@ -3189,6 +3242,20 @@ function wireViewportEvents(){
   }));
 
   // Financeiro
+  vp.querySelectorAll('[data-save-nodate]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const recId = btn.dataset.saveNodate;
+      const num = Number(btn.dataset.parcelaNum);
+      const input = document.getElementById(`ndData-${recId}-${num}`);
+      if(!input.value){ alert('Escolha uma data antes de salvar.'); return; }
+      const rec = STATE.recurrences.find(r=>r.id===recId);
+      const p = rec && rec.parcelas.find(x=>x.numero===num);
+      if(!p) return;
+      p.data = input.value;
+      await persist('recurrences'); renderAll();
+    });
+  });
+
   vp.querySelectorAll('[data-pagar-rec]').forEach(btn=>{
     btn.addEventListener('click', ()=> abrirPagamentoRecorrenciaModal(btn.dataset.pagarRec));
   });
@@ -3246,6 +3313,7 @@ function renderAll(){
     if(STATE.view==='overview') vp.innerHTML = renderOverview();
     else if(STATE.view==='recurrences') vp.innerHTML = renderRecurrences();
     else if(STATE.view==='recurrences-paid') vp.innerHTML = renderRecurrencesPaid();
+    else if(STATE.view==='recurrences-nodate') vp.innerHTML = renderRecurrencesNoDate();
     else if(STATE.view==='sales') vp.innerHTML = renderSales();
     else if(STATE.view==='ranking') vp.innerHTML = renderRanking();
     else if(STATE.view==='clientes') vp.innerHTML = renderClientes();
