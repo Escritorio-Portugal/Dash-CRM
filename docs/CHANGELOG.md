@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.8 — Vendedor adiciona vendas, não controla pagamento de recorrência, funil diário redesenhado
+- **Colaborador agora pode adicionar vendas avulsas** ("+ Nova venda" em Minhas Vendas) — antes só dava pra adicionar recorrências.
+- **Colaborador deixou de poder marcar parcelas como pagas, isentar taxa administrativa, editar ou excluir recorrências** — essas ações ficaram exclusivas do gestor (o colaborador continua vendo tudo normalmente, só não interage mais com pagamentos). Ele ainda pode criar novas recorrências.
+- **Funil de vendas diário redesenhado**: em vez da tabela gigante com todos os dias do mês, mostra agora só o dia atual, em campos organizados (visual no mesmo estilo do resto do sistema). Dá pra navegar pro dia anterior/seguinte pra corrigir um dia esquecido, com um botão "Voltar para hoje".
+- Novo campo: **Ligações feitas** no dia, ao lado dos demais campos do funil.
+
+## v2.7 — Corrigido: parcelas sem data inflavam o Faturamento do mês errado
+- **Bug real encontrado e corrigido**: quando uma parcela paga não tinha data confirmada, o sistema usava a data da venda original como substituta — isso empurrava uma leva grande de dinheiro pro mês da venda, mesmo quando o pagamento provavelmente aconteceu bem depois. Resultado: Faturamento de maio/junho aparecia inflado em milhares de euros.
+- **Nova tela "Sem data de pagamento"** (dentro de Recorrências): lista toda parcela marcada como paga sem data confirmada, com um campo pra preencher a data real. Enquanto não preenchida, esse valor **não conta em nenhum mês** — nem Faturamento, nem comissão, nem gráfico de forma de pagamento — só passa a contar quando alguém confirma a data certa ali.
+- Antes da correção: Faturamento de maio calculado em €23.827,81 (planilha: €15.502,56) — depois: €16.246,69, bem mais perto. A diferença restante (~€744 em maio, ~€351 em junho) deve estar nas 27 parcelas que ainda estão sem data confirmada — quando você for preenchendo, os números devem se aproximar ainda mais.
+
 ## v2.6 — Reconciliação v3: pagamentos de parcelas confirmados em julho
 - 6 parcelas de recorrências de maio/junho marcadas como pagas **agora, em julho** (Shenia de Brito Oliveira, Nik Mohammad Haidaryar ×2, Kebba Gomez, Vahid Mazraefa, Julio Cesar Souza Nogueira, Julio Egrejas Santos) — exatamente o padrão que você descreveu: vendas feitas antes, com a recorrência paga depois.
 - 1 parcela (Kamila Oliveira) tinha uma data de agendamento futura que não se confirmou — limpa, continua pendente.
