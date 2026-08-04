@@ -24,6 +24,8 @@ h1,h2,h3,h4{font-family:'Source Serif 4',serif;font-weight:600;margin:0;color:va
 .mono{font-family:'IBM Plex Mono',monospace;}
 button{font-family:inherit;cursor:pointer;}
 input,select{font-family:inherit;}
+.search-input{padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-size:13.5px;background:#fff;}
+.search-input:focus{outline:2px solid var(--gold-soft);border-color:var(--gold);}
 
 .shell{display:none;min-height:100vh;}
 .shell.visible{display:flex;}
@@ -412,6 +414,12 @@ let STATE = {
   financeiroFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   alertaDispensadoHoje: false,
   accessRequests: [],
+  searchRecorrencias: '',
+  searchRecorrenciasPaid: '',
+  searchVendas: '',
+  searchClientes: '',
+  searchFinanceiro: '',
+  extratoData: todayISO(),
   expandAtividade: false,
   expandAtrasadas: false
 };
@@ -1326,11 +1334,31 @@ async function bootAfterLogin(){
   await runGestorMigrationsIfNeeded();
   await loadAccessRequests();
   await loadAlertaDismissido();
-  const availableMonths = [...new Set(buildEvents().map(e=>e.date && e.date.slice(0,7)).filter(Boolean))].sort();
-  if(availableMonths.length && !availableMonths.includes(STATE.periodFilter.anchor.slice(0,7))){
-    STATE.periodFilter.anchor = availableMonths[availableMonths.length-1];
-  }
+  startLiveDateWatcher();
   enterApp();
+}
+/* Mantém o sistema "vivo": se a aba ficar aberta e a data virar (meia-noite,
+   troca de mês), os filtros que estavam acompanhando "hoje"/"este mês"
+   avançam sozinhos, sem precisar recarregar a página. Só avança um filtro
+   se ele ainda estava no dia/mês antigo — se o utilizador tiver navegado
+   manualmente para outro período, isso não é mexido. */
+let _liveWatcherStarted = false;
+function startLiveDateWatcher(){
+  if(_liveWatcherStarted) return;
+  _liveWatcherStarted = true;
+  let lastToday = todayISO();
+  setInterval(()=>{
+    const nowToday = todayISO();
+    if(nowToday===lastToday) return;
+    const lastMonth = lastToday.slice(0,7), nowMonth = nowToday.slice(0,7);
+    if(STATE.periodFilter.anchor===lastMonth) STATE.periodFilter.anchor = nowMonth;
+    if(STATE.financeiroFilter.anchor===lastMonth) STATE.financeiroFilter.anchor = nowMonth;
+    if(STATE.clientesFilter.anchor===lastMonth) STATE.clientesFilter.anchor = nowMonth;
+    if(STATE.salesFilter.anchor===lastToday) STATE.salesFilter.anchor = nowToday;
+    if(STATE.extratoData===lastToday) STATE.extratoData = nowToday;
+    lastToday = nowToday;
+    if(STATE.role) renderAll();
+  }, 60000);
 }
 function enterApp(){
   document.getElementById('loginScreen').classList.remove('visible');
@@ -1664,9 +1692,20 @@ function recurrenceTable(list, opts){
     </tbody>
   </table>`;
 }
+/* Barra de busca por nome, reutilizada em Recorrências, Recorrências pagas,
+   Vendas, Clientes e Financeiro — cada uma guarda seu próprio texto em
+   STATE[stateKey], filtrando ao vivo enquanto digita. */
+function renderSearchBar(stateKey, placeholder){
+  return `<div style="margin-bottom:14px;"><input type="text" class="search-input" data-search-key="${stateKey}" placeholder="${placeholder}" value="${(STATE[stateKey]||'').replace(/"/g,'&quot;')}" style="width:100%;max-width:340px;"></div>`;
+}
+function matchesSearch(text, query){
+  if(!query) return true;
+  return (text||'').toString().toUpperCase().includes(query.trim().toUpperCase());
+}
+
 function renderRecurrences(){
-  const abertas = STATE.recurrences.filter(r=>!recStatus(r).quitada);
-  return `<section class="block">
+  const abertas = STATE.recurrences.filter(r=>!recStatus(r).quitada).filter(r=>matchesSearch(r.cliente, STATE.searchRecorrencias));
+  return `${renderSearchBar('searchRecorrencias','Buscar por nome do cliente…')}<section class="block">
     <div class="block-head"><h3>Recorrências em aberto (${abertas.length})</h3><button class="btn gold" id="btnAddRec">+ Nova recorrência</button></div>
     <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">Recorrências 100% pagas saem automaticamente desta lista e vão para "Recorrências pagas", no menu ao lado.</span></div>
     ${recurrenceTable([...abertas].sort((a,b)=> (b.dataVenda||'').localeCompare(a.dataVenda||'')))}
@@ -1675,9 +1714,10 @@ function renderRecurrences(){
 function renderRecurrencesPaid(){
   const pagas = STATE.recurrences.filter(r=>recStatus(r).quitada);
   const months = [...new Set(pagas.map(finalizacaoMes).filter(Boolean))].sort().reverse();
-  const filtered = STATE.paidMonthFilter==='all' ? pagas : pagas.filter(r=>finalizacaoMes(r)===STATE.paidMonthFilter);
+  const filtered = (STATE.paidMonthFilter==='all' ? pagas : pagas.filter(r=>finalizacaoMes(r)===STATE.paidMonthFilter)).filter(r=>matchesSearch(r.cliente, STATE.searchRecorrenciasPaid));
   const totalMes = filtered.reduce((a,r)=>a+r.valorContrato,0);
   return `
+  ${renderSearchBar('searchRecorrenciasPaid','Buscar por nome do cliente…')}
   <div class="subtabs" id="paidMonthTabs">
     <button data-paidmonth="all" class="${STATE.paidMonthFilter==='all'?'active':''}">Todos os meses</button>
     ${months.map(mk=>`<button data-paidmonth="${mk}" class="${STATE.paidMonthFilter===mk?'active':''}">${monthLabel(mk)}</button>`).join('')}
@@ -1757,6 +1797,7 @@ function renderSales(){
   const list = STATE.sales
     .filter(s=>inPeriodOrAll(s.data, STATE.salesFilter))
     .filter(s=>STATE.salesVendorFilter==='all' || s.vendedorId===STATE.salesVendorFilter)
+    .filter(s=>matchesSearch(s.cliente, STATE.searchVendas))
     .sort((a,b)=> b.data.localeCompare(a.data));
   const totalRecebido = list.reduce((a,s)=>a+(s.valorPago||0),0);
   const totalVendido = list.reduce((a,s)=>a+(s.valorTotal||0),0);
@@ -1783,6 +1824,7 @@ function renderSales(){
       ${vendedoresComVenda.map(s=>`<option value="${s.id}" ${STATE.salesVendorFilter===s.id?'selected':''}>${s.nome}</option>`).join('')}
     </select>
   </div>
+  ${renderSearchBar('searchVendas','Buscar por nome do cliente…')}
   ${resumoVendedor}
   <section class="block">
     <div class="block-head"><h3>Registo de vendas (${list.length})</h3><button class="btn gold" id="btnAddSale">+ Nova venda</button></div>
@@ -1951,9 +1993,10 @@ function renderClientes(){
 
   <section class="block">
     <div class="block-head"><h3>Clientes com mais fechamentos</h3><span class="hint">histórico completo · fidelidade com o escritório</span></div>
-    ${rkClientes.length ? `<table>
+    <div style="padding:14px 20px 0;">${renderSearchBar('searchClientes','Buscar por nome do cliente…')}</div>
+    ${(()=>{ const filtrados = rkClientes.filter(c=>matchesSearch(c.nome, STATE.searchClientes)); const shown = STATE.searchClientes ? filtrados : filtrados.slice(0,15); return shown.length ? `<table>
       <thead><tr><th>Cliente</th><th>Fechamentos</th><th>Valor gerado</th><th>Vendedor(es)</th><th>1ª compra</th><th>Última compra</th></tr></thead>
-      <tbody>${rkClientes.slice(0,15).map(c=>`<tr>
+      <tbody>${shown.map(c=>`<tr>
         <td><strong>${c.nome}</strong>${c.fechamentos>1?'<span class="chip gold" style="margin-left:8px;">fiel</span>':''}</td>
         <td class="tnum">${c.fechamentos}</td>
         <td class="tnum">${fmtEUR(c.valorTotal)}</td>
@@ -1961,7 +2004,7 @@ function renderClientes(){
         <td>${fmtDate(c.primeira)}</td>
         <td>${fmtDate(c.ultima)}</td>
       </tr>`).join('')}</tbody>
-    </table>` : `<div class="empty">Sem clientes registados ainda.</div>`}
+    </table>` : `<div class="empty">${STATE.searchClientes ? 'Nenhum cliente encontrado com esse nome.' : 'Sem clientes registados ainda.'}</div>`; })()}
   </section>`;
 }
 
@@ -2199,24 +2242,76 @@ function renderFinanceiro(){
     <button data-ftab="fixos" class="${tab==='fixos'?'active':''}">Custos fixos</button>
     <button data-ftab="variaveis" class="${tab==='variaveis'?'active':''}">Custos variáveis</button>
     <button data-ftab="impostos" class="${tab==='impostos'?'active':''}">Detalhamento de impostos</button>
+    <button data-ftab="extrato" class="${tab==='extrato'?'active':''}">Extrato do dia</button>
   </div>
   <div style="margin-top:18px;">
-  ${tab==='impostos' ? renderImpostosTab(filter) : renderCostsTab(tab==='variaveis' ? costs.variaveis : costs.fixos, tab, monthKeyAtual)}
+  ${tab==='impostos' ? renderImpostosTab(filter) : tab==='extrato' ? renderExtratoTab() : renderCostsTab(tab==='variaveis' ? costs.variaveis : costs.fixos, tab, monthKeyAtual)}
   </div>`;
 }
 function renderCostsTab(list, tab, monthKeyAtual){
   const label = tab==='variaveis' ? 'Custos variáveis' : 'Custos fixos';
+  const filtrada = list.filter(c=>matchesSearch(c.nome, STATE.searchFinanceiro));
   return `
+  ${renderSearchBar('searchFinanceiro','Buscar por nome do custo…')}
   <section class="block">
-    <div class="block-head"><h3>${label} (${list.length})</h3><button class="btn gold" id="btnAddCost" data-default-categoria="${tab==='variaveis'?'VARIÁVEL':'FIXO'}">+ Novo custo</button></div>
-    ${list.length ? `<table><thead><tr><th>Nome</th><th>Valor</th><th>Vencimento</th><th>Pago</th><th></th></tr></thead>
-    <tbody>${list.map(c=>`<tr>
+    <div class="block-head"><h3>${label} (${filtrada.length})</h3><button class="btn gold" id="btnAddCost" data-default-categoria="${tab==='variaveis'?'VARIÁVEL':'FIXO'}">+ Novo custo</button></div>
+    ${filtrada.length ? `<table><thead><tr><th>Nome</th><th>Valor</th><th>Vencimento</th><th>Pago</th><th></th></tr></thead>
+    <tbody>${filtrada.map(c=>`<tr>
         <td><strong>${c.nome}</strong>${c._projetado?'<span class="chip neutral" style="margin-left:8px;" title="Repete automaticamente a partir do lançamento anterior">repete</span>':''}</td>
         <td class="tnum">${fmtEUR(c.valor)}</td>
         <td>${fmtDate(c.vencimento)}</td>
         <td><button class="chip ${c.pago?'good':'bad'}" data-toggle-cost="${c.id}" data-cost-month="${monthKeyAtual||''}" style="border:none;">${c.pago?'pago':'pendente'}</button></td>
         <td style="white-space:nowrap;">${c._projetado?'':`<button class="btn ghost sm" data-edit-cost="${c.id}">Editar</button> <button class="btn danger sm" data-del-cost="${c.id}">Excluir</button>`}</td>
-      </tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum custo ${tab==='variaveis'?'variável':'fixo'} nesse período.</div>`}
+      </tr>`).join('')}</tbody></table>` : `<div class="empty">${STATE.searchFinanceiro ? 'Nenhum custo encontrado com esse nome.' : 'Nenhum custo '+(tab==='variaveis'?'variável':'fixo')+' nesse período.'}</div>`}
+  </section>`;
+}
+/* Extrato do dia: tudo que mexeu no caixa naquele dia específico — vendas
+   recebidas, entrada/parcelas de recorrência, e custos com vencimento
+   naquele dia (fixos ou variáveis, pagos ou pendentes). */
+function renderExtratoTab(){
+  const data = STATE.extratoData || todayISO();
+  const monthKey = data.slice(0,7);
+  const linhas = [];
+  STATE.sales.filter(s=>s.data===data && (s.valorPago||0)>0).forEach(s=>{
+    linhas.push({ tipo:'Venda', nome:s.cliente, vendedor:s.vendedorNome, entrada:s.valorPago, saida:0, status:'recebido' });
+  });
+  STATE.recurrences.filter(r=>r.dataVenda===data && (r.valorEntrada||0)>0).forEach(r=>{
+    linhas.push({ tipo:'Entrada de recorrência', nome:r.cliente, vendedor:r.vendedorNome, entrada:r.valorEntrada, saida:0, status:'recebido' });
+  });
+  STATE.recurrences.forEach(r=>{
+    const st = recStatus(r);
+    r.parcelas.forEach(p=>{
+      if(p.pago && p.data===data) linhas.push({ tipo:'Parcela '+p.numero+' de recorrência', nome:r.cliente, vendedor:r.vendedorNome, entrada:st.valorParcela, saida:0, status:'recebido' });
+    });
+  });
+  custosFixosDoMes(monthKey).filter(c=>c.vencimento===data).forEach(c=>{
+    linhas.push({ tipo:'Custo fixo', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status: c.pago?'pago':'pendente' });
+  });
+  STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.vencimento===data).forEach(c=>{
+    linhas.push({ tipo:'Custo variável', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status: c.pago?'pago':'pendente' });
+  });
+  const filtradas = linhas.filter(l=>matchesSearch(l.nome, STATE.searchFinanceiro));
+  const totalEntrou = filtradas.reduce((a,l)=>a+l.entrada,0);
+  const totalSaiu = filtradas.filter(l=>l.status==='pago').reduce((a,l)=>a+l.saida,0);
+  return `
+  <div class="field-row" style="max-width:460px;margin-bottom:14px;">
+    <div class="field"><label>Data</label><input type="date" id="extratoDataInput" value="${data}"></div>
+  </div>
+  ${renderSearchBar('searchFinanceiro','Buscar por nome…')}
+  <div class="cards">
+    <div class="card"><div class="lbl">Entrou no dia</div><div class="val good">${fmtEUR(totalEntrou)}</div></div>
+    <div class="card"><div class="lbl">Saiu no dia (custos pagos)</div><div class="val bad">${fmtEUR(totalSaiu)}</div></div>
+    <div class="card accent"><div class="lbl">Saldo do dia</div><div class="val ${totalEntrou-totalSaiu>=0?'good':'bad'}">${fmtEUR(totalEntrou-totalSaiu)}</div></div>
+  </div>
+  <section class="block">
+    <div class="block-head"><h3>Movimentações de ${fmtDate(data)} (${filtradas.length})</h3><span class="hint">vendas, recorrências e custos com data nesse dia</span></div>
+    ${filtradas.length ? `<table><thead><tr><th>Tipo</th><th>Nome</th><th>Vendedor</th><th>Entrou</th><th>Saiu</th><th>Status</th></tr></thead>
+    <tbody>${filtradas.map(l=>`<tr>
+        <td>${l.tipo}</td><td><strong>${l.nome}</strong></td><td>${l.vendedor}</td>
+        <td class="tnum">${l.entrada>0?fmtEUR(l.entrada):'—'}</td>
+        <td class="tnum">${l.saida>0?fmtEUR(l.saida):'—'}</td>
+        <td>${l.status==='pendente' ? '<span class="chip bad">pendente</span>' : '<span class="chip good">'+l.status+'</span>'}</td>
+      </tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhuma movimentação registada nesse dia.</div>`}
   </section>`;
 }
 function renderImpostosTab(filter){
@@ -3044,6 +3139,17 @@ function wireViewportEvents(){
   });
 
   vp.querySelectorAll('[data-ftab]').forEach(b=> b.addEventListener('click', ()=>{ STATE.financeiroTab=b.dataset.ftab; renderAll(); }));
+
+  vp.querySelectorAll('[data-search-key]').forEach(input=>{
+    input.addEventListener('input', ()=>{
+      STATE[input.dataset.searchKey] = input.value;
+      renderAll();
+      const el = document.querySelector(`[data-search-key="${input.dataset.searchKey}"]`);
+      if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    });
+  });
+  const extratoDataInput = document.getElementById('extratoDataInput');
+  if(extratoDataInput) extratoDataInput.addEventListener('change', ()=>{ STATE.extratoData = extratoDataInput.value; renderAll(); });
   const btnAddCost = document.getElementById('btnAddCost');
   if(btnAddCost) btnAddCost.onclick = ()=>openCostModal(null, btnAddCost.dataset.defaultCategoria);
   vp.querySelectorAll('[data-edit-cost]').forEach(b=> b.addEventListener('click', ()=>openCostModal(b.dataset.editCost)));
