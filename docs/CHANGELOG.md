@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.6 — Reconciliação v3: pagamentos de parcelas confirmados em julho
+- 6 parcelas de recorrências de maio/junho marcadas como pagas **agora, em julho** (Shenia de Brito Oliveira, Nik Mohammad Haidaryar ×2, Kebba Gomez, Vahid Mazraefa, Julio Cesar Souza Nogueira, Julio Egrejas Santos) — exatamente o padrão que você descreveu: vendas feitas antes, com a recorrência paga depois.
+- 1 parcela (Kamila Oliveira) tinha uma data de agendamento futura que não se confirmou — limpa, continua pendente.
+- **Achado pontual sinalizado**: a parcela 1 do Nik Mohammad Haidaryar veio marcada como paga com data de 22/04, mas a venda dele é de 01/06 — mesma inconsistência da rodada anterior (data anterior à venda). Mantive "pago = sim" e limpei a data, seguindo a mesma regra já combinada.
+
+## v2.5 — Reconciliação v2 de julho (planilha atualizada) + validação de pagamentos passados
+- **Julho reconstruído do zero** a partir do REGISTRO DE VENDAS mestre reenviado (49 vendas, bate exatamente com o "VALOR ALCANÇADO" da planilha: €14.523,95 — Larissa €6.538,96, Fernanda €7.109,99, Bernardo €874,99).
+- **A aba individual da Larissa deixou de ser usada** — a partir de agora, o registro geral já é 100% confiável pra ela também, igual Fernanda e Bernardo. Isso eliminou 23 lançamentos antigos que vinham de lá e duplicavam o que já existia no registro geral.
+- **12 recorrências de julho recriadas**, cruzando o REGISTRO DE VENDAS (valor do contrato, entrada, honorário/IVA/taxa) com a aba RECORRÊNCIA (status real de cada parcela).
+- **Removida a recorrência órfã "rec-002"** (RAVENA GABRIELE DA SILVA, 15/05) — era uma versão antiga e incompleta (entrada €0) da mesma venda que agora está correta dentro de julho (entrada €500, conforme o registro atualizado).
+- **26 recorrências de maio/junho marcadas como quitadas**, com o status real de cada parcela atualizado a partir da aba RECORRÊNCIA GERAL.
+- **Achado sinalizado, não alterado às cegas**: a aba RECORRÊNCIA GERAL tinha 27 parcelas marcadas como pagas com data **anterior à própria data da venda** (ex.: pago em 01/2026 pra uma venda de 05/2026) — datas claramente incorretas, provavelmente um padrão de preenchimento (muitas caem exatamente no dia 1 de algum mês). Mantive o "pago = sim" (esse checkbox parece confiável), mas removi a data implausível — o sistema usa a data da venda como referência nesses casos, em vez de uma data que romperia a linha do tempo.
+- Também identificado (mas fora do escopo desta rodada): a venda da RAVENA na aba RECORRÊNCIA tinha o campo de entrada ("W") inconsistente com o REGISTRO DE VENDAS em pelo menos dois outros casos (Beatriz Moura Brito e a segunda venda do Sidney Ghener) — usei sempre o REGISTRO DE VENDAS como fonte da entrada, por instrução tua de que ele é a fonte 100% atualizada.
+
 ## v2.4 — Busca por nome, extrato do dia, e sistema "ao vivo"
 - **Busca por nome** em Recorrências, Recorrências pagas, Vendas, Clientes e Financeiro — filtra a lista na hora, enquanto digita.
 - **Extrato do dia** (nova aba dentro de Financeiro): escolhe uma data e vê tudo que mexeu no caixa naquele dia — vendas recebidas, entrada/parcelas de recorrência, custos fixos e variáveis (pagos ou pendentes) — com totais de entrou/saiu/saldo do dia.
