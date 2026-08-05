@@ -430,7 +430,8 @@ let STATE = {
   extratoData: todayISO(),
   funilDiarioData: todayISO(),
   expandAtividade: false,
-  expandAtrasadas: false
+  expandAtrasadas: false,
+  expandCustosAtrasados: false
 };
 function formasPagamentoList(){
   return (STATE.meta.formasPagamento && STATE.meta.formasPagamento.length) ? STATE.meta.formasPagamento : ['TRANSFERÊNCIA BANCARIA','MB WAY','KLARNA','DINHEIRO','OUTRO'];
@@ -1116,13 +1117,15 @@ function custosFixosDoMes(monthKey){
   porNome.forEach(arr=>{
     arr.sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
     const exato = arr.find(c=>c.vencimento.slice(0,7)===monthKey);
-    if(exato){ out.push(exato); return; }
+    if(exato){ out.push(Object.assign({}, exato, { _dataPagamento: exato.pago ? (exato.dataPagamento||exato.vencimento) : null })); return; }
     const anteriores = arr.filter(c=>c.vencimento.slice(0,7) < monthKey);
     if(anteriores.length){
       const base = anteriores[anteriores.length-1];
+      const pago = costPagoNoMes(base, monthKey);
       out.push(Object.assign({}, base, {
         vencimento: projetarVencimentoNoMes(base.vencimento, monthKey),
-        pago: costPagoNoMes(base, monthKey),
+        pago,
+        _dataPagamento: pago ? custoDataPagamentoNoMes(base, monthKey) : null,
         _projetado: true
       }));
     }
@@ -1134,8 +1137,24 @@ function projetarVencimentoNoMes(vencimentoOriginal, monthKey){
   return `${monthKey}-${String(dia).padStart(2,'0')}`;
 }
 function costPagoNoMes(cost, monthKey){
-  if(cost.pagoPorMes && cost.pagoPorMes[monthKey]!=null) return !!cost.pagoPorMes[monthKey];
-  return false; // custo fixo projetado começa pendente em cada mês novo
+  const registo = cost.pagoPorMes && cost.pagoPorMes[monthKey];
+  if(registo==null) return false; // custo fixo projetado começa pendente em cada mês novo
+  return typeof registo==='object' ? !!registo.pago : !!registo;
+}
+function custoDataPagamentoNoMes(cost, monthKey){
+  const registo = cost.pagoPorMes && cost.pagoPorMes[monthKey];
+  if(registo && typeof registo==='object' && registo.data) return registo.data;
+  return projetarVencimentoNoMes(cost.vencimento, monthKey); // pago antigo sem data registada — usa o vencimento como aproximação
+}
+/* Custos fixos do mês atual, vencidos e ainda pendentes — mostrados como
+   aviso na Visão Geral, com botão de pagar ali mesmo. */
+function custosFixosAtrasados(){
+  const hoje = todayISO();
+  return custosFixosDoMes(hoje.slice(0,7)).filter(c=>!c.pago && c.vencimento && c.vencimento < hoje);
+}
+function diasAtrasoCusto(c){
+  const d1 = new Date(c.vencimento+'T00:00:00'), d2 = new Date(todayISO()+'T00:00:00');
+  return Math.round((d2-d1)/86400000);
 }
 
 function computeCosts(filter){
@@ -1598,6 +1617,21 @@ function renderRecorrenciasAtrasadasBox(){
     ${atrasadas.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandAtrasadas">${STATE.expandAtrasadas ? 'Ver menos' : `••• Ver mais (${atrasadas.length-5})`}</button></div>` : ''}
   </section>`;
 }
+/* Aviso de custos fixos vencidos e ainda não pagos (aluguel, salários, etc.) —
+   botão "Pagar" já registra a data de hoje como data real do pagamento, e o
+   valor aparece automaticamente no Extrato do dia de hoje como saída. */
+function renderCustosAtrasadosBox(){
+  const atrasados = custosFixosAtrasados();
+  if(!atrasados.length) return '';
+  const shown = STATE.expandCustosAtrasados ? atrasados : atrasados.slice(0,5);
+  return `
+  <section class="block atraso-block">
+    <div class="block-head"><h3>⚠️ Custos fixos vencidos (${atrasados.length})</h3><span class="hint">ainda não pagos, com vencimento no passado</span></div>
+    <table><thead><tr><th>Custo</th><th>Valor</th><th>Vencimento</th><th>Dias em atraso</th><th></th></tr></thead>
+    <tbody>${shown.map(c=>`<tr><td><strong>${c.nome}</strong></td><td class="tnum">${fmtEUR(c.valor)}</td><td>${fmtDate(c.vencimento)}</td><td><span class="chip bad">${diasAtrasoCusto(c)} dias</span></td><td><button class="btn gold sm" data-pagar-custo="${c.id}" data-custo-month="${c.vencimento.slice(0,7)}">Pagar</button></td></tr>`).join('')}</tbody></table>
+    ${atrasados.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandCustosAtrasados">${STATE.expandCustosAtrasados ? 'Ver menos' : `••• Ver mais (${atrasados.length-5})`}</button></div>` : ''}
+  </section>`;
+}
 /* Efetuar pagamento de uma recorrência direto da Visão Geral, sem precisar
    ir até Recorrências achar o cliente. Marca a(s) parcela(s) escolhida(s)
    como pagas, com a data informada — como é o MESMO campo `parcelas` que
@@ -1717,6 +1751,7 @@ function renderOverview(){
   ${renderVendasSubcards(STATE.periodFilter, null)}
   ${renderChartsPanel()}
   ${renderRecorrenciasAtrasadasBox()}
+  ${renderCustosAtrasadosBox()}
   ${renderPeriodActivity()}
   <section class="block">
     <div class="block-head"><h3>Top vendedores</h3><span class="hint">no período selecionado</span></div>
@@ -2387,8 +2422,26 @@ function renderExtratoTab(){
       if(p.pago && p.data===data) linhas.push({ tipo:'Parcela '+p.numero+' de recorrência', nome:r.cliente, vendedor:r.vendedorNome, entrada:st.valorParcela, saida:0, status:'recebido' });
     });
   });
-  custosFixosDoMes(monthKey).filter(c=>c.vencimento===data).forEach(c=>{
-    linhas.push({ tipo:'Custo fixo', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status: c.pago?'pago':'pendente' });
+  // Custos fixos pagos exatamente nesse dia — procura em todos os lançamentos
+  // e em todos os meses projetados, pra não perder um pagamento antecipado
+  // que caiu num mês diferente do vencimento original.
+  STATE.costs.filter(c=>c.categoria==='FIXO').forEach(c=>{
+    if(c.pago && c.dataPagamento===data){
+      linhas.push({ tipo:'Custo fixo', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status:'pago' });
+    }
+    if(c.pagoPorMes){
+      Object.values(c.pagoPorMes).forEach(reg=>{
+        if(reg && typeof reg==='object' && reg.pago && reg.data===data){
+          linhas.push({ tipo:'Custo fixo', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status:'pago' });
+        }
+      });
+    }
+  });
+  // Custos fixos pendentes com vencimento nesse dia (ainda não pagos)
+  custosFixosDoMes(monthKey).forEach(c=>{
+    if(!c.pago && c.vencimento===data){
+      linhas.push({ tipo:'Custo fixo', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status:'pendente' });
+    }
   });
   STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.vencimento===data).forEach(c=>{
     linhas.push({ tipo:'Custo variável', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status: c.pago?'pago':'pendente' });
@@ -3288,9 +3341,25 @@ function wireViewportEvents(){
     const mesOrigem = c.vencimento ? c.vencimento.slice(0,7) : null;
     if(c.categoria==='FIXO' && mes && mes!==mesOrigem){
       if(!c.pagoPorMes) c.pagoPorMes = {};
-      c.pagoPorMes[mes] = !costPagoNoMes(c, mes);
+      const estavaPago = costPagoNoMes(c, mes);
+      c.pagoPorMes[mes] = estavaPago ? {pago:false} : {pago:true, data:todayISO()};
     } else {
       c.pago = !c.pago;
+      c.dataPagamento = c.pago ? todayISO() : null;
+    }
+    await persist('costs'); renderAll();
+  }));
+  vp.querySelectorAll('[data-pagar-custo]').forEach(b=> b.addEventListener('click', async ()=>{
+    const c = STATE.costs.find(x=>x.id===b.dataset.pagarCusto);
+    if(!c) return;
+    const mes = b.dataset.custoMonth;
+    const mesOrigem = c.vencimento ? c.vencimento.slice(0,7) : null;
+    if(mes && mes!==mesOrigem){
+      if(!c.pagoPorMes) c.pagoPorMes = {};
+      c.pagoPorMes[mes] = {pago:true, data:todayISO()};
+    } else {
+      c.pago = true;
+      c.dataPagamento = todayISO();
     }
     await persist('costs'); renderAll();
   }));
