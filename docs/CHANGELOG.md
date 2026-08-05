@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.1 — Custos fixos: data real de pagamento, aviso de vencidos na Visão Geral
+- **Botão de pagar registra a data real do pagamento** (hoje), não mais a data de vencimento — assim dá pra pagar um custo fixo antes do vencimento e ele aparece no Extrato do dia certo (o dia em que você realmente pagou), não no dia em que venceria.
+- **Nova caixa na Visão Geral: "Custos fixos vencidos"** — mostra todo custo fixo com vencimento no passado e ainda não pago, com quantos dias de atraso e um botão **Pagar** ali mesmo. Ao clicar, já registra como pago hoje e entra automaticamente no Extrato do dia como saída de caixa/despesa.
+- O Extrato do dia agora procura pagamentos de custos fixos em todos os meses/lançamentos (não só no mês do dia escolhido), pra não perder um pagamento antecipado que caiu num mês diferente do vencimento.
+
 ## v3.0 — Custos fixos "repetindo" agora são editáveis/excluíveis
 - **Bug corrigido**: qualquer custo fixo que aparecesse como "repetindo" automaticamente (a maioria, fora do mês do lançamento original) não tinha botão de Editar nem Excluir — fazia a lista inteira de custos fixos parecer travada. Agora os dois botões aparecem sempre; editar um custo "repetindo" muda o valor a partir de agora (sem alterar meses já fechados no passado), e excluir para a repetição.
 - Revisão completa (testada de ponta a ponta) do fluxo de colaborador adicionar venda/recorrência — confirmado funcionando corretamente no código; se ainda não funcionar depois de atualizado, é provável que seja algo do lado do Supabase, não do código.
