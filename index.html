@@ -216,10 +216,12 @@ tr:hover td{background:#FBFBFA;}
 .funil-day-current{text-align:center;min-width:150px;}
 .funil-day-current strong{display:block;font-family:'Source Serif 4',serif;font-size:17px;color:var(--wine);}
 .funil-day-current span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--ink-soft);}
-.funil-day-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 20px;}
-.funil-field{display:flex;flex-direction:column;gap:6px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;}
-.funil-field label{font-size:11px;color:var(--ink-soft);font-weight:600;line-height:1.25;}
-.funil-field .funil-input{width:100%;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-family:'IBM Plex Mono',monospace;font-size:14px;background:var(--surface);color:var(--ink);}
+.funil-day-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:16px 20px;}
+@media (max-width: 900px){ .funil-day-grid{grid-template-columns:repeat(3,1fr);} }
+@media (max-width: 560px){ .funil-day-grid{grid-template-columns:repeat(2,1fr);} }
+.funil-field{display:flex;flex-direction:column;gap:5px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 9px;min-width:0;}
+.funil-field label{font-size:10px;line-height:1.2;min-height:24px;display:flex;align-items:flex-end;color:var(--ink-soft);font-weight:600;}
+.funil-field .funil-input{width:100%;padding:5px 6px;font-size:13px;border:1px solid var(--line);border-radius:7px;font-family:'IBM Plex Mono',monospace;background:var(--surface);color:var(--ink);}
 .funil-field .funil-input:focus{outline:2px solid var(--gold-soft);border-color:var(--gold);}
 .funil-field-money{background:var(--gold-soft);border-color:var(--gold);}
 .funil-field-money label{color:var(--wine);}
@@ -2358,11 +2360,11 @@ function renderCostsTab(list, tab, monthKeyAtual){
     <div class="block-head"><h3>${label} (${filtrada.length})</h3><button class="btn gold" id="btnAddCost" data-default-categoria="${tab==='variaveis'?'VARIÁVEL':'FIXO'}">+ Novo custo</button></div>
     ${filtrada.length ? `<table><thead><tr><th>Nome</th><th>Valor</th><th>Vencimento</th><th>Pago</th><th></th></tr></thead>
     <tbody>${filtrada.map(c=>`<tr>
-        <td><strong>${c.nome}</strong>${c._projetado?'<span class="chip neutral" style="margin-left:8px;" title="Repete automaticamente a partir do lançamento anterior">repete</span>':''}</td>
+        <td><strong>${c.nome}</strong>${c._projetado?'<span class="chip neutral" style="margin-left:8px;" title="Repete automaticamente a partir do lançamento anterior — editar aqui muda o valor a partir de agora, sem afetar meses já fechados">repete</span>':''}</td>
         <td class="tnum">${fmtEUR(c.valor)}</td>
         <td>${fmtDate(c.vencimento)}</td>
         <td><button class="chip ${c.pago?'good':'bad'}" data-toggle-cost="${c.id}" data-cost-month="${monthKeyAtual||''}" style="border:none;">${c.pago?'pago':'pendente'}</button></td>
-        <td style="white-space:nowrap;">${c._projetado?'':`<button class="btn ghost sm" data-edit-cost="${c.id}">Editar</button> <button class="btn danger sm" data-del-cost="${c.id}">Excluir</button>`}</td>
+        <td style="white-space:nowrap;"><button class="btn ghost sm" data-edit-cost="${c.id}">Editar</button> <button class="btn danger sm" data-del-cost="${c.id}" ${c._projetado?'data-del-cost-repete="1" title="Isto apaga o lançamento original e para a repetição a partir de agora"':''}>Excluir</button></td>
       </tr>`).join('')}</tbody></table>` : `<div class="empty">${STATE.searchFinanceiro ? 'Nenhum custo encontrado com esse nome.' : 'Nenhum custo '+(tab==='variaveis'?'variável':'fixo')+' nesse período.'}</div>`}
   </section>`;
 }
@@ -3293,8 +3295,12 @@ function wireViewportEvents(){
     await persist('costs'); renderAll();
   }));
   vp.querySelectorAll('[data-del-cost]').forEach(b=> b.addEventListener('click', ()=>{
+    const repete = b.dataset.delCostRepete==='1';
     openConfirmModal({
-      title:'Excluir custo', danger:true, confirmLabel:'Excluir', message:'Tem a certeza que deseja excluir este custo?',
+      title:'Excluir custo', danger:true, confirmLabel:'Excluir',
+      message: repete
+        ? 'Este custo repete automaticamente todo mês. Excluir apaga o lançamento original e <strong>para a repetição a partir de agora</strong> (os meses já fechados no passado não mudam). Tem a certeza?'
+        : 'Tem a certeza que deseja excluir este custo?',
       onConfirm: async ()=>{ STATE.costs = STATE.costs.filter(c=>c.id!==b.dataset.delCost); await persist('costs'); renderAll(); }
     });
   }));
