@@ -1,5 +1,12 @@
 # Changelog
 
+## v3.0 — Custos fixos "repetindo" agora são editáveis/excluíveis
+- **Bug corrigido**: qualquer custo fixo que aparecesse como "repetindo" automaticamente (a maioria, fora do mês do lançamento original) não tinha botão de Editar nem Excluir — fazia a lista inteira de custos fixos parecer travada. Agora os dois botões aparecem sempre; editar um custo "repetindo" muda o valor a partir de agora (sem alterar meses já fechados no passado), e excluir para a repetição.
+- Revisão completa (testada de ponta a ponta) do fluxo de colaborador adicionar venda/recorrência — confirmado funcionando corretamente no código; se ainda não funcionar depois de atualizado, é provável que seja algo do lado do Supabase, não do código.
+
+## v2.9 — Funil diário: grade fixa de 6 colunas
+- Os 12 campos do funil diário (10 do funil + valor da venda + pago no dia) agora ficam numa grade fixa de **6 colunas por linha** (2 linhas de 6) — antes a grade era automática e ficava desorganizada dependendo do tamanho da tela. Campos mais compactos, no mesmo visual do resto do sistema. Em telas menores, reduz pra 3 ou 2 colunas por linha automaticamente.
+
 ## v2.8 — Vendedor adiciona vendas, não controla pagamento de recorrência, funil diário redesenhado
 - **Colaborador agora pode adicionar vendas avulsas** ("+ Nova venda" em Minhas Vendas) — antes só dava pra adicionar recorrências.
 - **Colaborador deixou de poder marcar parcelas como pagas, isentar taxa administrativa, editar ou excluir recorrências** — essas ações ficaram exclusivas do gestor (o colaborador continua vendo tudo normalmente, só não interage mais com pagamentos). Ele ainda pode criar novas recorrências.
