@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.5 — Gráficos de linha: tooltip ao passar o mouse + área preenchida (efeito onda)
+- Os gráficos de linha (Entradas x Saídas, Percentual de vendas por vendedor) agora têm **área preenchida** embaixo de cada linha, na cor dela — efeito "onda", como pedido.
+- **Tooltip ao passar o mouse**: para qualquer ponto do gráfico, aparece uma caixinha mostrando o mês e o valor exato de cada linha naquele ponto, com uma linha vertical pontilhada marcando onde você está. Funciona também em toque (celular/tablet).
+- Gráficos de coluna (Faturamento por mês, Saldo mensal, etc.) ganharam destaque visual ao passar o mouse em cima de uma barra (já mostravam o valor sempre visível embaixo, agora fica mais claro qual coluna você está olhando).
+
 ## v3.4 — Financeiro: aba Registro, extrato redesenhado, novos gráficos
 - **Nova aba "📋 Registro"** dentro de Financeiro: lista ao vivo de toda movimentação financeira (vendas, entrada/parcela de recorrência, custos pagos) num período qualquer — não só um dia. Sincronizado automaticamente: todo pagamento novo já aparece assim que é lançado, sem passo extra.
 - **Extrato do dia redesenhado**: o saldo agora é a primeira informação, em destaque (card grande no topo), seguido pela lista de movimentações em formato de cartão (ícone, cliente, categoria, forma de pagamento, valor com + ou −), em vez da tabela antiga.
