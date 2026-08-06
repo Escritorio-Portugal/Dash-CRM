@@ -125,7 +125,9 @@ input,select{font-family:inherit;}
 .hbar-track > span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),#755C13);}
 .hbar-val{font-family:'IBM Plex Mono',monospace;font-size:11.5px;text-align:right;}
 .vbar-chart{display:flex;align-items:flex-end;gap:10px;height:150px;padding-top:10px;}
-.vbar-col{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;}
+.vbar-col{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;cursor:pointer;}
+.vbar-col:hover .vbar-track > span{filter:brightness(1.15);outline:2px solid var(--gold);outline-offset:1px;}
+.vbar-col:hover .vbar-val{color:var(--wine);font-weight:700;}
 .vbar-track{flex:1;width:100%;display:flex;align-items:flex-end;}
 .vbar-track > span{display:block;width:100%;background:var(--wine);border-radius:4px 4px 0 0;min-height:2px;}
 .vbar-track > span.best{background:linear-gradient(180deg,var(--gold),#755C13);}
@@ -212,6 +214,9 @@ tr:hover td{background:#FBFBFA;}
 .funnel .fitem label{display:block;font-size:10.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;letter-spacing:.4px;}
 .funnel .fitem input{width:100%;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;background:#fff;}
 
+.linechart-wrap{cursor:crosshair;}
+.lc-tooltip{position:absolute;top:6px;background:var(--wine);color:#fff;padding:8px 11px;border-radius:8px;font-size:11.5px;line-height:1.5;pointer-events:none;box-shadow:var(--shadow);z-index:5;white-space:nowrap;transform:translateX(-50%);}
+.lc-tooltip strong{display:block;font-size:11px;opacity:.85;margin-bottom:3px;}
 .saldo-hero-block{padding:0;overflow:hidden;}
 .saldo-hero{background:linear-gradient(135deg,var(--wine),var(--wine-2));padding:28px 26px;text-align:center;color:#fff;}
 .saldo-hero-lbl{font-size:12.5px;letter-spacing:.3px;opacity:.85;margin-bottom:6px;}
@@ -1705,10 +1710,13 @@ function abrirPagamentoRecorrenciaModal(recId){
 /* Gráfico de linhas simples em SVG puro, sem biblioteca — usado tanto na
    evolução de entradas x saídas quanto no percentual de vendas por
    vendedor ao longo do tempo. */
+let _chartIdSeq = 0;
 function svgMultiLineChart(months, series){
+  if(!months.length) return `<div class="empty">Sem dados ainda.</div>`;
+  const chartId = 'lc'+(_chartIdSeq++);
   const W = 640, H = 220, padL = 40, padR = 14, padT = 14, padB = 26;
   const innerW = W-padL-padR, innerH = H-padT-padB;
-  if(!months.length) return `<div class="empty">Sem dados ainda.</div>`;
+  const baseline = padT+innerH;
   const allVals = series.flatMap(s=>months.map(m=>s.values[m]||0));
   const maxV = Math.max(...allVals, 1);
   const x = i => padL + (months.length<=1?innerW/2:(i/(months.length-1))*innerW);
@@ -1717,14 +1725,32 @@ function svgMultiLineChart(months, series){
     const yy = padT+innerH-f*innerH;
     return `<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="var(--line)" stroke-width="1"/>`;
   }).join('');
+  const defs = `<defs>${series.map((s,i)=>`
+    <linearGradient id="${chartId}-g${i}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${s.color}" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="${s.color}" stop-opacity="0.02"/>
+    </linearGradient>`).join('')}</defs>`;
+  const areasSvg = series.map((s,i)=>{
+    const linePts = months.map((m,idx)=>`${x(idx)},${y(s.values[m]||0)}`).join(' L ');
+    return `<path d="M ${x(0)},${baseline} L ${linePts} L ${x(months.length-1)},${baseline} Z" fill="url(#${chartId}-g${i})" stroke="none"/>`;
+  }).join('');
   const linesSvg = series.map(s=>{
     const pts = months.map((m,i)=>`${x(i)},${y(s.values[m]||0)}`).join(' ');
-    const dots = months.map((m,i)=>`<circle cx="${x(i)}" cy="${y(s.values[m]||0)}" r="3" fill="${s.color}"><title>${s.label} — ${monthLabel(m)}: ${s.fmt?s.fmt(s.values[m]||0):(s.values[m]||0).toFixed(1)}</title></circle>`).join('');
-    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5"/>${dots}`;
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5"/>`;
   }).join('');
+  const dotsSvg = series.map(s=> months.map((m,i)=>`<circle cx="${x(i)}" cy="${y(s.values[m]||0)}" r="3" fill="${s.color}"/>`).join('')).join('');
   const step = Math.max(1, Math.ceil(months.length/8));
   const labelsSvg = months.map((m,i)=> i%step===0 ? `<text x="${x(i)}" y="${H-8}" font-size="9" fill="var(--ink-soft)" text-anchor="middle">${monthLabel(m).split(' de ')[0].slice(0,3)}</text>` : '').join('');
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;">${gridLines}${linesSvg}${labelsSvg}</svg>
+  const seriesAttr = JSON.stringify(series.map(s=>({label:s.label, color:s.color, fmt:s.fmtType||'eur', values: months.map(m=>s.values[m]||0)}))).replace(/'/g,'&apos;');
+  const monthsAttr = JSON.stringify(months.map(monthLabel)).replace(/'/g,'&apos;');
+  return `<div class="linechart-wrap" data-lc-months='${monthsAttr}' data-lc-series='${seriesAttr}' data-lc-padl="${padL}" data-lc-innerw="${innerW}" style="position:relative;">
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" class="linechart-svg">
+      ${defs}${gridLines}${areasSvg}${linesSvg}${dotsSvg}
+      <line class="lc-hoverline" x1="0" y1="${padT}" x2="0" y2="${baseline}" stroke="var(--wine)" stroke-width="1" stroke-dasharray="3,3" opacity="0"/>
+      ${labelsSvg}
+    </svg>
+    <div class="lc-tooltip" style="display:none;"></div>
+  </div>
     <div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:8px;">${series.map(s=>`<span style="font-size:11px;color:var(--ink-soft);"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s.color};margin-right:5px;"></span>${s.label}</span>`).join('')}</div>`;
 }
 /* Percentual de vendas por vendedor: quanto cada um representa do total
@@ -1844,8 +1870,8 @@ function renderSaldoEEvolucaoCharts(){
       <div class="chart-col">
         <h4>🟢 Entradas x 🔴 Saídas (evolução mensal)</h4>
         ${svgMultiLineChart(meses, [
-          {label:'Entradas', color:'#2E7D5B', values: Object.fromEntries(meses.map(mk=>[mk,porMes[mk].entrou])), fmt:fmtEUR},
-          {label:'Saídas', color:'#B0503B', values: Object.fromEntries(meses.map(mk=>[mk,porMes[mk].saiu])), fmt:fmtEUR}
+          {label:'Entradas', color:'#2E7D5B', values: Object.fromEntries(meses.map(mk=>[mk,porMes[mk].entrou])), fmtType:'eur'},
+          {label:'Saídas', color:'#B0503B', values: Object.fromEntries(meses.map(mk=>[mk,porMes[mk].saiu])), fmtType:'eur'}
         ])}
       </div>
     </div>
@@ -1877,7 +1903,7 @@ function renderPercentualVendedoresCharts(){
       <div class="chart-col">
         <h4>Evolução da participação (últimos ${mesesGrafico.length} meses)</h4>
         ${svgMultiLineChart(mesesGrafico, sellers.map((s,i)=>({
-          label:s.nome, color:PALETA_GRAFICO[i%PALETA_GRAFICO.length], values:pct[s.id], fmt:v=>v.toFixed(1)+'%'
+          label:s.nome, color:PALETA_GRAFICO[i%PALETA_GRAFICO.length], values:pct[s.id], fmtType:'pct'
         })))}
       </div>
     </div>
@@ -3645,6 +3671,36 @@ function wireViewportEvents(){
   });
 
   vp.querySelectorAll('[data-ftab]').forEach(b=> b.addEventListener('click', ()=>{ STATE.financeiroTab=b.dataset.ftab; renderAll(); }));
+
+  vp.querySelectorAll('.linechart-wrap').forEach(wrap=>{
+    const svg = wrap.querySelector('.linechart-svg');
+    const hoverLine = wrap.querySelector('.lc-hoverline');
+    const tooltip = wrap.querySelector('.lc-tooltip');
+    if(!svg || !hoverLine || !tooltip) return;
+    let months, series;
+    try{
+      months = JSON.parse(wrap.dataset.lcMonths.replace(/&apos;/g,"'"));
+      series = JSON.parse(wrap.dataset.lcSeries.replace(/&apos;/g,"'"));
+    }catch(e){ return; }
+    const padL = Number(wrap.dataset.lcPadl), innerW = Number(wrap.dataset.lcInnerw);
+    const W = 640;
+    const fmtVal = (v, tipo)=> tipo==='pct' ? v.toFixed(1)+'%' : fmtEUR(v);
+    const mostra = (clientX)=>{
+      const rect = svg.getBoundingClientRect();
+      const relX = (clientX-rect.left)/rect.width*W;
+      let idx = months.length>1 ? Math.round(((relX-padL)/innerW)*(months.length-1)) : 0;
+      idx = Math.max(0, Math.min(months.length-1, idx));
+      const xPix = months.length>1 ? padL+(idx/(months.length-1))*innerW : padL+innerW/2;
+      hoverLine.setAttribute('x1', xPix); hoverLine.setAttribute('x2', xPix); hoverLine.setAttribute('opacity','1');
+      tooltip.innerHTML = `<strong>${months[idx]}</strong>` + series.map(s=>`<span style="color:${s.color==='#520225'?'#e8a6c4':s.color}">●</span> ${s.label}: <strong>${fmtVal(s.values[idx], s.fmt)}</strong>`).join('<br>');
+      tooltip.style.display = 'block';
+      const pctX = (xPix/W)*100;
+      tooltip.style.left = Math.min(88,Math.max(12,pctX))+'%';
+    };
+    svg.addEventListener('mousemove', e=>mostra(e.clientX));
+    svg.addEventListener('touchmove', e=>{ if(e.touches[0]) mostra(e.touches[0].clientX); }, {passive:true});
+    svg.addEventListener('mouseleave', ()=>{ tooltip.style.display='none'; hoverLine.setAttribute('opacity','0'); });
+  });
 
   vp.querySelectorAll('[data-search-key]').forEach(input=>{
     input.addEventListener('input', ()=>{
