@@ -212,6 +212,22 @@ tr:hover td{background:#FBFBFA;}
 .funnel .fitem label{display:block;font-size:10.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;letter-spacing:.4px;}
 .funnel .fitem input{width:100%;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;background:#fff;}
 
+.saldo-hero-block{padding:0;overflow:hidden;}
+.saldo-hero{background:linear-gradient(135deg,var(--wine),var(--wine-2));padding:28px 26px;text-align:center;color:#fff;}
+.saldo-hero-lbl{font-size:12.5px;letter-spacing:.3px;opacity:.85;margin-bottom:6px;}
+.saldo-hero-val{font-family:'Source Serif 4',serif;font-size:38px;font-weight:600;line-height:1.1;}
+.saldo-hero-val.bad{color:#ffb3a0;}
+.saldo-hero-sub{font-size:12.5px;opacity:.85;margin-top:8px;}
+.extrato-list{display:flex;flex-direction:column;}
+.extrato-item{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);}
+.extrato-item:last-child{border-bottom:none;}
+.extrato-icon{width:38px;height:38px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+.extrato-main{flex:1;min-width:0;}
+.extrato-titulo{font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.extrato-tags{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;}
+.extrato-valor{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;white-space:nowrap;}
+.extrato-valor.good{color:var(--good);}
+.extrato-valor.bad{color:var(--bad);}
 .funil-day-nav{display:flex;align-items:center;justify-content:center;gap:16px;padding:18px 20px 6px;flex-wrap:wrap;}
 .funil-day-current{text-align:center;min-width:150px;}
 .funil-day-current strong{display:block;font-family:'Source Serif 4',serif;font-size:17px;color:var(--wine);}
@@ -1686,6 +1702,59 @@ function abrirPagamentoRecorrenciaModal(recId){
   };
 }
 
+/* Gráfico de linhas simples em SVG puro, sem biblioteca — usado tanto na
+   evolução de entradas x saídas quanto no percentual de vendas por
+   vendedor ao longo do tempo. */
+function svgMultiLineChart(months, series){
+  const W = 640, H = 220, padL = 40, padR = 14, padT = 14, padB = 26;
+  const innerW = W-padL-padR, innerH = H-padT-padB;
+  if(!months.length) return `<div class="empty">Sem dados ainda.</div>`;
+  const allVals = series.flatMap(s=>months.map(m=>s.values[m]||0));
+  const maxV = Math.max(...allVals, 1);
+  const x = i => padL + (months.length<=1?innerW/2:(i/(months.length-1))*innerW);
+  const y = v => padT + innerH - (maxV>0 ? (v/maxV)*innerH : 0);
+  const gridLines = [0,0.25,0.5,0.75,1].map(f=>{
+    const yy = padT+innerH-f*innerH;
+    return `<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="var(--line)" stroke-width="1"/>`;
+  }).join('');
+  const linesSvg = series.map(s=>{
+    const pts = months.map((m,i)=>`${x(i)},${y(s.values[m]||0)}`).join(' ');
+    const dots = months.map((m,i)=>`<circle cx="${x(i)}" cy="${y(s.values[m]||0)}" r="3" fill="${s.color}"><title>${s.label} — ${monthLabel(m)}: ${s.fmt?s.fmt(s.values[m]||0):(s.values[m]||0).toFixed(1)}</title></circle>`).join('');
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5"/>${dots}`;
+  }).join('');
+  const step = Math.max(1, Math.ceil(months.length/8));
+  const labelsSvg = months.map((m,i)=> i%step===0 ? `<text x="${x(i)}" y="${H-8}" font-size="9" fill="var(--ink-soft)" text-anchor="middle">${monthLabel(m).split(' de ')[0].slice(0,3)}</text>` : '').join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;">${gridLines}${linesSvg}${labelsSvg}</svg>
+    <div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:8px;">${series.map(s=>`<span style="font-size:11px;color:var(--ink-soft);"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s.color};margin-right:5px;"></span>${s.label}</span>`).join('')}</div>`;
+}
+/* Percentual de vendas por vendedor: quanto cada um representa do total
+   vendido da empresa, mês a mês (baseado em Valor Vendido = vendas
+   integrais + contrato de recorrências, igual ao resto do sistema). */
+function evolucaoPercentualVendedores(){
+  const sellers = activeSellers();
+  const meses = new Set();
+  const porVendedorMes = {};
+  sellers.forEach(s=>{ porVendedorMes[s.id] = {}; });
+  STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && s.data).forEach(s=>{
+    const mk = s.data.slice(0,7); meses.add(mk);
+    if(porVendedorMes[s.vendedorId]) porVendedorMes[s.vendedorId][mk] = (porVendedorMes[s.vendedorId][mk]||0)+(s.valorTotal||0);
+  });
+  STATE.recurrences.filter(r=>r.dataVenda).forEach(r=>{
+    const mk = r.dataVenda.slice(0,7); meses.add(mk);
+    if(porVendedorMes[r.vendedorId]) porVendedorMes[r.vendedorId][mk] = (porVendedorMes[r.vendedorId][mk]||0)+(r.valorContrato||0);
+  });
+  const mesesOrdenados = [...meses].sort();
+  const totalPorMes = {};
+  mesesOrdenados.forEach(mk=>{ totalPorMes[mk] = sellers.reduce((a,s)=>a+(porVendedorMes[s.id][mk]||0),0); });
+  const pct = {};
+  sellers.forEach(s=>{
+    pct[s.id] = {};
+    mesesOrdenados.forEach(mk=>{ pct[s.id][mk] = totalPorMes[mk]>0 ? (porVendedorMes[s.id][mk]||0)/totalPorMes[mk]*100 : 0; });
+  });
+  return { meses: mesesOrdenados, sellers, pct, valorPorVendedorMes: porVendedorMes, totalPorMes };
+}
+const PALETA_GRAFICO = ['#520225','#BB8E1D','#2E7D5B','#B0503B','#3B6EA5','#8B5CF6','#67203F','#5B6570'];
+
 function renderChartsPanel(){
   // Forma de pagamento mais utilizada, no período selecionado — inclui vendas
   // avulsas (exceto as já contabilizadas via recorrência, pra não duplicar) E
@@ -1737,6 +1806,79 @@ function renderChartsPanel(){
               <div class="vbar-label">${monthLabel(mk).split(' de ')[0].slice(0,3)}</div>
             </div>`).join('')}
         </div>` : `<div class="empty">Sem dados ainda.</div>`}
+      </div>
+    </div>
+  </section>
+  ${renderSaldoEEvolucaoCharts()}
+  ${STATE.role==='gestor' ? renderPercentualVendedoresCharts() : ''}`;
+}
+/* 💰 Saldo mensal (entradas − saídas de custos) e 🟢🔴 evolução entradas x
+   saídas nos últimos 12 meses — usa o mesmo registo de movimentações do
+   Extrato/Registro, então está sempre sincronizado com o que é lançado. */
+function renderSaldoEEvolucaoCharts(){
+  const todas = linhasFinanceiras({granularity:'all'});
+  const porMes = {};
+  todas.forEach(l=>{
+    const mk = (l.data||'').slice(0,7);
+    if(!mk) return;
+    if(!porMes[mk]) porMes[mk] = {entrou:0, saiu:0};
+    if(l.sinal>0) porMes[mk].entrou += l.valor; else porMes[mk].saiu += l.valor;
+  });
+  const meses = Object.keys(porMes).sort().slice(-12);
+  const maxSaldo = Math.max(...meses.map(mk=>Math.abs(porMes[mk].entrou-porMes[mk].saiu)), 1);
+  return `
+  <section class="block">
+    <div class="block-head"><h3>💰 Saldo e evolução de caixa</h3><span class="hint">últimos ${meses.length} mês(es) com movimentação · vem do Registro/Extrato</span></div>
+    <div class="charts-grid">
+      <div class="chart-col">
+        <h4>Saldo mensal (entrou − saiu)</h4>
+        ${meses.length ? `<div class="vbar-chart">${meses.map(mk=>{
+          const saldo = porMes[mk].entrou - porMes[mk].saiu;
+          return `<div class="vbar-col">
+            <div class="vbar-track"><span style="height:${(Math.abs(saldo)/maxSaldo*100)}%;background:${saldo>=0?'var(--good)':'var(--bad)'};"></span></div>
+            <div class="vbar-val">${fmtEUR(saldo)}</div>
+            <div class="vbar-label">${monthLabel(mk).split(' de ')[0].slice(0,3)}</div>
+          </div>`;
+        }).join('')}</div>` : `<div class="empty">Sem movimentações ainda.</div>`}
+      </div>
+      <div class="chart-col">
+        <h4>🟢 Entradas x 🔴 Saídas (evolução mensal)</h4>
+        ${svgMultiLineChart(meses, [
+          {label:'Entradas', color:'#2E7D5B', values: Object.fromEntries(meses.map(mk=>[mk,porMes[mk].entrou])), fmt:fmtEUR},
+          {label:'Saídas', color:'#B0503B', values: Object.fromEntries(meses.map(mk=>[mk,porMes[mk].saiu])), fmt:fmtEUR}
+        ])}
+      </div>
+    </div>
+  </section>`;
+}
+/* % de vendas por vendedor — só o gestor vê. Coluna = participação no mês
+   atual; linhas = como essa participação evoluiu mês a mês. */
+function renderPercentualVendedoresCharts(){
+  const { meses, sellers, pct } = evolucaoPercentualVendedores();
+  if(!meses.length || !sellers.length) return '';
+  const mesAtual = meses[meses.length-1];
+  const pctAtual = sellers.map(s=>({ nome:s.nome, valor: pct[s.id][mesAtual]||0 })).sort((a,b)=>b.valor-a.valor);
+  const maxPct = Math.max(...pctAtual.map(p=>p.valor), 1);
+  const mesesGrafico = meses.slice(-12);
+  return `
+  <section class="block">
+    <div class="block-head"><h3>📊 Percentual de vendas por vendedor</h3><span class="hint">participação de cada um no total vendido da empresa (só visível pro gestor)</span></div>
+    <div class="charts-grid">
+      <div class="chart-col">
+        <h4>Participação em ${monthLabel(mesAtual)}</h4>
+        <div class="vbar-chart">${pctAtual.map((p,i)=>`
+          <div class="vbar-col">
+            <div class="vbar-track"><span style="height:${(p.valor/maxPct*100)}%;background:${PALETA_GRAFICO[i%PALETA_GRAFICO.length]};"></span></div>
+            <div class="vbar-val">${p.valor.toFixed(1)}%</div>
+            <div class="vbar-label">${p.nome.split(' ')[0]}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="chart-col">
+        <h4>Evolução da participação (últimos ${mesesGrafico.length} meses)</h4>
+        ${svgMultiLineChart(mesesGrafico, sellers.map((s,i)=>({
+          label:s.nome, color:PALETA_GRAFICO[i%PALETA_GRAFICO.length], values:pct[s.id], fmt:v=>v.toFixed(1)+'%'
+        })))}
       </div>
     </div>
   </section>`;
@@ -2388,6 +2530,7 @@ function renderMyPanel(){
     <div class="card"><div class="lbl">Ticket médio</div><div class="val">${fmtEUR(st.ticketMedio)}</div></div>
   </div>
   ${renderVendasSubcards(STATE.periodFilter, seller.id)}
+  ${renderEvolucaoMensalVendedor(seller.id)}
   <section class="block">
     <div class="block-head"><h3>Minhas recorrências (${recs.length})</h3><button class="btn gold" id="btnAddRecColab">+ Nova recorrência</button></div>
     ${recurrenceTable([...recs].sort((a,b)=> (b.dataVenda||'').localeCompare(a.dataVenda||'')),{hideVendedor:true})}
@@ -2501,7 +2644,7 @@ function renderFinanceiro(){
   const tax = computeTaxes(filter);
   const lucro = computeLucro(filter);
   return `
-  ${renderGenericFilterBar('financeiroFilter', ['all','month'], months)}
+  ${renderGenericFilterBar('financeiroFilter', ['all','month','week','day'], months)}
   <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado) — só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte.</div>
   <div class="cards">
     <div class="card"><div class="lbl">Custos fixos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val">${fmtEUR(costs.totalFixos)}</div></div>
@@ -2513,10 +2656,11 @@ function renderFinanceiro(){
     <button data-ftab="fixos" class="${tab==='fixos'?'active':''}">Custos fixos</button>
     <button data-ftab="variaveis" class="${tab==='variaveis'?'active':''}">Custos variáveis</button>
     <button data-ftab="impostos" class="${tab==='impostos'?'active':''}">Detalhamento de impostos</button>
-    <button data-ftab="extrato" class="${tab==='extrato'?'active':''}">Extrato do dia</button>
+    <button data-ftab="registro" class="${tab==='registro'?'active':''}">📋 Registro</button>
+    <button data-ftab="extrato" class="${tab==='extrato'?'active':''}">🧾 Extrato do dia</button>
   </div>
   <div style="margin-top:18px;">
-  ${tab==='impostos' ? renderImpostosTab(filter) : tab==='extrato' ? renderExtratoTab() : renderCostsTab(tab==='variaveis' ? costs.variaveis : costs.fixos, tab, monthKeyAtual)}
+  ${tab==='impostos' ? renderImpostosTab(filter) : tab==='extrato' ? renderExtratoTab() : tab==='registro' ? renderRegistroTab(filter) : renderCostsTab(tab==='variaveis' ? costs.variaveis : costs.fixos, tab, monthKeyAtual)}
   </div>`;
 }
 function renderCostsTab(list, tab, monthKeyAtual){
@@ -2539,68 +2683,112 @@ function renderCostsTab(list, tab, monthKeyAtual){
 /* Extrato do dia: tudo que mexeu no caixa naquele dia específico — vendas
    recebidas, entrada/parcelas de recorrência, e custos com vencimento
    naquele dia (fixos ou variáveis, pagos ou pendentes). */
-function renderExtratoTab(){
-  const data = STATE.extratoData || todayISO();
-  const monthKey = data.slice(0,7);
+/* Lista unificada de movimentações financeiras num período qualquer — usada
+   tanto no Extrato do dia (período = 1 dia) quanto no Registro (qualquer
+   período). Cada linha já vem com emoji, categoria e sinal (+/-) prontos. */
+function linhasFinanceiras(filter){
   const linhas = [];
-  STATE.sales.filter(s=>s.data===data && (s.valorPago||0)>0).forEach(s=>{
-    linhas.push({ tipo:'Venda', nome:s.cliente, vendedor:s.vendedorNome, entrada:s.valorPago, saida:0, status:'recebido' });
-  });
-  STATE.recurrences.filter(r=>r.dataVenda===data && (r.valorEntrada||0)>0).forEach(r=>{
-    linhas.push({ tipo:'Entrada de recorrência', nome:r.cliente, vendedor:r.vendedorNome, entrada:r.valorEntrada, saida:0, status:'recebido' });
+  STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && (s.valorPago||0)>0 && inPeriodOrAll(s.data, filter)).forEach(s=>{
+    linhas.push({ data:s.data, emoji:'💳', tipo:'Venda integral', categoria:'Receita', cliente:s.cliente, vendedor:s.vendedorNome, forma:s.formaPagamento||'—', valor:s.valorPago, sinal:1 });
   });
   STATE.recurrences.forEach(r=>{
     const st = recStatus(r);
+    if((r.valorEntrada||0)>0 && inPeriodOrAll(r.dataVenda, filter)){
+      linhas.push({ data:r.dataVenda, emoji:'🔁', tipo:'Entrada de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor:r.valorEntrada, sinal:1 });
+    }
     r.parcelas.forEach(p=>{
-      if(p.pago && p.data===data) linhas.push({ tipo:'Parcela '+p.numero+' de recorrência', nome:r.cliente, vendedor:r.vendedorNome, entrada:st.valorParcela, saida:0, status:'recebido' });
+      if(p.pago && p.data && inPeriodOrAll(p.data, filter)){
+        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor:st.valorParcela, sinal:1 });
+      }
     });
   });
-  // Custos fixos pagos exatamente nesse dia — procura em todos os lançamentos
-  // e em todos os meses projetados, pra não perder um pagamento antecipado
-  // que caiu num mês diferente do vencimento original.
   STATE.costs.filter(c=>c.categoria==='FIXO').forEach(c=>{
-    if(c.pago && c.dataPagamento===data){
-      linhas.push({ tipo:'Custo fixo', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status:'pago' });
+    if(c.pago && c.dataPagamento && inPeriodOrAll(c.dataPagamento, filter)){
+      linhas.push({ data:c.dataPagamento, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
     }
     if(c.pagoPorMes){
       Object.values(c.pagoPorMes).forEach(reg=>{
-        if(reg && typeof reg==='object' && reg.pago && reg.data===data){
-          linhas.push({ tipo:'Custo fixo', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status:'pago' });
+        if(reg && typeof reg==='object' && reg.pago && reg.data && inPeriodOrAll(reg.data, filter)){
+          linhas.push({ data:reg.data, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
         }
       });
     }
   });
-  // Custos fixos pendentes com vencimento nesse dia (ainda não pagos)
+  STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.pago && inPeriodOrAll(c.vencimento, filter)).forEach(c=>{
+    linhas.push({ data:c.vencimento, emoji:'📦', tipo:'Custo variável', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
+  });
+  return linhas.sort((a,b)=> (b.data||'').localeCompare(a.data||''));
+}
+function renderExtratoTab(){
+  const data = STATE.extratoData || todayISO();
+  const monthKey = data.slice(0,7);
+  const filtroDia = {granularity:'day', anchor:data};
+  let linhas = linhasFinanceiras(filtroDia);
+  // pendências (ainda não pagas) com vencimento nesse dia — mostradas à parte
+  const pendentes = [];
   custosFixosDoMes(monthKey).forEach(c=>{
-    if(!c.pago && c.vencimento===data){
-      linhas.push({ tipo:'Custo fixo', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status:'pendente' });
-    }
+    if(!c.pago && c.vencimento===data) pendentes.push({ data, emoji:'⏳', tipo:'Custo fixo (pendente)', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
   });
-  STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.vencimento===data).forEach(c=>{
-    linhas.push({ tipo:'Custo variável', nome:c.nome, vendedor:'—', entrada:0, saida:c.valor, status: c.pago?'pago':'pendente' });
+  STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && !c.pago && c.vencimento===data).forEach(c=>{
+    pendentes.push({ data, emoji:'⏳', tipo:'Custo variável (pendente)', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
   });
-  const filtradas = linhas.filter(l=>matchesSearch(l.nome, STATE.searchFinanceiro));
-  const totalEntrou = filtradas.reduce((a,l)=>a+l.entrada,0);
-  const totalSaiu = filtradas.filter(l=>l.status==='pago').reduce((a,l)=>a+l.saida,0);
+  linhas = linhas.filter(l=>matchesSearch(l.cliente, STATE.searchFinanceiro));
+  const pendentesFiltradas = pendentes.filter(l=>matchesSearch(l.cliente, STATE.searchFinanceiro));
+  const totalEntrou = linhas.filter(l=>l.sinal>0).reduce((a,l)=>a+l.valor,0);
+  const totalSaiu = linhas.filter(l=>l.sinal<0).reduce((a,l)=>a+l.valor,0);
+  const saldo = totalEntrou - totalSaiu;
+  const todasLinhas = [...linhas, ...pendentesFiltradas];
   return `
   <div class="field-row" style="max-width:460px;margin-bottom:14px;">
     <div class="field"><label>Data</label><input type="date" id="extratoDataInput" value="${data}"></div>
   </div>
   ${renderSearchBar('searchFinanceiro','Buscar por nome…')}
+  <section class="block saldo-hero-block">
+    <div class="saldo-hero">
+      <div class="saldo-hero-lbl">💰 Saldo do dia — ${fmtDate(data)}</div>
+      <div class="saldo-hero-val ${saldo>=0?'good':'bad'}">${fmtEUR(saldo)}</div>
+      <div class="saldo-hero-sub">🟢 entrou ${fmtEUR(totalEntrou)} &nbsp;·&nbsp; 🔴 saiu ${fmtEUR(totalSaiu)}</div>
+    </div>
+  </section>
+  <section class="block">
+    <div class="block-head"><h3>Movimentações de ${fmtDate(data)} (${todasLinhas.length})</h3><span class="hint">mais recente primeiro</span></div>
+    ${todasLinhas.length ? `<div class="extrato-list">${todasLinhas.map(l=>`
+      <div class="extrato-item">
+        <div class="extrato-icon">${l.emoji}</div>
+        <div class="extrato-main">
+          <div class="extrato-titulo">${l.tipo} — ${l.cliente}</div>
+          <div class="extrato-tags"><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span>${l.vendedor&&l.vendedor!=='—'?`<span class="chip neutral">👤 ${l.vendedor}</span>`:''}${l.forma&&l.forma!=='—'?`<span class="chip neutral">💳 ${l.forma}</span>`:''}${l.tipo.includes('pendente')?'<span class="chip bad">pendente</span>':''}</div>
+        </div>
+        <div class="extrato-valor ${l.sinal>0?'good':'bad'}">${l.sinal>0?'+':'−'} ${fmtEUR(l.valor)}</div>
+      </div>`).join('')}</div>` : `<div class="empty">Nenhuma movimentação registada nesse dia.</div>`}
+  </section>`;
+}
+/* Registro do período — igual ao Extrato, mas pra qualquer intervalo (não só
+   um dia), sincronizado ao vivo com vendas e recorrências: cada pagamento
+   novo já aparece aqui assim que é lançado, sem precisar de nenhum passo
+   extra. */
+function renderRegistroTab(filter){
+  const linhas = linhasFinanceiras(filter).filter(l=>matchesSearch(l.cliente, STATE.searchFinanceiro));
+  const totalEntrou = linhas.filter(l=>l.sinal>0).reduce((a,l)=>a+l.valor,0);
+  const totalSaiu = linhas.filter(l=>l.sinal<0).reduce((a,l)=>a+l.valor,0);
+  return `
+  ${renderSearchBar('searchFinanceiro','Buscar por nome…')}
   <div class="cards">
-    <div class="card"><div class="lbl">Entrou no dia</div><div class="val good">${fmtEUR(totalEntrou)}</div></div>
-    <div class="card"><div class="lbl">Saiu no dia (custos pagos)</div><div class="val bad">${fmtEUR(totalSaiu)}</div></div>
-    <div class="card accent"><div class="lbl">Saldo do dia</div><div class="val ${totalEntrou-totalSaiu>=0?'good':'bad'}">${fmtEUR(totalEntrou-totalSaiu)}</div></div>
+    <div class="card"><div class="lbl">🟢 Entrou no período</div><div class="val good">${fmtEUR(totalEntrou)}</div></div>
+    <div class="card"><div class="lbl">🔴 Saiu no período</div><div class="val bad">${fmtEUR(totalSaiu)}</div></div>
+    <div class="card accent"><div class="lbl">💰 Saldo do período</div><div class="val ${totalEntrou-totalSaiu>=0?'good':'bad'}">${fmtEUR(totalEntrou-totalSaiu)}</div></div>
   </div>
   <section class="block">
-    <div class="block-head"><h3>Movimentações de ${fmtDate(data)} (${filtradas.length})</h3><span class="hint">vendas, recorrências e custos com data nesse dia</span></div>
-    ${filtradas.length ? `<table><thead><tr><th>Tipo</th><th>Nome</th><th>Vendedor</th><th>Entrou</th><th>Saiu</th><th>Status</th></tr></thead>
-    <tbody>${filtradas.map(l=>`<tr>
-        <td>${l.tipo}</td><td><strong>${l.nome}</strong></td><td>${l.vendedor}</td>
-        <td class="tnum">${l.entrada>0?fmtEUR(l.entrada):'—'}</td>
-        <td class="tnum">${l.saida>0?fmtEUR(l.saida):'—'}</td>
-        <td>${l.status==='pendente' ? '<span class="chip bad">pendente</span>' : '<span class="chip good">'+l.status+'</span>'}</td>
-      </tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhuma movimentação registada nesse dia.</div>`}
+    <div class="block-head"><h3>Registos do período (${linhas.length})</h3><span class="hint">ao vivo — toda venda, recorrência e custo pago aparece aqui na hora</span></div>
+    ${linhas.length ? `<table><thead><tr><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Data</th><th>Fonte</th><th>Valor</th></tr></thead>
+    <tbody>${linhas.map(l=>`<tr>
+        <td>${l.emoji} <strong>${l.cliente}</strong>${l.vendedor&&l.vendedor!=='—'?` <span style="color:var(--ink-soft);font-size:11.5px;">· ${l.vendedor}</span>`:''}</td>
+        <td>${l.tipo}</td>
+        <td><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span></td>
+        <td>${fmtDate(l.data)}</td>
+        <td>${l.forma}</td>
+        <td class="tnum ${l.sinal>0?'good':'bad'}">${l.sinal>0?'+':'−'} ${fmtEUR(l.valor)}</td>
+      </tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registo nesse período.</div>`}
   </section>`;
 }
 function renderImpostosTab(filter){
