@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.2 — Corrigido: Pendências contava em dobro + cards clicáveis com detalhamento
+- **Bug real encontrado e corrigido**: o card "Pendências" (Visão Geral, perfil do vendedor, Minhas Vendas) estava somando o valor pendente de uma venda **e** da recorrência que representa o mesmo negócio — contando o mesmo dinheiro duas vezes. No conjunto de dados de teste, isso inflava o total de €11.460,51 (correto) para €40.074,95. Corrigido em `computeGlobalForPeriod`, `computeSellerStats` e `computeGlobal`.
+- **Os 4 cards principais agora são clicáveis**: Valor vendido, Faturamento recebido (caixa), Pendências, Recorrência em andamento — na Visão Geral, no perfil do vendedor e em Minhas Vendas (Meu faturamento/Meu pendente). Clicar abre um detalhamento linha a linha (data, cliente, vendedor quando aplicável, o que está sendo contado, valor) com o total batendo exatamente com o número do card — testado conferindo que a soma das linhas fecha com o valor do card em todos os 4 tipos.
+
 ## v3.1 — Custos fixos: data real de pagamento, aviso de vencidos na Visão Geral
 - **Botão de pagar registra a data real do pagamento** (hoje), não mais a data de vencimento — assim dá pra pagar um custo fixo antes do vencimento e ele aparece no Extrato do dia certo (o dia em que você realmente pagou), não no dia em que venceria.
 - **Nova caixa na Visão Geral: "Custos fixos vencidos"** — mostra todo custo fixo com vencimento no passado e ainda não pago, com quantos dias de atraso e um botão **Pagar** ali mesmo. Ao clicar, já registra como pago hoje e entra automaticamente no Extrato do dia como saída de caixa/despesa.
