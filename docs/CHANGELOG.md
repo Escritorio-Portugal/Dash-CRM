@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.3 — Corrigido: Valor Vendido não contava recorrências criadas direto no sistema
+- **Bug real encontrado e corrigido**: "Valor Vendido" (Visão Geral e perfil de cada vendedor) só somava a tabela de Vendas — uma recorrência criada direto pelo painel (sem vir de importação de planilha) nunca entrava nessa soma, porque não existe "venda" nenhuma pra ela, só a recorrência em si. Agora a conta é sempre **vendas integrais + valor de contrato de toda recorrência**, então nenhum negócio fica de fora. Testado com o exemplo exato: recorrência de €2.112,60 + venda integral de €350 = €2.462,60 no Valor Vendido.
+- **Renomeado "Vendas avulsas" para "Vendas integrais"** em todas as telas (Vendas, perfil do vendedor, Minhas Vendas), pra não confundir com "avulso" — venda integral é o nome certo pro que não é recorrência.
+- **Novo: gráfico de evolução mensal** no perfil de cada vendedor — duas colunas: valor vendido por mês (integral x recorrente, empilhado) e nº de clientes distintos por mês.
+
 ## v3.2 — Corrigido: Pendências contava em dobro + cards clicáveis com detalhamento
 - **Bug real encontrado e corrigido**: o card "Pendências" (Visão Geral, perfil do vendedor, Minhas Vendas) estava somando o valor pendente de uma venda **e** da recorrência que representa o mesmo negócio — contando o mesmo dinheiro duas vezes. No conjunto de dados de teste, isso inflava o total de €11.460,51 (correto) para €40.074,95. Corrigido em `computeGlobalForPeriod`, `computeSellerStats` e `computeGlobal`.
 - **Os 4 cards principais agora são clicáveis**: Valor vendido, Faturamento recebido (caixa), Pendências, Recorrência em andamento — na Visão Geral, no perfil do vendedor e em Minhas Vendas (Meu faturamento/Meu pendente). Clicar abre um detalhamento linha a linha (data, cliente, vendedor quando aplicável, o que está sendo contado, valor) com o total batendo exatamente com o número do card — testado conferindo que a soma das linhas fecha com o valor do card em todos os 4 tipos.
