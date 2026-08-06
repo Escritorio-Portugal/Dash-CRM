@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.4 — Financeiro: aba Registro, extrato redesenhado, novos gráficos
+- **Nova aba "📋 Registro"** dentro de Financeiro: lista ao vivo de toda movimentação financeira (vendas, entrada/parcela de recorrência, custos pagos) num período qualquer — não só um dia. Sincronizado automaticamente: todo pagamento novo já aparece assim que é lançado, sem passo extra.
+- **Extrato do dia redesenhado**: o saldo agora é a primeira informação, em destaque (card grande no topo), seguido pela lista de movimentações em formato de cartão (ícone, cliente, categoria, forma de pagamento, valor com + ou −), em vez da tabela antiga.
+- **Financeiro agora aceita filtro de dia/semana/mês/histórico** (antes só tinha mês/histórico).
+- **Novos gráficos** (Visão Geral → Gráficos):
+  - 💰 Saldo mensal (coluna) — entrou menos saiu, por mês.
+  - 🟢🔴 Entradas x Saídas — evolução mensal (gráfico de linhas).
+  - 📊 Percentual de vendas por vendedor — coluna (participação no mês atual) e linha (evolução da participação ao longo dos meses) — **só aparece pro gestor**.
+- **Painel de evolução de vendas pro colaborador** — em Minhas Vendas, gráfico mostrando a evolução dele mesmo (vendas integrais x recorrentes, e clientes distintos) mês a mês, desde que está no sistema.
+- **Não implementado, por escolha consciente**: o gráfico de velas (candlestick). Esse tipo de gráfico existe pra mostrar abertura/máxima/mínima/fechamento de um preço que oscila (ações, moedas) — não existe esse conceito em fluxo de caixa (não tem "preço de abertura do dia"). Troquei pelo gráfico de linhas de entradas x saídas acima, que mostra a mesma informação (evolução do fluxo) de um jeito que faz sentido pros teus dados. Se quiser mesmo assim algo visualmente parecido com velas, me diz que penso numa alternativa.
+
 ## v3.3 — Corrigido: Valor Vendido não contava recorrências criadas direto no sistema
 - **Bug real encontrado e corrigido**: "Valor Vendido" (Visão Geral e perfil de cada vendedor) só somava a tabela de Vendas — uma recorrência criada direto pelo painel (sem vir de importação de planilha) nunca entrava nessa soma, porque não existe "venda" nenhuma pra ela, só a recorrência em si. Agora a conta é sempre **vendas integrais + valor de contrato de toda recorrência**, então nenhum negócio fica de fora. Testado com o exemplo exato: recorrência de €2.112,60 + venda integral de €350 = €2.462,60 no Valor Vendido.
 - **Renomeado "Vendas avulsas" para "Vendas integrais"** em todas as telas (Vendas, perfil do vendedor, Minhas Vendas), pra não confundir com "avulso" — venda integral é o nome certo pro que não é recorrência.
