@@ -1019,9 +1019,12 @@ function computeSellerStats(sellerId, filter){
   // contam como negócio à parte — é a mesma recorrência, já contada abaixo.
   sales.filter(s=>!s.jaContabilizadoViaRecorrencia).forEach(s=>{ valorPendente+=saleStatus(s).valorPendente; deals++; });
   recs.forEach(r=>{ valorPendente+=recStatus(r).valorPendente; deals++; });
-  // "Valor vendido" = valor total contratado nas vendas do período (igual à métrica
-  // clássica da planilha: soma do Honorário Final, independente de estar pago ou não)
-  const valorVendido = sales.reduce((a,s)=>a+(s.valorTotal||0),0);
+  // "Valor vendido" = tudo que o vendedor gerou no período, recorrência ou não:
+  // vendas integrais (excluindo as que só existem pra "espelhar" uma recorrência,
+  // senão contaria o mesmo contrato duas vezes) + o valor de contrato de TODA
+  // recorrência (mesmo as criadas direto no sistema, sem venda espelhada).
+  const valorVendido = sales.filter(s=>!s.jaContabilizadoViaRecorrencia).reduce((a,s)=>a+(s.valorTotal||0),0)
+                      + recs.reduce((a,r)=>a+(r.valorContrato||0),0);
   const seller = sellerById(sellerId) || {};
   const funil = sumFunilDiario(seller, filter);
   const temFunilDiario = Object.keys(seller.funilDiario||{}).length > 0;
@@ -1073,9 +1076,11 @@ function computeGlobalForPeriod(filter){
     if(!st.quitada) recorrenciaAtivaValor += st.valorPendente;
   });
   const valorFaturado = buildEvents().filter(e=>inPeriodOrAll(e.date, filter)).reduce((a,e)=>a+e.valor,0);
-  // "Valor vendido" = total contratado (Honorário Final) das vendas do período,
-  // pago ou não — é a mesma base que a meta do mês sempre usou na planilha original.
-  const valorVendido = salesIn.reduce((a,s)=>a+(s.valorTotal||0),0);
+  // "Valor vendido" = tudo que foi gerado no período: vendas integrais
+  // (excluindo as que só espelham uma recorrência, senão duplicaria) + o
+  // valor de contrato de TODA recorrência, mesmo as sem venda espelhada.
+  const valorVendido = salesIn.filter(s=>!s.jaContabilizadoViaRecorrencia).reduce((a,s)=>a+(s.valorTotal||0),0)
+                      + recsIn.reduce((a,r)=>a+(r.valorContrato||0),0);
   const fechamentos = salesIn.length + recsIn.length;
   let conversas = 0;
   activeSellers().forEach(s=>{ conversas += sumFunilDiario(s, filter).conversas || s.conversasIniciadas||0; });
@@ -1773,9 +1778,13 @@ function renderOverview(){
    específico (sellerId preenchido). */
 function detalheCardLinhas(tipo, filter, sellerId){
   if(tipo==='vendido'){
-    return STATE.sales.filter(s=>(!sellerId||s.vendedorId===sellerId) && inPeriodOrAll(s.data, filter)).map(s=>({
-      data:s.data, cliente:s.cliente, vendedor:s.vendedorNome, tipo: s.jaContabilizadoViaRecorrencia?'Venda (é a mesma recorrência)':'Venda avulsa', valor:s.valorTotal
+    const linhas = STATE.sales.filter(s=>(!sellerId||s.vendedorId===sellerId) && !s.jaContabilizadoViaRecorrencia && inPeriodOrAll(s.data, filter)).map(s=>({
+      data:s.data, cliente:s.cliente, vendedor:s.vendedorNome, tipo:'Venda integral', valor:s.valorTotal
     }));
+    STATE.recurrences.filter(r=>(!sellerId||r.vendedorId===sellerId) && inPeriodOrAll(r.dataVenda, filter)).forEach(r=>{
+      linhas.push({ data:r.dataVenda, cliente:r.cliente, vendedor:r.vendedorNome, tipo:'Recorrência (contrato)', valor:r.valorContrato });
+    });
+    return linhas;
   }
   if(tipo==='faturado'){
     return buildEvents().filter(e=>(!sellerId||e.vendedorId===sellerId) && inPeriodOrAll(e.date, filter)).map(e=>({
@@ -2032,7 +2041,7 @@ function renderSales(){
   ${resumoVendedor}
   <section class="block">
     <div class="block-head"><h3>Registo de vendas (${list.length})</h3><button class="btn gold" id="btnAddSale">+ Nova venda</button></div>
-    <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">vendas avulsas — não recorrentes · vendido no período: ${fmtEUR(totalVendido)} · recebido: ${fmtEUR(totalRecebido)}</span></div>
+    <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">vendas integrais — não recorrentes · vendido no período: ${fmtEUR(totalVendido)} · recebido: ${fmtEUR(totalRecebido)}</span></div>
     ${list.length ? `<table>
       <thead><tr><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Origem</th><th>Serviço</th><th>Total</th><th>Recebido</th><th>Status</th><th></th></tr></thead>
       <tbody>${list.map(s=>{
@@ -2262,7 +2271,65 @@ function renderFunilManual(seller, st){
 function salesTable(list){
   const ordenada = [...list].sort((a,b)=> (b.data||'').localeCompare(a.data||''));
   return ordenada.length ? `<table><thead><tr><th>Data</th><th>Cliente</th><th>Serviço</th><th>Total</th><th>Recebido</th><th></th></tr></thead>
-    <tbody>${ordenada.map(s=>`<tr><td>${fmtDate(s.data)}</td><td>${s.cliente}</td><td>${s.servico}</td><td class="tnum">${fmtEUR(s.valorTotal)}</td><td class="tnum">${fmtEUR(s.valorPago)}</td><td style="white-space:nowrap;"><button class="btn ghost sm" data-edit-sale="${s.id}">Editar</button> <button class="btn danger sm" data-del-sale="${s.id}">Excluir</button></td></tr>`).join('')}</tbody></table>` : `<div class="empty">Sem vendas avulsas.</div>`;
+    <tbody>${ordenada.map(s=>`<tr><td>${fmtDate(s.data)}</td><td>${s.cliente}</td><td>${s.servico}</td><td class="tnum">${fmtEUR(s.valorTotal)}</td><td class="tnum">${fmtEUR(s.valorPago)}</td><td style="white-space:nowrap;"><button class="btn ghost sm" data-edit-sale="${s.id}">Editar</button> <button class="btn danger sm" data-del-sale="${s.id}">Excluir</button></td></tr>`).join('')}</tbody></table>` : `<div class="empty">Sem vendas integrais.</div>`;
+}
+
+/* Evolução mês a mês de um vendedor: quanto vendeu integral, quanto em
+   recorrência, o total dos dois, e quantos clientes distintos fecharam
+   negócio com ele naquele mês (recorrência ou venda integral). */
+function evolucaoMensalVendedor(sellerId){
+  const porMes = new Map();
+  const pega = (mk)=>{ if(!porMes.has(mk)) porMes.set(mk, {integral:0, recorrente:0, clientes:new Set()}); return porMes.get(mk); };
+  STATE.sales.filter(s=>s.vendedorId===sellerId && !s.jaContabilizadoViaRecorrencia && s.data).forEach(s=>{
+    const m = pega(s.data.slice(0,7));
+    m.integral += s.valorTotal||0;
+    m.clientes.add(normCliente(s.cliente));
+  });
+  STATE.recurrences.filter(r=>r.vendedorId===sellerId && r.dataVenda).forEach(r=>{
+    const m = pega(r.dataVenda.slice(0,7));
+    m.recorrente += r.valorContrato||0;
+    m.clientes.add(normCliente(r.cliente));
+  });
+  return [...porMes.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([mes,v])=>({
+    mes, integral:v.integral, recorrente:v.recorrente, total:v.integral+v.recorrente, clientes:v.clientes.size
+  }));
+}
+function renderEvolucaoMensalVendedor(sellerId){
+  const dados = evolucaoMensalVendedor(sellerId);
+  if(dados.length<2) return ''; // não vale a pena um gráfico com 0 ou 1 mês
+  const maxTotal = Math.max(...dados.map(d=>d.total), 1);
+  const maxClientes = Math.max(...dados.map(d=>d.clientes), 1);
+  const mesCurto = mk => monthLabel(mk).split(' de ')[0].slice(0,3);
+  return `
+  <section class="block">
+    <div class="block-head"><h3>Evolução mensal</h3><span class="hint">vendas integrais x recorrentes, e quantos clientes distintos por mês</span></div>
+    <div class="charts-grid">
+      <div class="chart-col">
+        <h4>Total vendido por mês (integral + recorrente)</h4>
+        <div class="vbar-chart">${dados.map(d=>`
+          <div class="vbar-col">
+            <div class="vbar-track" style="flex-direction:column-reverse;">
+              <span style="height:${maxTotal>0?(d.integral/maxTotal*100):0}%;background:var(--wine);border-radius:0;" title="Integral: ${fmtEUR(d.integral)}"></span>
+              <span style="height:${maxTotal>0?(d.recorrente/maxTotal*100):0}%;background:var(--gold);border-radius:4px 4px 0 0;" title="Recorrente: ${fmtEUR(d.recorrente)}"></span>
+            </div>
+            <div class="vbar-val">${fmtEUR(d.total)}</div>
+            <div class="vbar-label">${mesCurto(d.mes)}</div>
+          </div>`).join('')}
+        </div>
+        <div class="field-hint" style="margin-top:10px;"><span style="color:var(--gold);">■</span> Recorrente &nbsp; <span style="color:var(--wine);">■</span> Integral</div>
+      </div>
+      <div class="chart-col">
+        <h4>Clientes distintos por mês</h4>
+        <div class="vbar-chart">${dados.map(d=>`
+          <div class="vbar-col">
+            <div class="vbar-track"><span style="height:${(d.clientes/maxClientes*100)}%"></span></div>
+            <div class="vbar-val">${d.clientes}</div>
+            <div class="vbar-label">${mesCurto(d.mes)}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+  </section>`;
 }
 
 function renderSellerDetail(){
@@ -2285,6 +2352,7 @@ function renderSellerDetail(){
     <div class="card"><div class="lbl">Comissão (${fmtPct(taxaComissao())} sobre o líquido de IVA)</div><div class="val" data-comissao-seller="${seller.id}" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver como foi calculada">${fmtEUR(st.comissao)}</div></div>
   </div>
   ${renderVendasSubcards(STATE.periodFilter, seller.id)}
+  ${renderEvolucaoMensalVendedor(seller.id)}
   <section class="block">
     <div class="block-head"><h3>Acesso ao painel</h3><span class="hint">login e permissões</span><button class="btn gold sm" data-criar-conta-seller="${seller.id}">Criar conta</button></div>
     <div style="padding:16px 20px;max-width:460px;">
@@ -2292,7 +2360,7 @@ function renderSellerDetail(){
     </div>
   </section>
   <section class="block"><div class="block-head"><h3>Recorrências (${recs.length})</h3></div>${recurrenceTable([...recs].sort((a,b)=> (b.dataVenda||'').localeCompare(a.dataVenda||'')),{hideVendedor:true})}</section>
-  <section class="block"><div class="block-head"><h3>Vendas avulsas (${sales.length})</h3></div>
+  <section class="block"><div class="block-head"><h3>Vendas integrais (${sales.length})</h3></div>
     ${salesTable(sales)}
   </section>
   ${renderFunilManual(seller, st)}`;
@@ -2324,7 +2392,7 @@ function renderMyPanel(){
     <div class="block-head"><h3>Minhas recorrências (${recs.length})</h3><button class="btn gold" id="btnAddRecColab">+ Nova recorrência</button></div>
     ${recurrenceTable([...recs].sort((a,b)=> (b.dataVenda||'').localeCompare(a.dataVenda||'')),{hideVendedor:true})}
   </section>
-  <section class="block"><div class="block-head"><h3>Minhas vendas avulsas (${sales.length})</h3><button class="btn gold" id="btnAddSaleColab">+ Nova venda</button></div>
+  <section class="block"><div class="block-head"><h3>Minhas vendas integrais (${sales.length})</h3><button class="btn gold" id="btnAddSaleColab">+ Nova venda</button></div>
     ${salesTable(sales)}
   </section>`;
 }
