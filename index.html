@@ -2316,14 +2316,56 @@ function composicaoPorOrigem(filter){
   return Object.entries(map).map(([origem,v])=>({origem, ...v})).sort((a,b)=>b.valor-a.valor);
 }
 
+/* Composição por serviço: quantos clientes distintos compraram cada
+   serviço no período, e o valor total gerado por ele. */
+function composicaoPorServico(filter){
+  const salesIn = STATE.sales.filter(s=>inPeriodOrAll(s.data, filter));
+  const map = {};
+  salesIn.forEach(s=>{
+    const srv = s.servico || 'NÃO INFORMADO';
+    if(!map[srv]) map[srv] = {count:0, valor:0, clientes:new Set()};
+    map[srv].count++; map[srv].valor += s.valorTotal||0; map[srv].clientes.add(normCliente(s.cliente));
+  });
+  return Object.entries(map).map(([servico,v])=>({servico, count:v.count, valor:v.valor, nClientes:v.clientes.size})).sort((a,b)=>b.nClientes-a.nClientes);
+}
+/* Detalhamento clicável: quem exatamente compõe uma barra de "origem" ou
+   de "serviço" no pipeline — data, cliente, vendedor, valores e pendente. */
+function abrirDetalhePipeline(tipo, chave, filter){
+  const linhas = STATE.sales.filter(s=>inPeriodOrAll(s.data, filter) && (tipo==='origem' ? (s.origem||'NÃO INFORMADO')===chave : (s.servico||'NÃO INFORMADO')===chave))
+    .map(s=>{
+      const st = saleStatus(s);
+      return { data:s.data, cliente:s.cliente, vendedor:s.vendedorNome, servico:s.servico, origem:s.origem, valorTotal:s.valorTotal, valorPago:s.valorPago, pendente:st.valorPendente };
+    }).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const totalValor = linhas.reduce((a,l)=>a+l.valorTotal,0);
+  const titulo = tipo==='origem' ? `Leads que vieram de "${chave}"` : `Clientes que compraram "${chave}"`;
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:880px;">
+    <div class="modal-head"><h3>${titulo}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      ${linhas.length ? `<div style="max-height:55vh;overflow:auto;"><table><thead><tr><th>Data</th><th>Cliente</th><th>Vendedor</th><th>${tipo==='origem'?'Serviço':'Origem'}</th><th>Total</th><th>Pago</th><th>Pendente</th></tr></thead>
+      <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.data)}</td><td><strong>${l.cliente}</strong></td><td>${l.vendedor||'—'}</td><td>${tipo==='origem'?(l.servico||'—'):(l.origem||'—')}</td><td class="tnum">${fmtEUR(l.valorTotal)}</td><td class="tnum">${fmtEUR(l.valorPago)}</td><td class="tnum ${l.pendente>0.005?'bad':''}">${l.pendente>0.005?fmtEUR(l.pendente):'quitado'}</td></tr>`).join('')}</tbody></table></div>
+      <div class="block-head" style="border-top:1px solid var(--line);margin-top:2px;background:var(--surface-2);"><span>${linhas.length} venda(s)</span><span><strong>${fmtEUR(totalValor)}</strong></span></div>`
+      : `<div class="empty">Nada nesse período.</div>`}
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Fechar</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+}
+
 function renderClientes(){
   const filter = STATE.clientesFilter;
   const months = [...new Set(todosFechamentos().map(f=>f.data.slice(0,7)))].sort().reverse();
   const flow = fluxoClientes(filter);
   const funil = funilAgregado(filter);
   const origemComp = composicaoPorOrigem(filter);
+  const origemPorQtd = [...origemComp].sort((a,b)=>b.count-a.count);
+  const servicoComp = composicaoPorServico(filter);
   const rkClientes = rankingClientes();
   const maxOrigem = origemComp.length ? Math.max(...origemComp.map(o=>o.valor)) : 1;
+  const maxOrigemQtd = origemPorQtd.length ? Math.max(...origemPorQtd.map(o=>o.count)) : 1;
+  const maxServicoQtd = servicoComp.length ? Math.max(...servicoComp.map(s=>s.nClientes)) : 1;
   const clientesFieis = rkClientes.filter(c=>c.fechamentos>1).length;
 
   const etapas = [
@@ -2368,6 +2410,30 @@ function renderClientes(){
           <span class="hbar-label">${o.origem}</span>
           <div class="hbar-track"><span style="width:${(o.valor/maxOrigem*100)}%"></span></div>
           <span class="hbar-val">${fmtEUR(o.valor)}</span>
+        </div>`).join('') : `<div class="empty">Sem vendas nesse período.</div>`}
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><h3>Composição do pipeline por origem — quantidade de leads</h3><span class="hint">clique num número pra ver quem são esses clientes</span></div>
+    <div style="padding:18px 20px;">
+      ${origemPorQtd.length ? origemPorQtd.map(o=>`
+        <div class="hbar-row">
+          <span class="hbar-label">${o.origem}</span>
+          <div class="hbar-track"><span style="width:${(o.count/maxOrigemQtd*100)}%"></span></div>
+          <span class="hbar-val" data-detalhe-origem="${o.origem.replace(/"/g,'&quot;')}" style="cursor:pointer;text-decoration:underline dotted;">${o.count} lead${o.count===1?'':'s'}</span>
+        </div>`).join('') : `<div class="empty">Sem vendas nesse período.</div>`}
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><h3>Composição do fluxo de serviços</h3><span class="hint">quantos clientes compraram cada serviço — clique pra ver quem são</span></div>
+    <div style="padding:18px 20px;">
+      ${servicoComp.length ? servicoComp.map(s=>`
+        <div class="hbar-row">
+          <span class="hbar-label">${s.servico}</span>
+          <div class="hbar-track"><span style="width:${(s.nClientes/maxServicoQtd*100)}%"></span></div>
+          <span class="hbar-val" data-detalhe-servico="${s.servico.replace(/"/g,'&quot;')}" style="cursor:pointer;text-decoration:underline dotted;">${s.nClientes} cliente${s.nClientes===1?'':'s'}</span>
         </div>`).join('') : `<div class="empty">Sem vendas nesse período.</div>`}
     </div>
   </section>
@@ -3668,6 +3734,13 @@ function wireViewportEvents(){
 
   vp.querySelectorAll('[data-detalhe-card]').forEach(el=>{
     el.addEventListener('click', ()=> abrirDetalheCard(el.dataset.detalheCard, STATE.periodFilter, el.dataset.detalheSeller || null));
+  });
+
+  vp.querySelectorAll('[data-detalhe-origem]').forEach(el=>{
+    el.addEventListener('click', ()=> abrirDetalhePipeline('origem', el.dataset.detalheOrigem, STATE.clientesFilter));
+  });
+  vp.querySelectorAll('[data-detalhe-servico]').forEach(el=>{
+    el.addEventListener('click', ()=> abrirDetalhePipeline('servico', el.dataset.detalheServico, STATE.clientesFilter));
   });
 
   vp.querySelectorAll('[data-ftab]').forEach(b=> b.addEventListener('click', ()=>{ STATE.financeiroTab=b.dataset.ftab; renderAll(); }));
