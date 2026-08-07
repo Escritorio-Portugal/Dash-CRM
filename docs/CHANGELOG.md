@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.6 — Clientes: composição por quantidade de leads e por serviço, ambas clicáveis
+- Nova seção **"Composição do pipeline por origem — quantidade de leads"**: mesma ideia da composição por valor que já existia, só que em número de leads por origem (tráfego, indicação, site/google, etc.) em vez de €. Clique no número pra ver a lista completa de clientes daquela origem, com serviço, valor pago e quanto está pendente.
+- Nova seção **"Composição do fluxo de serviços"**: quantos clientes distintos compraram cada serviço, ordenado do mais popular pro menos. Clique no número pra ver quem comprou aquele serviço, quando e quanto pagou.
+- **Limitação conhecida**: as três composições de pipeline (valor, quantidade, serviço) usam os dados de Vendas — uma recorrência criada direto no sistema (sem vir de uma venda importada) ainda não tem "origem" nem entra nessas composições, do mesmo jeito que o Valor Vendido tinha esse problema antes de eu corrigir. Se isso incomodar no dia a dia, dá pra estender depois adicionando um campo de origem também nas recorrências.
+
 ## v3.5 — Gráficos de linha: tooltip ao passar o mouse + área preenchida (efeito onda)
 - Os gráficos de linha (Entradas x Saídas, Percentual de vendas por vendedor) agora têm **área preenchida** embaixo de cada linha, na cor dela — efeito "onda", como pedido.
 - **Tooltip ao passar o mouse**: para qualquer ponto do gráfico, aparece uma caixinha mostrando o mês e o valor exato de cada linha naquele ponto, com uma linha vertical pontilhada marcando onde você está. Funciona também em toque (celular/tablet).
