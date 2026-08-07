@@ -363,6 +363,11 @@ const SEED_DATA = {"sellers": [{"id": "karoline", "nome": "Karoline Neto", "ativ
    o Supabase recusa qualquer leitura/escrita (ver RLS no schema).
    ========================================================= */
 const SUPABASE_URL = "https://wtanyagjmgjedszivsfu.supabase.co";
+/* Planilha pública de leads (Google Sheets), alimentada pelo gestor de
+   anúncios — a aba "Métricas" busca isso ao vivo, direto do navegador de
+   quem abrir o painel, toda vez que a aba é aberta. */
+const LEADS_SHEET_ID = "1T40nJ5B0v8gS11K5WhcnROXsk28EAqjD1mLu1WQCkY0";
+const LEADS_SHEET_NOME_ABA = "Consolidada";
 const SUPABASE_KEY = "sb_publishable_DKWzJQhSx7qoKtOdY1x7cg_-kxwVnWh";
 
 // Cliente oficial do Supabase — depois do login, ele próprio anexa o
@@ -406,6 +411,69 @@ const DB = {
    (gestor/colaborador) e, se for colaborador, a qual vendedor pertence.
    Vem da tabela "profiles" (RLS: cada um só lê o próprio perfil), nunca
    de uma senha guardada no código ou nos dados. */
+/* Parser de CSV simples mas robusto — lida com campos entre aspas contendo
+   vírgulas e quebras de linha (comum em observações de texto livre). */
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0; i<text.length; i++){
+    const c = text[i], next = text[i+1];
+    if(inQuotes){
+      if(c==='"' && next==='"'){ field+='"'; i++; }
+      else if(c==='"'){ inQuotes=false; }
+      else field += c;
+    } else {
+      if(c==='"') inQuotes = true;
+      else if(c===','){ row.push(field); field=''; }
+      else if(c==='\r'){ /* ignora */ }
+      else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r=> r.some(c=>c!==''));
+}
+/* Busca ao vivo a planilha pública de leads (Google Sheets → exportação
+   CSV da aba "Consolidada") direto do navegador de quem tiver a aba
+   Métricas aberta — sem precisar de nenhuma chave/autenticação, porque a
+   planilha está partilhada como "qualquer pessoa com o link". */
+async function fetchLeadsSheet(){
+  const url = `https://docs.google.com/spreadsheets/d/${LEADS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(LEADS_SHEET_NOME_ABA)}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('Não consegui buscar a planilha (HTTP '+res.status+')');
+  const text = await res.text();
+  const rows = parseCSV(text);
+  if(!rows.length) return [];
+  const header = rows[0].map(h=>h.trim().toLowerCase());
+  const idx = campo => header.indexOf(campo);
+  const iTs=idx('timestamp'), iNome=idx('nome'), iTel=idx('telefone'), iEmail=idx('email'),
+        iServ=idx('servico'), iPlat=idx('plataforma'), iCanal=idx('canal'), iCamp=idx('campanha'),
+        iAn=idx('anuncio'), iStatus=idx('status'), iQual=idx('qualificado'), iAtend=idx('atendente');
+  const normStatus = (s, fallback) => {
+    const t = (s||'').trim();
+    if(!t) return fallback;
+    return t.charAt(0).toUpperCase()+t.slice(1).toLowerCase();
+  };
+  return rows.slice(1).filter(r=>r[iNome] && r[iNome].trim()).map(r=>{
+    const tsRaw = (r[iTs]||'').trim();
+    let data = null;
+    const isoMatch = tsRaw.match(/^(\d{4}-\d{2}-\d{2})/);
+    const brMatch = tsRaw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if(isoMatch) data = isoMatch[1];
+    else if(brMatch) data = `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+    return {
+      data, nome: (r[iNome]||'').trim(), telefone: (r[iTel]||'').trim().replace(/\.0$/,''), email: (r[iEmail]||'').trim(),
+      servico: (r[iServ]||'').trim() || 'Não informado',
+      plataforma: (r[iPlat]||'').trim() || 'Não informado',
+      canal: (r[iCanal]||'').trim() || 'Não informado',
+      campanha: (r[iCamp]||'').trim() || 'Não informado',
+      anuncio: (r[iAn]||'').trim() || 'Não informado',
+      status: normStatus(r[iStatus], 'Sem status'),
+      qualificado: normStatus(r[iQual], 'Sem avaliação'),
+      atendente: (r[iAtend]||'').trim() || '—'
+    };
+  }).filter(l=>l.data);
+}
 async function resolveProfile(){
   const { data: { session } } = await supa.auth.getSession();
   if(!session) return null;
@@ -449,6 +517,9 @@ let STATE = {
   searchClientes: '',
   searchFinanceiro: '',
   extratoData: todayISO(),
+  leads: [], leadsLoading: false, leadsError: null, leadsLoadedAt: null,
+  leadsFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
+  searchLeads: '',
   funilDiarioData: todayISO(),
   expandAtividade: false,
   expandAtrasadas: false,
@@ -1494,6 +1565,7 @@ const NAV_GESTOR = [
   {view:'sales', label:'Vendas'},
   {view:'ranking', label:'Ranking'},
   {view:'clientes', label:'Clientes'},
+  {view:'metricas', label:'📈 Métricas'},
   {view:'config', label:'Configurações'},
   {view:'financeiro', label:'Financeiro'},
 ];
@@ -1537,7 +1609,7 @@ function renderSidebar(){
 }
 
 function renderTopbar(){
-  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', 'recurrences-nodate':'Sem data de pagamento', sales:'Vendas', ranking:'Ranking de Vendedores', clientes:'Clientes', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
+  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', 'recurrences-nodate':'Sem data de pagamento', sales:'Vendas', ranking:'Ranking de Vendedores', clientes:'Clientes', metricas:'Métricas', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
   document.getElementById('pageTitle').textContent = STATE.view==='overview' ? '' : (titles[STATE.view] || '');
   const inline = document.getElementById('metaInline');
   if(STATE.view==='overview'){
@@ -2352,6 +2424,124 @@ function abrirDetalhePipeline(tipo, chave, filter){
   document.getElementById('mClose').onclick = closeModal;
   document.getElementById('mCancel').onclick = closeModal;
   document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+}
+
+/* Busca (ou rebusca) a planilha de leads e re-renderiza quando chega —
+   chamada de dentro do próprio renderMetricas() na primeira vez que a aba
+   é aberta, e pelo botão "Atualizar agora". */
+async function loadLeadsData(){
+  if(STATE.leadsLoading) return;
+  STATE.leadsLoading = true;
+  STATE.leadsError = null;
+  renderAll();
+  try{
+    STATE.leads = await fetchLeadsSheet();
+    STATE.leadsLoadedAt = new Date();
+  }catch(e){
+    STATE.leadsError = (e && e.message) || 'Não consegui buscar a planilha.';
+  }
+  STATE.leadsLoading = false;
+  renderAll();
+}
+function renderMetricas(){
+  if(!STATE.leads.length && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData();
+
+  if(STATE.leadsLoading && !STATE.leads.length){
+    return `<section class="block"><div style="padding:60px 20px;text-align:center;color:var(--ink-soft);">🔄 A buscar a planilha de leads…</div></section>`;
+  }
+  if(STATE.leadsError){
+    return `<section class="block"><div style="padding:30px 20px;">
+      <div class="field-hint" style="color:var(--bad);margin-bottom:14px;">⚠️ ${STATE.leadsError}</div>
+      <div class="field-hint">Confirma que a planilha continua partilhada como "Qualquer pessoa com o link pode ver", e que a aba se chama exatamente "${LEADS_SHEET_NOME_ABA}".</div>
+      <button class="btn gold" id="btnRetryLeads" style="margin-top:14px;">Tentar de novo</button>
+    </div></section>`;
+  }
+
+  const filter = STATE.leadsFilter;
+  const meses = [...new Set(STATE.leads.map(l=>l.data.slice(0,7)))].sort();
+  const leadsFiltrados = STATE.leads.filter(l=>inPeriodOrAll(l.data, filter) && matchesSearch(l.nome, STATE.searchLeads));
+
+  const total = leadsFiltrados.length;
+  const qualificados = leadsFiltrados.filter(l=>l.qualificado==='Qualificado').length;
+  const desqualificados = leadsFiltrados.filter(l=>l.qualificado==='Desqualificado').length;
+  const taxaQualif = total>0 ? qualificados/total : 0;
+
+  const contarPor = campo => {
+    const map = {};
+    leadsFiltrados.forEach(l=>{ const k=l[campo]||'Não informado'; map[k]=(map[k]||0)+1; });
+    return Object.entries(map).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
+  };
+  const porPlataforma = contarPor('plataforma');
+  const porCanal = contarPor('canal');
+  const porStatus = contarPor('status');
+  const porQualif = contarPor('qualificado');
+  const porServico = contarPor('servico');
+  const maxPlataforma = Math.max(...porPlataforma.map(p=>p.v),1);
+  const maxCanal = Math.max(...porCanal.map(p=>p.v),1);
+  const maxStatus = Math.max(...porStatus.map(p=>p.v),1);
+  const maxServico = Math.max(...porServico.map(p=>p.v),1);
+
+  const porDia = {};
+  leadsFiltrados.forEach(l=>{ porDia[l.data] = (porDia[l.data]||0)+1; });
+  const diasOrdenados = Object.keys(porDia).sort();
+
+  const hbar = (label, count, max, emoji) => `
+    <div class="hbar-row">
+      <span class="hbar-label">${emoji?emoji+' ':''}${label}</span>
+      <div class="hbar-track"><span style="width:${(count/max*100)}%"></span></div>
+      <span class="hbar-val">${count}</span>
+    </div>`;
+
+  return `
+  <div class="field-hint" style="margin-bottom:12px;">📡 Dados ao vivo da planilha de leads do gestor de anúncios ${STATE.leadsLoadedAt ? `· última busca: ${STATE.leadsLoadedAt.toLocaleTimeString('pt-PT')}` : ''} <button class="btn ghost sm" id="btnRefreshLeads" style="margin-left:10px;">🔄 Atualizar agora</button></div>
+  ${renderGenericFilterBar('leadsFilter', ['all','month','week','day'], meses)}
+  ${renderSearchBar('searchLeads','Buscar por nome do lead…')}
+  <div class="cards" style="margin:16px 0;">
+    <div class="card accent"><div class="lbl">📥 Total de leads</div><div class="val">${total}</div></div>
+    <div class="card"><div class="lbl">✅ Qualificados</div><div class="val good">${qualificados}</div></div>
+    <div class="card"><div class="lbl">❌ Desqualificados</div><div class="val bad">${desqualificados}</div></div>
+    <div class="card"><div class="lbl">📊 Taxa de qualificação</div><div class="val">${fmtPct(taxaQualif)}</div></div>
+  </div>
+  <section class="block">
+    <div class="block-head"><h3>📈 Leads por dia</h3><span class="hint">no período selecionado</span></div>
+    <div style="padding:16px 20px;">
+      ${svgMultiLineChart(diasOrdenados, [{label:'Leads', color:'#520225', values: porDia, fmtType:'int'}])}
+    </div>
+  </section>
+  <div class="charts-grid">
+    <section class="block">
+      <div class="block-head"><h3>📱 Por plataforma</h3></div>
+      <div style="padding:16px 20px;">${porPlataforma.length ? porPlataforma.map(p=>hbar(p.k,p.v,maxPlataforma)).join('') : `<div class="empty">Sem dados.</div>`}</div>
+    </section>
+    <section class="block">
+      <div class="block-head"><h3>🎯 Por canal / campanha</h3></div>
+      <div style="padding:16px 20px;max-height:280px;overflow:auto;">${porCanal.length ? porCanal.map(p=>hbar(p.k,p.v,maxCanal)).join('') : `<div class="empty">Sem dados.</div>`}</div>
+    </section>
+  </div>
+  <div class="charts-grid">
+    <section class="block">
+      <div class="block-head"><h3>🧭 Funil de status</h3></div>
+      <div style="padding:16px 20px;">${porStatus.length ? porStatus.map(p=>hbar(p.k,p.v,maxStatus)).join('') : `<div class="empty">Sem dados.</div>`}</div>
+    </section>
+    <section class="block">
+      <div class="block-head"><h3>⚖️ Qualificação</h3></div>
+      <div style="padding:16px 20px;">${porQualif.length ? porQualif.map(p=>hbar(p.k,p.v,Math.max(...porQualif.map(x=>x.v),1))).join('') : `<div class="empty">Sem dados.</div>`}</div>
+    </section>
+  </div>
+  <section class="block">
+    <div class="block-head"><h3>⚖️ Interesse por serviço</h3></div>
+    <div style="padding:16px 20px;">${porServico.length ? porServico.map(p=>hbar(p.k,p.v,maxServico)).join('') : `<div class="empty">Sem dados.</div>`}</div>
+  </section>
+  <section class="block">
+    <div class="block-head"><h3>Leads do período (${leadsFiltrados.length})</h3></div>
+    ${leadsFiltrados.length ? `<div style="max-height:420px;overflow:auto;"><table><thead><tr><th>Data</th><th>Nome</th><th>Telefone</th><th>Serviço</th><th>Plataforma/Canal</th><th>Status</th><th>Qualificação</th></tr></thead>
+    <tbody>${[...leadsFiltrados].sort((a,b)=>b.data.localeCompare(a.data)).slice(0,300).map(l=>`<tr>
+        <td>${fmtDate(l.data)}</td><td><strong>${l.nome}</strong></td><td>${l.telefone||'—'}</td><td>${l.servico}</td>
+        <td>${l.plataforma} / ${l.canal}</td>
+        <td><span class="chip neutral">${l.status}</span></td>
+        <td><span class="chip ${l.qualificado==='Qualificado'?'good':l.qualificado==='Desqualificado'?'bad':'neutral'}">${l.qualificado}</span></td>
+      </tr>`).join('')}</tbody></table></div>` : `<div class="empty">Nenhum lead encontrado nesse período.</div>`}
+  </section>`;
 }
 
 function renderClientes(){
@@ -3757,7 +3947,7 @@ function wireViewportEvents(){
     }catch(e){ return; }
     const padL = Number(wrap.dataset.lcPadl), innerW = Number(wrap.dataset.lcInnerw);
     const W = 640;
-    const fmtVal = (v, tipo)=> tipo==='pct' ? v.toFixed(1)+'%' : fmtEUR(v);
+    const fmtVal = (v, tipo)=> tipo==='pct' ? v.toFixed(1)+'%' : tipo==='int' ? Math.round(v)+' lead'+(Math.round(v)===1?'':'s') : fmtEUR(v);
     const mostra = (clientX)=>{
       const rect = svg.getBoundingClientRect();
       const relX = (clientX-rect.left)/rect.width*W;
@@ -3784,6 +3974,10 @@ function wireViewportEvents(){
     });
   });
   const extratoDataInput = document.getElementById('extratoDataInput');
+  const btnRefreshLeads = document.getElementById('btnRefreshLeads');
+  if(btnRefreshLeads) btnRefreshLeads.addEventListener('click', ()=>{ STATE.leads = []; loadLeadsData(); });
+  const btnRetryLeads = document.getElementById('btnRetryLeads');
+  if(btnRetryLeads) btnRetryLeads.addEventListener('click', ()=>{ STATE.leadsError = null; loadLeadsData(); });
   if(extratoDataInput) extratoDataInput.addEventListener('change', ()=>{ STATE.extratoData = extratoDataInput.value; renderAll(); });
   const btnAddCost = document.getElementById('btnAddCost');
   if(btnAddCost) btnAddCost.onclick = ()=>openCostModal(null, btnAddCost.dataset.defaultCategoria);
@@ -3846,6 +4040,7 @@ function renderAll(){
     else if(STATE.view==='sales') vp.innerHTML = renderSales();
     else if(STATE.view==='ranking') vp.innerHTML = renderRanking();
     else if(STATE.view==='clientes') vp.innerHTML = renderClientes();
+    else if(STATE.view==='metricas') vp.innerHTML = renderMetricas();
     else if(STATE.view==='seller-detail') vp.innerHTML = renderSellerDetail();
     else if(STATE.view==='config') vp.innerHTML = renderConfig();
     else if(STATE.view==='financeiro') vp.innerHTML = renderFinanceiro();
