@@ -1,5 +1,11 @@
 # Changelog
 
+## v3.7 — Nova aba 📈 Métricas: leads ao vivo da planilha de anúncios
+- **Nova aba "Métricas"** (só gestor): busca ao vivo, direto do navegador, a planilha pública de leads (`[Pablo Mendes] Leads`, aba "Consolidada") — toda vez que a aba é aberta, os dados mais recentes já vêm junto. Botão "🔄 Atualizar agora" pra forçar uma nova busca sem sair da tela.
+- Mostra: total de leads, qualificados/desqualificados, taxa de qualificação, leads por dia (gráfico de linha), por plataforma (Instagram/Facebook/Meta Ads...), por canal/campanha, funil de status de atendimento, qualificação e interesse por serviço — tudo com filtro de dia/semana/mês/histórico e busca por nome.
+- **Como funciona tecnicamente**: a planilha precisa continuar partilhada como "Qualquer pessoa com o link pode ver" — o painel busca a exportação CSV pública dela direto do navegador de quem estiver a usar o sistema, sem precisar de nenhuma chave nem passo manual. Se a planilha for despublicada ou a aba "Consolidada" for renomeada, a tela mostra um aviso claro explicando o que checar.
+- Testado com uma amostra real da planilha: o parser lida corretamente com campos de texto livre (observações) que têm vírgulas e quebras de linha dentro.
+
 ## v3.6 — Clientes: composição por quantidade de leads e por serviço, ambas clicáveis
 - Nova seção **"Composição do pipeline por origem — quantidade de leads"**: mesma ideia da composição por valor que já existia, só que em número de leads por origem (tráfego, indicação, site/google, etc.) em vez de €. Clique no número pra ver a lista completa de clientes daquela origem, com serviço, valor pago e quanto está pendente.
 - Nova seção **"Composição do fluxo de serviços"**: quantos clientes distintos compraram cada serviço, ordenado do mais popular pro menos. Clique no número pra ver quem comprou aquele serviço, quando e quanto pagou.
