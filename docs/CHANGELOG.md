@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.10 — Cores automáticas nos campos de status/qualidade/consultoria
+- Os campos de seleção em Controle de Campanhas (Status do lead, Tipo de consultoria, Qualidade) e os chips correspondentes em Métricas agora ganham uma **cor automática** de acordo com o valor escolhido — sempre a mesma cor pro mesmo valor, em qualquer lugar do sistema.
+- Só tons frios (verde-água, azul, índigo, roxo — nunca vermelho/laranja/amarelo), e sempre escuros o bastante pra letra branca ler bem em cima — testei isso especificamente, não é aleatório: toda cor gerada fica na faixa certa de tom e claridade.
+- A cor já muda na hora, assim que o vendedor escolhe uma opção nova — não precisa salvar/recarregar pra ver.
+
 ## v3.9 — Nova aba 🎯 Controle de Campanhas (lista editável + métricas)
 - **Nova aba "Controle de Campanhas"**, logo abaixo de Métricas — disponível pro gestor **e** pros vendedores (são eles que fazem as edições no dia a dia).
 - **Sub-aba "Lista de leads"**: tabela com todos os leads da planilha (mais recente primeiro), mostrando lead, data, hora, campanha e origem — com 4 colunas editáveis por seleção: **Status do lead, Tipo de consultoria, Qualidade do lead e Serviço fechado**, exatamente os campos da aba "Consolidada" da planilha. **Importante**: essas edições ficam guardadas no próprio painel (Supabase) — a planilha do Google original nunca é alterada, só lida. Pra escrever de volta na planilha seria preciso outro tipo de integração (autenticação Google), combinado que não é isso que você queria agora.
