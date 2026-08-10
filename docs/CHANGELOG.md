@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.9 — Nova aba 🎯 Controle de Campanhas (lista editável + métricas)
+- **Nova aba "Controle de Campanhas"**, logo abaixo de Métricas — disponível pro gestor **e** pros vendedores (são eles que fazem as edições no dia a dia).
+- **Sub-aba "Lista de leads"**: tabela com todos os leads da planilha (mais recente primeiro), mostrando lead, data, hora, campanha e origem — com 4 colunas editáveis por seleção: **Status do lead, Tipo de consultoria, Qualidade do lead e Serviço fechado**, exatamente os campos da aba "Consolidada" da planilha. **Importante**: essas edições ficam guardadas no próprio painel (Supabase) — a planilha do Google original nunca é alterada, só lida. Pra escrever de volta na planilha seria preciso outro tipo de integração (autenticação Google), combinado que não é isso que você queria agora.
+- **Sub-aba "Métricas das Campanhas"**: leads por campanha, taxa de qualificação por campanha (quais convertem melhor), leads por origem, leads por atendente (quem está com mais controle), e um destaque automático mostrando qual mês teve a maior taxa de leads qualificados — tudo filtrado por dia/semana/mês/histórico.
+- **Nomes por extenso em vez de abreviações**: "ig" virou "Instagram", "fb" virou "Facebook", "meta_ads" virou "Meta Ads", etc. — tanto aqui quanto na aba Métricas já existente.
+- Nova migração `supabase/migration_v4_lead_edits.sql` — precisa ser rodada pra liberar a permissão de escrita partilhada nessas edições (sem ela, o colaborador consegue ver a tela mas não consegue salvar uma edição).
+
+## v3.8 — Origem do lead ao adicionar venda/recorrência + gerenciável em Configurações
+- **Campo "Origem do lead"** adicionado nos modais de criar venda, criar recorrência (os dois formatos: o rápido e o dedicado), e nos modais de editar venda/recorrência — pra registar de onde veio o cliente (Instagram, Facebook, tráfego, indicação, etc.), igual já existia nas planilhas.
+- **Configurações → Pagamentos e origens**: nova seção pra adicionar ou remover as opções de origem disponíveis nesses formulários — mesmo padrão que já existia pras formas de pagamento.
+- **Resolvida a limitação que eu tinha sinalizado antes**: a composição do pipeline por origem (em Clientes) agora também conta recorrências criadas direto no sistema, que antes ficavam de fora por não terem "venda-sombra" nenhuma associada.
+
 ## v3.7 — Nova aba 📈 Métricas: leads ao vivo da planilha de anúncios
 - **Nova aba "Métricas"** (só gestor): busca ao vivo, direto do navegador, a planilha pública de leads (`[Pablo Mendes] Leads`, aba "Consolidada") — toda vez que a aba é aberta, os dados mais recentes já vêm junto. Botão "🔄 Atualizar agora" pra forçar uma nova busca sem sair da tela.
 - Mostra: total de leads, qualificados/desqualificados, taxa de qualificação, leads por dia (gráfico de linha), por plataforma (Instagram/Facebook/Meta Ads...), por canal/campanha, funil de status de atendimento, qualificação e interesse por serviço — tudo com filtro de dia/semana/mês/histórico e busca por nome.
