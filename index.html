@@ -2504,6 +2504,22 @@ async function loadLeadsData(){
 /* Aplica por cima do lead original as edições feitas pelo painel (status,
    qualidade, tipo de consultoria, serviço fechado) — a planilha em si
    nunca é alterada, só a "camada" guardada no Supabase. */
+/* Gera uma cor fria (verde-azulado até roxo — nunca vermelho/laranja/
+   amarelo) automaticamente a partir do texto, sempre com contraste
+   garantido: como a cor de fundo é sempre escura o bastante, a letra
+   fica sempre branca — nunca uma combinação ilegível. O mesmo texto
+   sempre gera a mesma cor, então cada status/qualidade/consultoria fica
+   visualmente consistente em toda a tabela. */
+function corFriaParaTexto(texto){
+  const t = (texto||'').trim();
+  if(!t) return { bg:'var(--surface-2)', fg:'var(--ink-soft)' };
+  let hash = 0;
+  for(let i=0;i<t.length;i++){ hash = t.charCodeAt(i) + ((hash<<5)-hash); hash |= 0; }
+  const hue = 165 + (Math.abs(hash) % 145);       // 165°–310°: verde-água, azul, índigo, roxo — nunca quente
+  const sat = 45 + (Math.abs(hash>>8) % 25);       // 45%–70%
+  const light = 30 + (Math.abs(hash>>4) % 14);     // 30%–44% — escuro o bastante pra letra branca sempre ler bem
+  return { bg:`hsl(${hue},${sat}%,${light}%)`, fg:'#fff' };
+}
 function leadComEdicoes(lead){
   const e = STATE.leadEdits[lead.leadKey];
   if(!e) return lead;
@@ -2544,10 +2560,13 @@ function renderListaLeadsEditavel(leads){
     .sort((a,b)=> (b.data+  'T'+(b.hora||'00:00')).localeCompare(a.data+'T'+(a.hora||'00:00')));
   const servicoOpts = [...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>s.nome);
 
-  const selectCell = (lead, campo, opcoes, valorAtual) => `<select data-lead-key="${lead.leadKey}" data-lead-field="${campo}" class="cc-select">
+  const selectCell = (lead, campo, opcoes, valorAtual) => {
+    const cor = corFriaParaTexto(valorAtual);
+    return `<select data-lead-key="${lead.leadKey}" data-lead-field="${campo}" class="cc-select" style="background:${cor.bg};color:${cor.fg};border-color:${cor.bg};font-weight:600;">
     <option value="">—</option>
     ${opcoes.map(o=>`<option ${o===valorAtual?'selected':''}>${o}</option>`).join('')}
   </select>`;
+  };
 
   return `
   <div class="field-hint" style="margin-bottom:12px;">📡 Dados ao vivo da planilha, mas as 4 colunas com seleção abaixo são editadas aqui no painel — não alteram a planilha original. ${STATE.leadsLoadedAt ? `Última busca: ${STATE.leadsLoadedAt.toLocaleTimeString('pt-PT')}` : ''} <button class="btn ghost sm" id="btnRefreshLeads2" style="margin-left:10px;">🔄 Atualizar agora</button></div>
@@ -2744,8 +2763,8 @@ function renderMetricas(){
     <tbody>${[...leadsFiltrados].sort((a,b)=>b.data.localeCompare(a.data)).slice(0,300).map(l=>`<tr>
         <td>${fmtDate(l.data)}</td><td><strong>${l.nome}</strong></td><td>${l.telefone||'—'}</td><td>${l.servico}</td>
         <td>${l.plataforma} / ${l.canal}</td>
-        <td><span class="chip neutral">${l.status}</span></td>
-        <td><span class="chip ${l.qualificado==='Qualificado'?'good':l.qualificado==='Desqualificado'?'bad':'neutral'}">${l.qualificado}</span></td>
+        <td><span class="chip" style="background:${corFriaParaTexto(l.status).bg};color:${corFriaParaTexto(l.status).fg};">${l.status}</span></td>
+        <td><span class="chip" style="background:${corFriaParaTexto(l.qualificado).bg};color:${corFriaParaTexto(l.qualificado).fg};">${l.qualificado}</span></td>
       </tr>`).join('')}</tbody></table></div>` : `<div class="empty">Nenhum lead encontrado nesse período.</div>`}
   </section>`;
 }
@@ -4232,6 +4251,10 @@ function wireViewportEvents(){
       const key = el.dataset.leadKey, campo = el.dataset.leadField;
       if(!STATE.leadEdits[key]) STATE.leadEdits[key] = {};
       STATE.leadEdits[key][campo] = el.value;
+      if(el.tagName==='SELECT'){
+        const cor = corFriaParaTexto(el.value);
+        el.style.background = cor.bg; el.style.color = cor.fg; el.style.borderColor = cor.bg;
+      }
       await persist('leadEdits');
     });
   });
