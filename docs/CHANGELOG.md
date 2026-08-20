@@ -1,5 +1,12 @@
 # Changelog
 
+## v3.11 — Pagamento personalizado de recorrência
+- **Botão "Pagamento personalizado"** nas recorrências em aberto — aparece sempre que ainda houver valor pendente naquele contrato, mesmo que todas as parcelas "nomeadas" já estejam pagas (útil quando sobra um valor solto que não se encaixa numa parcela redonda). Ao clicar, abre uma tela em branco pra você decidir quanto lançar.
+- **Clicar numa parcela pendente agora abre essa mesma tela**, mas já vem preenchida com o valor padrão daquela parcela — você só confirma, ou edita o valor antes de confirmar (por exemplo, se o cliente pagou um pouco a mais ou a menos daquela vez).
+- Os dois caminhos terminam no mesmo lugar: o valor entra no Faturamento, na comissão do vendedor e no Extrato do dia, exatamente como as parcelas normais já faziam.
+- Clicar numa parcela **já paga** continua desfazendo o pagamento diretamente (sem abrir tela), pra corrigir um engano rápido.
+- Testado o cenário completo: parcela paga com valor customizado, pagamento personalizado avulso, e confirmação de que o contrato fecha (fica "quitado") quando a soma de tudo cobre o valor total, mesmo com valores que não batem exatamente com a divisão original em parcelas iguais.
+
 ## v3.10 — Cores automáticas nos campos de status/qualidade/consultoria
 - Os campos de seleção em Controle de Campanhas (Status do lead, Tipo de consultoria, Qualidade) e os chips correspondentes em Métricas agora ganham uma **cor automática** de acordo com o valor escolhido — sempre a mesma cor pro mesmo valor, em qualquer lugar do sistema.
 - Só tons frios (verde-água, azul, índigo, roxo — nunca vermelho/laranja/amarelo), e sempre escuros o bastante pra letra branca ler bem em cima — testei isso especificamente, não é aleatório: toda cor gerada fica na faixa certa de tom e claridade.
