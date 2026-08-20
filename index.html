@@ -1030,10 +1030,17 @@ function buildEvents(){
     const txAdmPorParcela = (r.isentoTaxaAdm || st.total<=0) ? 0 : (r.txAdm||0)/st.total;
     r.parcelas.forEach(p=>{
       if(p.pago && p.data){ // sem data confirmada, não entra em nenhum mês — ver "Sem data de pagamento"
-        const ivaValorParc = st.valorParcela*iva;
-        const liquido = st.valorParcela - ivaValorParc - txAdmPorParcela;
-        events.push({ date: p.data, valor: st.valorParcela, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:txAdmPorParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente });
+        const valorReal = (p.valor!=null ? p.valor : st.valorParcela);
+        const ivaValorParc = valorReal*iva;
+        const liquido = valorReal - ivaValorParc - txAdmPorParcela;
+        events.push({ date: p.data, valor: valorReal, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:txAdmPorParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente });
       }
+    });
+    (r.pagamentosExtras||[]).forEach(ex=>{
+      if(!ex.data) return; // idem: sem data, não conta em nenhum mês
+      const ivaValorEx = (ex.valor||0)*iva;
+      const liquido = (ex.valor||0) - ivaValorEx; // pagamento personalizado não desconta taxa administrativa
+      events.push({ date: ex.data, valor: ex.valor||0, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorEx, txAdmValor:0, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Pagamento personalizado', cliente:r.cliente });
     });
   });
   return events;
@@ -1060,16 +1067,26 @@ function serviceByName(nome){
   return STATE.services.find(s=>s.nome.trim().toUpperCase()===n) || null;
 }
 
+/* O "valor de cada parcela" é só um valor PADRÃO, usado pra pré-preencher
+   o pagamento — cada parcela paga pode ter sido por um valor diferente
+   (pagamento personalizado), guardado em p.valor. Pagamentos que não se
+   encaixam em nenhuma parcela específica ficam em rec.pagamentosExtras. */
 function recStatus(rec){
   const total = rec.nParcelas || rec.parcelas.length || 1;
   const entrada = rec.valorEntrada||0;
   const restante = Math.max(0, rec.valorContrato - entrada);
-  const valorParcela = total>0 ? restante/total : 0;
+  const valorParcela = total>0 ? restante/total : 0; // valor "padrão", só para pré-preencher o pagamento
+  const parcelasInfo = rec.parcelas.map(p=>({
+    numero: p.numero, pago: !!p.pago, data: p.data,
+    valor: (p.pago && p.valor!=null) ? p.valor : valorParcela
+  }));
   const pagas = rec.parcelas.filter(p=>p.pago).length;
-  const valorPagoParcelas = pagas*valorParcela;
-  const valorPago = entrada + valorPagoParcelas;
+  const valorPagoParcelas = parcelasInfo.filter(p=>p.pago).reduce((a,p)=>a+p.valor,0);
+  const extras = rec.pagamentosExtras || [];
+  const valorPagoExtras = extras.reduce((a,e)=>a+(e.valor||0),0);
+  const valorPago = entrada + valorPagoParcelas + valorPagoExtras;
   const valorPendente = Math.max(0, rec.valorContrato - valorPago);
-  return { valorParcela, pagas, total, valorPago, valorPendente, quitada: valorPendente<=0.005, entrada };
+  return { valorParcela, parcelasInfo, pagas, total, valorPago, valorPendente, quitada: valorPendente<=0.005, entrada, extras };
 }
 /* "Atrasada" = ainda não quitada e já passou mais de 30 dias desde a venda.
    A planilha não guarda data de vencimento por parcela, então esta é uma
@@ -1131,10 +1148,15 @@ function comissaoRecorrencia(rec){
   const txAdmPorParcela = (rec.isentoTaxaAdm || st.total<=0) ? 0 : (rec.txAdm||0) / st.total;
   rec.parcelas.forEach(p=>{
     if(p.pago){
-      const ivaReal = st.valorParcela*iva;
-      const liquido = st.valorParcela - ivaReal - txAdmPorParcela;
+      const valorReal = (p.valor!=null ? p.valor : st.valorParcela);
+      const ivaReal = valorReal*iva;
+      const liquido = valorReal - ivaReal - txAdmPorParcela;
       total += Math.max(0, liquido) * rate;
     }
+  });
+  (rec.pagamentosExtras||[]).forEach(ex=>{
+    const ivaReal = (ex.valor||0)*iva;
+    total += Math.max(0, (ex.valor||0) - ivaReal) * rate;
   });
   return total;
 }
@@ -1376,10 +1398,17 @@ function comissaoBreakdownEvents(sellerId, filter){
     const txAdmPorParcela = (r.isentoTaxaAdm || st.total<=0) ? 0 : (r.txAdm||0)/st.total;
     r.parcelas.forEach(p=>{
       if(p.pago && p.data){
-        const ivaDesc = st.valorParcela*iva;
-        const liquido = Math.max(0, st.valorParcela - ivaDesc - txAdmPorParcela);
-        linhas.push({ date: p.data, cliente:r.cliente, tipo:'Parcela '+p.numero+(r.isentoTaxaAdm?' (isento tx. adm.)':''), recebido: st.valorParcela, ivaDesc, txAdmDesc:txAdmPorParcela, liquido, comissao: liquido*rate });
+        const valorReal = (p.valor!=null ? p.valor : st.valorParcela);
+        const ivaDesc = valorReal*iva;
+        const liquido = Math.max(0, valorReal - ivaDesc - txAdmPorParcela);
+        linhas.push({ date: p.data, cliente:r.cliente, tipo:'Parcela '+p.numero+(r.isentoTaxaAdm?' (isento tx. adm.)':''), recebido: valorReal, ivaDesc, txAdmDesc:txAdmPorParcela, liquido, comissao: liquido*rate });
       }
+    });
+    (r.pagamentosExtras||[]).forEach(ex=>{
+      if(!ex.data) return;
+      const ivaDesc = (ex.valor||0)*iva;
+      const liquido = Math.max(0, (ex.valor||0) - ivaDesc);
+      linhas.push({ date: ex.data, cliente:r.cliente, tipo:'Pagamento personalizado', recebido: ex.valor||0, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
     });
   });
   return linhas.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
@@ -1783,6 +1812,52 @@ function renderCustosAtrasadosBox(){
    alimenta Financeiro (impostos), comissão e faturamento em todo o resto do
    sistema, não precisa de nenhuma conexão extra: o lançamento já aparece em
    tudo automaticamente assim que salva. */
+/* Modal único de lançamento de pagamento — usado tanto pra pagar uma
+   parcela específica (valor já vem preenchido, só confirma ou edita)
+   quanto pro "Pagamento personalizado" (valor em branco, o gestor decide
+   quanto). Os dois caminhos terminam no mesmo lugar: o valor entra no
+   Faturamento/comissão/Extrato do dia normalmente. */
+function abrirPagamentoModal(recId, parcelaNumero){
+  const rec = STATE.recurrences.find(r=>r.id===recId);
+  if(!rec) return;
+  const st = recStatus(rec);
+  const personalizado = parcelaNumero==null;
+  const valorSugerido = personalizado ? '' : st.valorParcela.toFixed(2);
+  const hoje = todayISO();
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal">
+    <div class="modal-head"><h3>${personalizado ? 'Pagamento personalizado' : 'Efetuar pagamento — Parcela '+parcelaNumero} — ${rec.cliente}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:14px;">Pendente total do contrato: <strong>${fmtEUR(st.valorPendente)}</strong>${!personalizado?` · valor padrão desta parcela: <strong>${fmtEUR(st.valorParcela)}</strong>`:''}</div>
+      <div class="field"><label>Valor pago (€)</label><input type="number" id="pgValor" min="0.01" step="0.01" value="${valorSugerido}" placeholder="${personalizado?'Quanto o cliente pagou':''}"></div>
+      <div class="field"><label>Data do pagamento</label><input type="date" id="pgData" value="${hoje}"></div>
+      <div id="pgAviso" style="display:none;color:var(--bad);font-size:12.5px;margin-top:-6px;"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Confirmar pagamento</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+  document.getElementById('mSave').onclick = async ()=>{
+    const valor = Number(document.getElementById('pgValor').value)||0;
+    const data = document.getElementById('pgData').value || hoje;
+    const aviso = document.getElementById('pgAviso');
+    if(valor<=0){ aviso.textContent = 'Informe um valor maior que zero.'; aviso.style.display='block'; return; }
+    if(valor > st.valorPendente + 0.01){
+      aviso.textContent = `Esse valor é maior que o pendente do contrato (${fmtEUR(st.valorPendente)}) — confirme se está certo antes de continuar, ou ajuste o valor.`;
+      aviso.style.display='block';
+    }
+    if(personalizado){
+      if(!rec.pagamentosExtras) rec.pagamentosExtras = [];
+      rec.pagamentosExtras.push({ id:'pgx-'+Date.now(), data, valor });
+    } else {
+      const p = rec.parcelas.find(x=>x.numero===parcelaNumero);
+      if(!p) return;
+      p.pago = true; p.valor = valor; p.data = data;
+    }
+    await persist('recurrences'); closeModal(); renderAll();
+  };
+}
 function abrirPagamentoRecorrenciaModal(recId){
   const rec = STATE.recurrences.find(r=>r.id===recId);
   if(!rec) return;
@@ -1909,7 +1984,10 @@ function renderChartsPanel(){
     const st = recStatus(r);
     if((r.valorEntrada||0)>0 && inPeriodOrAll(r.dataVenda, STATE.periodFilter)) soma(r.formaPagamento, r.valorEntrada);
     r.parcelas.forEach(p=>{
-      if(p.pago && p.data && inPeriodOrAll(p.data, STATE.periodFilter)) soma(r.formaPagamento, st.valorParcela);
+      if(p.pago && p.data && inPeriodOrAll(p.data, STATE.periodFilter)) soma(r.formaPagamento, p.valor!=null ? p.valor : st.valorParcela);
+    });
+    (r.pagamentosExtras||[]).forEach(ex=>{
+      if(ex.data && inPeriodOrAll(ex.data, STATE.periodFilter)) soma(r.formaPagamento, ex.valor||0);
     });
   });
   const formasOrdenadas = Object.entries(porForma).sort((a,b)=>b[1]-a[1]);
@@ -2145,9 +2223,9 @@ function recurrenceTable(list, opts){
             ? `<td style="max-width:320px;">Entrou em <strong>${fmtDate(r.dataVenda)}</strong>, ${r.nParcelas} parcela${r.nParcelas>1?'s':''}${r.valorEntrada>0?' + entrada':''}, finalizada em <strong>${monthLabel(finalizacaoMes(r))}</strong>.</td>`
             : `<td>${r.valorEntrada>0?`<span class="chip gold" style="margin-right:6px;">Entrada ${fmtEUR(r.valorEntrada)}</span>`:''}${r.parcelas.map(p=>
                 podeGerir
-                  ? `<span class="parcela-dot ${p.pago?'pago':''}" data-rec="${r.id}" data-parcela="${p.numero}" title="Parcela ${p.numero}${p.pago?' — paga':' — clique para marcar como paga'}">${p.pago?'✓':p.numero}</span>`
+                  ? `<span class="parcela-dot ${p.pago?'pago':''}" ${p.pago?`data-rec="${r.id}" data-parcela="${p.numero}"`:`data-parcela-pagar="${r.id}" data-parcela-pagar-num="${p.numero}"`} title="Parcela ${p.numero}${p.pago?' — paga, clique pra desfazer':' — clique para lançar o pagamento'}">${p.pago?'✓':p.numero}</span>`
                   : `<span class="parcela-dot ${p.pago?'pago':''}" style="cursor:default;" title="Parcela ${p.numero}${p.pago?' — paga':' — pendente'}">${p.pago?'✓':p.numero}</span>`
-              ).join('')}</td>`}
+              ).join('')}${(r.pagamentosExtras||[]).map(ex=>`<span class="chip neutral" style="margin-left:4px;" title="Pagamento personalizado em ${fmtDate(ex.data)}">💠 ${fmtEUR(ex.valor)}</span>`).join('')}${(podeGerir && st.valorPendente>0.005)?` <button class="btn ghost sm" data-pagamento-personalizado="${r.id}" style="margin-left:6px;">Pagamento personalizado</button>`:''}</td>`}
           ${opts.paidView?'':`<td class="tnum">${st.valorPendente>0.005 ? fmtEUR(st.valorPendente) : '<span class="chip good">quitado</span>'}</td>`}
           ${podeGerir?`<td style="white-space:nowrap;"><button class="btn ghost sm" data-edit-rec="${r.id}">Editar</button> <button class="btn danger sm" data-del-rec="${r.id}">Excluir</button></td>`:''}
         </tr>`;
@@ -2172,8 +2250,9 @@ function matchesSearch(text, query){
 function parcelasSemData(){
   const out = [];
   STATE.recurrences.forEach(r=>{
+    const st = recStatus(r);
     r.parcelas.forEach(p=>{
-      if(p.pago && !p.data) out.push({ recId:r.id, cliente:r.cliente, vendedorNome:r.vendedorNome, dataVenda:r.dataVenda, numero:p.numero, valor: recStatus(r).valorParcela });
+      if(p.pago && !p.data) out.push({ recId:r.id, cliente:r.cliente, vendedorNome:r.vendedorNome, dataVenda:r.dataVenda, numero:p.numero, valor: p.valor!=null ? p.valor : st.valorParcela });
     });
   });
   return out.sort((a,b)=> (a.dataVenda||'').localeCompare(b.dataVenda||''));
@@ -3217,7 +3296,12 @@ function linhasFinanceiras(filter){
     }
     r.parcelas.forEach(p=>{
       if(p.pago && p.data && inPeriodOrAll(p.data, filter)){
-        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor:st.valorParcela, sinal:1 });
+        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor: p.valor!=null ? p.valor : st.valorParcela, sinal:1 });
+      }
+    });
+    (r.pagamentosExtras||[]).forEach(ex=>{
+      if(ex.data && inPeriodOrAll(ex.data, filter)){
+        linhas.push({ data:ex.data, emoji:'💠', tipo:'Pagamento personalizado', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor: ex.valor||0, sinal:1 });
       }
     });
   });
@@ -3950,14 +4034,21 @@ function wireViewportEvents(){
         if(!rec){ showErrorToast('recorrência '+recId+' não encontrada.'); return; }
         const parcela = rec.parcelas.find(pp=>pp.numero===num);
         if(!parcela){ showErrorToast('parcela '+num+' não encontrada.'); return; }
-        parcela.pago = !parcela.pago;
-        if(parcela.pago && !parcela.data) parcela.data = new Date().toISOString().slice(0,10);
+        // esse clique só existe pra parcelas JÁ pagas (desfazer) — pra pagar
+        // uma parcela pendente agora abre o modal, ver data-parcela-pagar.
+        parcela.pago = false; parcela.data = null; parcela.valor = null;
         renderAll(); // atualiza a tela já, independente do resultado da gravação
         await persist('recurrences');
       }catch(err){
         showErrorToast(err && err.message ? err.message : String(err));
       }
     });
+  });
+  vp.querySelectorAll('[data-parcela-pagar]').forEach(dot=>{
+    dot.addEventListener('click', ()=> abrirPagamentoModal(dot.dataset.parcelaPagar, Number(dot.dataset.parcelaPagarNum)));
+  });
+  vp.querySelectorAll('[data-pagamento-personalizado]').forEach(btn=>{
+    btn.addEventListener('click', ()=> abrirPagamentoModal(btn.dataset.pagamentoPersonalizado, null));
   });
 
   vp.querySelectorAll('[data-criar-conta-seller]').forEach(btn=>{
