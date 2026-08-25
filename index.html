@@ -961,8 +961,17 @@ function sumFunilDiario(seller, filter){
   return out;
 }
 
-function todayISO(){ return new Date().toISOString().slice(0,10); }
-function addDays(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+/* Formata uma data como YYYY-MM-DD usando os componentes LOCAIS (ano/mês/
+   dia) — nunca usar .toISOString() pra isso: ele converte pra UTC antes de
+   extrair a data, e em fusos à frente de UTC (como Portugal no horário de
+   verão) isso troca o dia sozinho, além de qualquer soma/subtração que já
+   estivesse sendo feita — foi exatamente esse o bug dos filtros de dia. */
+function toLocalISODate(d){
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function todayISO(){ return toLocalISODate(new Date()); }
+function addDays(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return toLocalISODate(d); }
 function monthLabel(key){ if(!key) return '—'; const [y,m] = key.split('-'); return `${MESES_PT[parseInt(m,10)-1]} de ${y}`; }
 function fmtDateShort(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'}) : '—'; }
 
@@ -1002,7 +1011,7 @@ function shiftPeriod(filter, dir){
   }
   const d = new Date(anchor+'T00:00:00');
   d.setDate(d.getDate() + (filter.granularity==='week' ? dir*7 : dir));
-  return d.toISOString().slice(0,10);
+  return toLocalISODate(d);
 }
 
 /* Lista "achatada" de todo recebimento (vendas + entradas + parcelas pagas),
@@ -3535,7 +3544,7 @@ function openQuickAddModal(initialTipo, forColaborador){
     document.getElementById('mSave').onclick = async ()=>{
       const cliente = document.getElementById('qCliente').value.trim();
       const servico = qServico.value.trim();
-      const data = document.getElementById('qData').value || new Date().toISOString().slice(0,10);
+      const data = document.getElementById('qData').value || todayISO();
       const vendedorId = forColaborador ? STATE.myOwnSellerId : document.getElementById('qVendedor').value;
       const vendedor = sellerById(vendedorId);
       const origem = document.getElementById('qOrigem').value;
@@ -3885,7 +3894,7 @@ function openAddRecModal(forColaborador){
     const vendedor = sellerById(vendedorId);
     const parcelas = Array.from({length:nParcelas}, (_,i)=>({numero:i+1, data:null, pago:false}));
     STATE.recurrences.push({
-      id:'rec-'+Date.now(), dataVenda:data||new Date().toISOString().slice(0,10), cliente, servico,
+      id:'rec-'+Date.now(), dataVenda:data||todayISO(), cliente, servico,
       nParcelas, valorEntrada, formaPagamento, origem,
       honorarioBase: matchedService?matchedService.honorarioBase:valorContrato,
       iva: matchedService?matchedService.iva:0,
