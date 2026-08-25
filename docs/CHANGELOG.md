@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.12 — Corrigido: bug de fuso horário fazia os filtros de dia pularem 2 dias
+- **Bug real encontrado e corrigido**: as funções que calculam "dia anterior/seguinte" (usadas em todos os filtros de dia/semana do sistema, e na navegação do Funil Diário) convertiam a data pra UTC antes de extrair o resultado. Como Portugal está em UTC+1 no horário de verão, meia-noite local já é 23h do dia anterior em UTC — isso trocava o dia sozinho, e somava com o dia que já estava sendo subtraído de propósito. Resultado: clicar em "dia anterior" voltava 2 dias, não 1.
+- Corrigido em `todayISO()`, `addDays()` e `shiftPeriod()` — essa última é a função por trás de **todos** os botões de anterior/próximo dia e semana do sistema (Financeiro, Métricas, Controle de Campanhas, Clientes, Vendas, Funil Diário — em qualquer lugar com filtro de dia/semana).
+- Reproduzi o bug exato com o fuso horário de Lisboa antes de corrigir, e testei depois: 10 dias consecutivos "pra trás" sem nunca pular 2, virada de mês, virada de ano, e o filtro de semana (7 em 7 dias) — tudo certo agora.
+
 ## v3.11 — Pagamento personalizado de recorrência
 - **Botão "Pagamento personalizado"** nas recorrências em aberto — aparece sempre que ainda houver valor pendente naquele contrato, mesmo que todas as parcelas "nomeadas" já estejam pagas (útil quando sobra um valor solto que não se encaixa numa parcela redonda). Ao clicar, abre uma tela em branco pra você decidir quanto lançar.
 - **Clicar numa parcela pendente agora abre essa mesma tela**, mas já vem preenchida com o valor padrão daquela parcela — você só confirma, ou edita o valor antes de confirmar (por exemplo, se o cliente pagou um pouco a mais ou a menos daquela vez).
