@@ -1,5 +1,8 @@
 # Changelog
 
+## v3.13 — Favicon
+- Adicionado um favicon (o ícone que aparece na aba do navegador) — um monograma "P" dourado sobre fundo vinho, na mesma paleta de cores do resto do sistema. Não depende de nenhum arquivo externo (é um SVG embutido direto no `index.html`), então não tem nada a mais pra subir — só o próprio arquivo já traz o ícone.
+
 ## v3.12 — Corrigido: bug de fuso horário fazia os filtros de dia pularem 2 dias
 - **Bug real encontrado e corrigido**: as funções que calculam "dia anterior/seguinte" (usadas em todos os filtros de dia/semana do sistema, e na navegação do Funil Diário) convertiam a data pra UTC antes de extrair o resultado. Como Portugal está em UTC+1 no horário de verão, meia-noite local já é 23h do dia anterior em UTC — isso trocava o dia sozinho, e somava com o dia que já estava sendo subtraído de propósito. Resultado: clicar em "dia anterior" voltava 2 dias, não 1.
 - Corrigido em `todayISO()`, `addDays()` e `shiftPeriod()` — essa última é a função por trás de **todos** os botões de anterior/próximo dia e semana do sistema (Financeiro, Métricas, Controle de Campanhas, Clientes, Vendas, Funil Diário — em qualquer lugar com filtro de dia/semana).
