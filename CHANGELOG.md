@@ -1,5 +1,216 @@
 # Changelog
 
+## v3.15 — Corrigido: isenção de taxa administrativa não reduzia o pendente + botões reorganizados
+- **Bug real encontrado e corrigido**: marcar um contrato como "isento de taxa administrativa" só afetava o cálculo de comissão — o valor pendente (o que falta o cliente pagar) continuava contando a taxa administrativa como se ainda fosse cobrada. Agora, isentar reduz de verdade o valor total devido daquele contrato, e o pendente reflete isso corretamente. Testei o cenário completo: contrato de €2.112,60 com €612 de taxa administrativa, isentando depois de uma parcela paga — o pendente cai exatamente pelo valor da taxa isentada, sem ficar negativo mesmo em contratos já totalmente pagos.
+- **Botões reorganizados** pra não empilhar: a célula de parcelas de uma recorrência (que podia ficar com entrada + várias bolinhas + pagamentos personalizados + botão, tudo espremido) agora quebra linha de forma organizada em vez de bagunçar. O mesmo ajuste nas colunas de ação (Editar/Excluir) de Vendas, Recorrências e Custos, e nas sub-abas do Financeiro (que podiam cortar em telas mais estreitas).
+
+## v3.14 — Corrigido bug crítico: venda podia "sumir" ao ser editada por um colaborador
+- **Causa raiz encontrada**: no modal de editar venda ("Minhas Vendas"), o campo "Vendedor" era uma lista com **todos** os vendedores, mesmo pra quem não é gestor. Um colaborador não tem permissão de gravar na chave do Supabase de outro vendedor — então se esse campo fosse alterado (ou até acidentalmente, dependendo de qual vendedor aparecia selecionado), a venda deixava de bater com o próprio vendedor, saía da lista que o colaborador consegue gravar, e **não entrava em lugar nenhum** — ela sumia do sistema, sem erro visível.
+- **Corrigido**: o campo Vendedor agora fica travado (só leitura) pra quem não é gestor — só o gestor pode reatribuir uma venda pra outro vendedor. Testei o cenário completo: colaborador edita e guarda a própria venda, e ela continua exatamente onde deveria, sem se perder.
+- **Rede de segurança adicionada**: se por qualquer outro motivo uma venda ou recorrência ficar associada a um vendedor diferente do que está gravando, agora aparece um aviso visível na tela em vez de o dado simplesmente desaparecer — assim, se acontecer de novo (por outro caminho que eu não tenha coberto), pelo menos fica claro que algo precisa de atenção do gestor.
+- Isso explica diretamente a queixa de vendas que "não se espelhavam corretamente" quando lançadas pelo vendedor — não era um problema de comunicação com o backend, e sim essa lacuna específica de permissão no formulário de edição.
+
+## v3.13 — Favicon
+- Adicionado um favicon (o ícone que aparece na aba do navegador) — um monograma "P" dourado sobre fundo vinho, na mesma paleta de cores do resto do sistema. Não depende de nenhum arquivo externo (é um SVG embutido direto no `index.html`), então não tem nada a mais pra subir — só o próprio arquivo já traz o ícone.
+
+## v3.12 — Corrigido: bug de fuso horário fazia os filtros de dia pularem 2 dias
+- **Bug real encontrado e corrigido**: as funções que calculam "dia anterior/seguinte" (usadas em todos os filtros de dia/semana do sistema, e na navegação do Funil Diário) convertiam a data pra UTC antes de extrair o resultado. Como Portugal está em UTC+1 no horário de verão, meia-noite local já é 23h do dia anterior em UTC — isso trocava o dia sozinho, e somava com o dia que já estava sendo subtraído de propósito. Resultado: clicar em "dia anterior" voltava 2 dias, não 1.
+- Corrigido em `todayISO()`, `addDays()` e `shiftPeriod()` — essa última é a função por trás de **todos** os botões de anterior/próximo dia e semana do sistema (Financeiro, Métricas, Controle de Campanhas, Clientes, Vendas, Funil Diário — em qualquer lugar com filtro de dia/semana).
+- Reproduzi o bug exato com o fuso horário de Lisboa antes de corrigir, e testei depois: 10 dias consecutivos "pra trás" sem nunca pular 2, virada de mês, virada de ano, e o filtro de semana (7 em 7 dias) — tudo certo agora.
+
+## v3.11 — Pagamento personalizado de recorrência
+- **Botão "Pagamento personalizado"** nas recorrências em aberto — aparece sempre que ainda houver valor pendente naquele contrato, mesmo que todas as parcelas "nomeadas" já estejam pagas (útil quando sobra um valor solto que não se encaixa numa parcela redonda). Ao clicar, abre uma tela em branco pra você decidir quanto lançar.
+- **Clicar numa parcela pendente agora abre essa mesma tela**, mas já vem preenchida com o valor padrão daquela parcela — você só confirma, ou edita o valor antes de confirmar (por exemplo, se o cliente pagou um pouco a mais ou a menos daquela vez).
+- Os dois caminhos terminam no mesmo lugar: o valor entra no Faturamento, na comissão do vendedor e no Extrato do dia, exatamente como as parcelas normais já faziam.
+- Clicar numa parcela **já paga** continua desfazendo o pagamento diretamente (sem abrir tela), pra corrigir um engano rápido.
+- Testado o cenário completo: parcela paga com valor customizado, pagamento personalizado avulso, e confirmação de que o contrato fecha (fica "quitado") quando a soma de tudo cobre o valor total, mesmo com valores que não batem exatamente com a divisão original em parcelas iguais.
+
+## v3.10 — Cores automáticas nos campos de status/qualidade/consultoria
+- Os campos de seleção em Controle de Campanhas (Status do lead, Tipo de consultoria, Qualidade) e os chips correspondentes em Métricas agora ganham uma **cor automática** de acordo com o valor escolhido — sempre a mesma cor pro mesmo valor, em qualquer lugar do sistema.
+- Só tons frios (verde-água, azul, índigo, roxo — nunca vermelho/laranja/amarelo), e sempre escuros o bastante pra letra branca ler bem em cima — testei isso especificamente, não é aleatório: toda cor gerada fica na faixa certa de tom e claridade.
+- A cor já muda na hora, assim que o vendedor escolhe uma opção nova — não precisa salvar/recarregar pra ver.
+
+## v3.9 — Nova aba 🎯 Controle de Campanhas (lista editável + métricas)
+- **Nova aba "Controle de Campanhas"**, logo abaixo de Métricas — disponível pro gestor **e** pros vendedores (são eles que fazem as edições no dia a dia).
+- **Sub-aba "Lista de leads"**: tabela com todos os leads da planilha (mais recente primeiro), mostrando lead, data, hora, campanha e origem — com 4 colunas editáveis por seleção: **Status do lead, Tipo de consultoria, Qualidade do lead e Serviço fechado**, exatamente os campos da aba "Consolidada" da planilha. **Importante**: essas edições ficam guardadas no próprio painel (Supabase) — a planilha do Google original nunca é alterada, só lida. Pra escrever de volta na planilha seria preciso outro tipo de integração (autenticação Google), combinado que não é isso que você queria agora.
+- **Sub-aba "Métricas das Campanhas"**: leads por campanha, taxa de qualificação por campanha (quais convertem melhor), leads por origem, leads por atendente (quem está com mais controle), e um destaque automático mostrando qual mês teve a maior taxa de leads qualificados — tudo filtrado por dia/semana/mês/histórico.
+- **Nomes por extenso em vez de abreviações**: "ig" virou "Instagram", "fb" virou "Facebook", "meta_ads" virou "Meta Ads", etc. — tanto aqui quanto na aba Métricas já existente.
+- Nova migração `supabase/migration_v4_lead_edits.sql` — precisa ser rodada pra liberar a permissão de escrita partilhada nessas edições (sem ela, o colaborador consegue ver a tela mas não consegue salvar uma edição).
+
+## v3.8 — Origem do lead ao adicionar venda/recorrência + gerenciável em Configurações
+- **Campo "Origem do lead"** adicionado nos modais de criar venda, criar recorrência (os dois formatos: o rápido e o dedicado), e nos modais de editar venda/recorrência — pra registar de onde veio o cliente (Instagram, Facebook, tráfego, indicação, etc.), igual já existia nas planilhas.
+- **Configurações → Pagamentos e origens**: nova seção pra adicionar ou remover as opções de origem disponíveis nesses formulários — mesmo padrão que já existia pras formas de pagamento.
+- **Resolvida a limitação que eu tinha sinalizado antes**: a composição do pipeline por origem (em Clientes) agora também conta recorrências criadas direto no sistema, que antes ficavam de fora por não terem "venda-sombra" nenhuma associada.
+
+## v3.7 — Nova aba 📈 Métricas: leads ao vivo da planilha de anúncios
+- **Nova aba "Métricas"** (só gestor): busca ao vivo, direto do navegador, a planilha pública de leads (`[Pablo Mendes] Leads`, aba "Consolidada") — toda vez que a aba é aberta, os dados mais recentes já vêm junto. Botão "🔄 Atualizar agora" pra forçar uma nova busca sem sair da tela.
+- Mostra: total de leads, qualificados/desqualificados, taxa de qualificação, leads por dia (gráfico de linha), por plataforma (Instagram/Facebook/Meta Ads...), por canal/campanha, funil de status de atendimento, qualificação e interesse por serviço — tudo com filtro de dia/semana/mês/histórico e busca por nome.
+- **Como funciona tecnicamente**: a planilha precisa continuar partilhada como "Qualquer pessoa com o link pode ver" — o painel busca a exportação CSV pública dela direto do navegador de quem estiver a usar o sistema, sem precisar de nenhuma chave nem passo manual. Se a planilha for despublicada ou a aba "Consolidada" for renomeada, a tela mostra um aviso claro explicando o que checar.
+- Testado com uma amostra real da planilha: o parser lida corretamente com campos de texto livre (observações) que têm vírgulas e quebras de linha dentro.
+
+## v3.6 — Clientes: composição por quantidade de leads e por serviço, ambas clicáveis
+- Nova seção **"Composição do pipeline por origem — quantidade de leads"**: mesma ideia da composição por valor que já existia, só que em número de leads por origem (tráfego, indicação, site/google, etc.) em vez de €. Clique no número pra ver a lista completa de clientes daquela origem, com serviço, valor pago e quanto está pendente.
+- Nova seção **"Composição do fluxo de serviços"**: quantos clientes distintos compraram cada serviço, ordenado do mais popular pro menos. Clique no número pra ver quem comprou aquele serviço, quando e quanto pagou.
+- **Limitação conhecida**: as três composições de pipeline (valor, quantidade, serviço) usam os dados de Vendas — uma recorrência criada direto no sistema (sem vir de uma venda importada) ainda não tem "origem" nem entra nessas composições, do mesmo jeito que o Valor Vendido tinha esse problema antes de eu corrigir. Se isso incomodar no dia a dia, dá pra estender depois adicionando um campo de origem também nas recorrências.
+
+## v3.5 — Gráficos de linha: tooltip ao passar o mouse + área preenchida (efeito onda)
+- Os gráficos de linha (Entradas x Saídas, Percentual de vendas por vendedor) agora têm **área preenchida** embaixo de cada linha, na cor dela — efeito "onda", como pedido.
+- **Tooltip ao passar o mouse**: para qualquer ponto do gráfico, aparece uma caixinha mostrando o mês e o valor exato de cada linha naquele ponto, com uma linha vertical pontilhada marcando onde você está. Funciona também em toque (celular/tablet).
+- Gráficos de coluna (Faturamento por mês, Saldo mensal, etc.) ganharam destaque visual ao passar o mouse em cima de uma barra (já mostravam o valor sempre visível embaixo, agora fica mais claro qual coluna você está olhando).
+
+## v3.4 — Financeiro: aba Registro, extrato redesenhado, novos gráficos
+- **Nova aba "📋 Registro"** dentro de Financeiro: lista ao vivo de toda movimentação financeira (vendas, entrada/parcela de recorrência, custos pagos) num período qualquer — não só um dia. Sincronizado automaticamente: todo pagamento novo já aparece assim que é lançado, sem passo extra.
+- **Extrato do dia redesenhado**: o saldo agora é a primeira informação, em destaque (card grande no topo), seguido pela lista de movimentações em formato de cartão (ícone, cliente, categoria, forma de pagamento, valor com + ou −), em vez da tabela antiga.
+- **Financeiro agora aceita filtro de dia/semana/mês/histórico** (antes só tinha mês/histórico).
+- **Novos gráficos** (Visão Geral → Gráficos):
+  - 💰 Saldo mensal (coluna) — entrou menos saiu, por mês.
+  - 🟢🔴 Entradas x Saídas — evolução mensal (gráfico de linhas).
+  - 📊 Percentual de vendas por vendedor — coluna (participação no mês atual) e linha (evolução da participação ao longo dos meses) — **só aparece pro gestor**.
+- **Painel de evolução de vendas pro colaborador** — em Minhas Vendas, gráfico mostrando a evolução dele mesmo (vendas integrais x recorrentes, e clientes distintos) mês a mês, desde que está no sistema.
+- **Não implementado, por escolha consciente**: o gráfico de velas (candlestick). Esse tipo de gráfico existe pra mostrar abertura/máxima/mínima/fechamento de um preço que oscila (ações, moedas) — não existe esse conceito em fluxo de caixa (não tem "preço de abertura do dia"). Troquei pelo gráfico de linhas de entradas x saídas acima, que mostra a mesma informação (evolução do fluxo) de um jeito que faz sentido pros teus dados. Se quiser mesmo assim algo visualmente parecido com velas, me diz que penso numa alternativa.
+
+## v3.3 — Corrigido: Valor Vendido não contava recorrências criadas direto no sistema
+- **Bug real encontrado e corrigido**: "Valor Vendido" (Visão Geral e perfil de cada vendedor) só somava a tabela de Vendas — uma recorrência criada direto pelo painel (sem vir de importação de planilha) nunca entrava nessa soma, porque não existe "venda" nenhuma pra ela, só a recorrência em si. Agora a conta é sempre **vendas integrais + valor de contrato de toda recorrência**, então nenhum negócio fica de fora. Testado com o exemplo exato: recorrência de €2.112,60 + venda integral de €350 = €2.462,60 no Valor Vendido.
+- **Renomeado "Vendas avulsas" para "Vendas integrais"** em todas as telas (Vendas, perfil do vendedor, Minhas Vendas), pra não confundir com "avulso" — venda integral é o nome certo pro que não é recorrência.
+- **Novo: gráfico de evolução mensal** no perfil de cada vendedor — duas colunas: valor vendido por mês (integral x recorrente, empilhado) e nº de clientes distintos por mês.
+
+## v3.2 — Corrigido: Pendências contava em dobro + cards clicáveis com detalhamento
+- **Bug real encontrado e corrigido**: o card "Pendências" (Visão Geral, perfil do vendedor, Minhas Vendas) estava somando o valor pendente de uma venda **e** da recorrência que representa o mesmo negócio — contando o mesmo dinheiro duas vezes. No conjunto de dados de teste, isso inflava o total de €11.460,51 (correto) para €40.074,95. Corrigido em `computeGlobalForPeriod`, `computeSellerStats` e `computeGlobal`.
+- **Os 4 cards principais agora são clicáveis**: Valor vendido, Faturamento recebido (caixa), Pendências, Recorrência em andamento — na Visão Geral, no perfil do vendedor e em Minhas Vendas (Meu faturamento/Meu pendente). Clicar abre um detalhamento linha a linha (data, cliente, vendedor quando aplicável, o que está sendo contado, valor) com o total batendo exatamente com o número do card — testado conferindo que a soma das linhas fecha com o valor do card em todos os 4 tipos.
+
+## v3.1 — Custos fixos: data real de pagamento, aviso de vencidos na Visão Geral
+- **Botão de pagar registra a data real do pagamento** (hoje), não mais a data de vencimento — assim dá pra pagar um custo fixo antes do vencimento e ele aparece no Extrato do dia certo (o dia em que você realmente pagou), não no dia em que venceria.
+- **Nova caixa na Visão Geral: "Custos fixos vencidos"** — mostra todo custo fixo com vencimento no passado e ainda não pago, com quantos dias de atraso e um botão **Pagar** ali mesmo. Ao clicar, já registra como pago hoje e entra automaticamente no Extrato do dia como saída de caixa/despesa.
+- O Extrato do dia agora procura pagamentos de custos fixos em todos os meses/lançamentos (não só no mês do dia escolhido), pra não perder um pagamento antecipado que caiu num mês diferente do vencimento.
+
+## v3.0 — Custos fixos "repetindo" agora são editáveis/excluíveis
+- **Bug corrigido**: qualquer custo fixo que aparecesse como "repetindo" automaticamente (a maioria, fora do mês do lançamento original) não tinha botão de Editar nem Excluir — fazia a lista inteira de custos fixos parecer travada. Agora os dois botões aparecem sempre; editar um custo "repetindo" muda o valor a partir de agora (sem alterar meses já fechados no passado), e excluir para a repetição.
+- Revisão completa (testada de ponta a ponta) do fluxo de colaborador adicionar venda/recorrência — confirmado funcionando corretamente no código; se ainda não funcionar depois de atualizado, é provável que seja algo do lado do Supabase, não do código.
+
+## v2.9 — Funil diário: grade fixa de 6 colunas
+- Os 12 campos do funil diário (10 do funil + valor da venda + pago no dia) agora ficam numa grade fixa de **6 colunas por linha** (2 linhas de 6) — antes a grade era automática e ficava desorganizada dependendo do tamanho da tela. Campos mais compactos, no mesmo visual do resto do sistema. Em telas menores, reduz pra 3 ou 2 colunas por linha automaticamente.
+
+## v2.8 — Vendedor adiciona vendas, não controla pagamento de recorrência, funil diário redesenhado
+- **Colaborador agora pode adicionar vendas avulsas** ("+ Nova venda" em Minhas Vendas) — antes só dava pra adicionar recorrências.
+- **Colaborador deixou de poder marcar parcelas como pagas, isentar taxa administrativa, editar ou excluir recorrências** — essas ações ficaram exclusivas do gestor (o colaborador continua vendo tudo normalmente, só não interage mais com pagamentos). Ele ainda pode criar novas recorrências.
+- **Funil de vendas diário redesenhado**: em vez da tabela gigante com todos os dias do mês, mostra agora só o dia atual, em campos organizados (visual no mesmo estilo do resto do sistema). Dá pra navegar pro dia anterior/seguinte pra corrigir um dia esquecido, com um botão "Voltar para hoje".
+- Novo campo: **Ligações feitas** no dia, ao lado dos demais campos do funil.
+
+## v2.7 — Corrigido: parcelas sem data inflavam o Faturamento do mês errado
+- **Bug real encontrado e corrigido**: quando uma parcela paga não tinha data confirmada, o sistema usava a data da venda original como substituta — isso empurrava uma leva grande de dinheiro pro mês da venda, mesmo quando o pagamento provavelmente aconteceu bem depois. Resultado: Faturamento de maio/junho aparecia inflado em milhares de euros.
+- **Nova tela "Sem data de pagamento"** (dentro de Recorrências): lista toda parcela marcada como paga sem data confirmada, com um campo pra preencher a data real. Enquanto não preenchida, esse valor **não conta em nenhum mês** — nem Faturamento, nem comissão, nem gráfico de forma de pagamento — só passa a contar quando alguém confirma a data certa ali.
+- Antes da correção: Faturamento de maio calculado em €23.827,81 (planilha: €15.502,56) — depois: €16.246,69, bem mais perto. A diferença restante (~€744 em maio, ~€351 em junho) deve estar nas 27 parcelas que ainda estão sem data confirmada — quando você for preenchendo, os números devem se aproximar ainda mais.
+
+## v2.6 — Reconciliação v3: pagamentos de parcelas confirmados em julho
+- 6 parcelas de recorrências de maio/junho marcadas como pagas **agora, em julho** (Shenia de Brito Oliveira, Nik Mohammad Haidaryar ×2, Kebba Gomez, Vahid Mazraefa, Julio Cesar Souza Nogueira, Julio Egrejas Santos) — exatamente o padrão que você descreveu: vendas feitas antes, com a recorrência paga depois.
+- 1 parcela (Kamila Oliveira) tinha uma data de agendamento futura que não se confirmou — limpa, continua pendente.
+- **Achado pontual sinalizado**: a parcela 1 do Nik Mohammad Haidaryar veio marcada como paga com data de 22/04, mas a venda dele é de 01/06 — mesma inconsistência da rodada anterior (data anterior à venda). Mantive "pago = sim" e limpei a data, seguindo a mesma regra já combinada.
+
+## v2.5 — Reconciliação v2 de julho (planilha atualizada) + validação de pagamentos passados
+- **Julho reconstruído do zero** a partir do REGISTRO DE VENDAS mestre reenviado (49 vendas, bate exatamente com o "VALOR ALCANÇADO" da planilha: €14.523,95 — Larissa €6.538,96, Fernanda €7.109,99, Bernardo €874,99).
+- **A aba individual da Larissa deixou de ser usada** — a partir de agora, o registro geral já é 100% confiável pra ela também, igual Fernanda e Bernardo. Isso eliminou 23 lançamentos antigos que vinham de lá e duplicavam o que já existia no registro geral.
+- **12 recorrências de julho recriadas**, cruzando o REGISTRO DE VENDAS (valor do contrato, entrada, honorário/IVA/taxa) com a aba RECORRÊNCIA (status real de cada parcela).
+- **Removida a recorrência órfã "rec-002"** (RAVENA GABRIELE DA SILVA, 15/05) — era uma versão antiga e incompleta (entrada €0) da mesma venda que agora está correta dentro de julho (entrada €500, conforme o registro atualizado).
+- **26 recorrências de maio/junho marcadas como quitadas**, com o status real de cada parcela atualizado a partir da aba RECORRÊNCIA GERAL.
+- **Achado sinalizado, não alterado às cegas**: a aba RECORRÊNCIA GERAL tinha 27 parcelas marcadas como pagas com data **anterior à própria data da venda** (ex.: pago em 01/2026 pra uma venda de 05/2026) — datas claramente incorretas, provavelmente um padrão de preenchimento (muitas caem exatamente no dia 1 de algum mês). Mantive o "pago = sim" (esse checkbox parece confiável), mas removi a data implausível — o sistema usa a data da venda como referência nesses casos, em vez de uma data que romperia a linha do tempo.
+- Também identificado (mas fora do escopo desta rodada): a venda da RAVENA na aba RECORRÊNCIA tinha o campo de entrada ("W") inconsistente com o REGISTRO DE VENDAS em pelo menos dois outros casos (Beatriz Moura Brito e a segunda venda do Sidney Ghener) — usei sempre o REGISTRO DE VENDAS como fonte da entrada, por instrução tua de que ele é a fonte 100% atualizada.
+
+## v2.4 — Busca por nome, extrato do dia, e sistema "ao vivo"
+- **Busca por nome** em Recorrências, Recorrências pagas, Vendas, Clientes e Financeiro — filtra a lista na hora, enquanto digita.
+- **Extrato do dia** (nova aba dentro de Financeiro): escolhe uma data e vê tudo que mexeu no caixa naquele dia — vendas recebidas, entrada/parcelas de recorrência, custos fixos e variáveis (pagos ou pendentes) — com totais de entrou/saiu/saldo do dia.
+- **Sistema "ao vivo"**: corrigido um bug em que a Visão Geral (e outras telas) travavam no último mês que tinha dados registados, em vez de mostrar o mês real de hoje. Agora, se a aba ficar aberta e a data virar (troca de dia ou de mês), os filtros que estavam acompanhando "hoje"/"este mês" avançam sozinhos, sem precisar recarregar a página — só isso, sem mexer em filtros que o utilizador tenha mudado manualmente para outro período.
+
+## v2.3 — IVA de recorrência recalculado por pagamento + isenção de taxa administrativa
+- **Correção na fórmula de IVA para recorrências**: cada entrada e cada parcela agora desconta o IVA (23% por padrão, configurável) **sobre o valor efetivamente pago naquele momento** — antes, o sistema rateava proporcionalmente o IVA total do contrato, o que dava um valor diferente do esperado. Exemplo conferido: contrato de €2.112,60, entrada de €750 → IVA descontado agora é €172,50 (23% de 750), comissão €57,75.
+  - Vendas integrais (avulsas, pagas de uma vez) **não mudaram** — continuam usando o IVA real do serviço, como já estava certo.
+  - O campo "Percentual de IVA a descontar" voltou a aparecer em Configurações → Regras de comissão (agora só se aplica a entradas/parcelas de recorrência).
+- **Novo: isenção de taxa administrativa por contrato.** Botão "isento de tx. adm." na tabela de recorrências (aparece só quando o contrato tem taxa administrativa) — clique pra ativar/desativar. Quando isento, nenhuma parcela desse contrato cobra a taxa administrativa, mesmo com o valor preenchido no cadastro. Também disponível como checkbox no modal de editar recorrência.
+
+## v2.2 — Pedido de acesso pela tela de login, com aprovação do gestor
+- Novo link **"Peça acesso aqui"** na tela de login: a pessoa preenche nome, e-mail e senha e o pedido fica **pendente** — ela só vê "aguardando aprovação", nunca entra direto no painel.
+- Nova aba **Configurações → Solicitações de acesso**: o gestor vê os pedidos pendentes (nome, e-mail), escolhe o papel e o vendedor correspondente, e aprova ou recusa. Depois de aprovado, a pessoa já entra normalmente com a senha que ela mesma definiu.
+- Segurança garantida por um **trigger no próprio banco de dados** (`supabase/migration_v3_signup_approval.sql`), não só por uma checagem no navegador: qualquer pedido feito por alguém que não é gestor nasce sempre pendente, sem papel nem vendedor — não tem como se auto-aprovar adulterando o que é enviado pelo site.
+- Isso substitui, na prática, a necessidade de criar cada conta manualmente em Authentication → Users — o gestor só aprova pelo próprio painel.
+
+## v2.1 — Editar/excluir vendas, ordenação por data, criar conta pelo painel
+- **Editar e excluir vendas**: botões novos em Vendas (gestor), no perfil do vendedor e em Minhas Vendas — mesmo padrão que já existia para recorrências. Serve pra corrigir dados e remover duplicatas direto pela interface, sem precisar mexer no Supabase.
+- **Ordenação por data em todas as listas de Vendas e Recorrências**: mais recente no topo, dia 1 do mês no fim da lista — consistente em Vendas, Recorrências (em aberto e pagas), Visão Geral (recorrências em andamento) e nas telas individuais do vendedor.
+- **Botão "Criar conta"**: cria login (e-mail/senha) + perfil (gestor/colaborador) direto pelo painel, sem precisar ir ao Supabase manualmente. Implementado como uma Edge Function (`supabase/functions/create-user`) porque criar uma conta pra outra pessoa exige a chave `service_role`, que nunca pode ficar no código que roda no navegador — a função confirma no servidor que quem está a chamar é o gestor antes de criar qualquer coisa. Requer publicar a função uma vez (passo a passo em `docs/SECURITY_MIGRATION.md`); sem isso, o botão continua visível mas mostra um erro claro ao clicar.
+
+## v2.0 — Segurança: Supabase Auth real + RLS por utilizador
+- **Login real, verificado no servidor**: substituído o fluxo antigo (escolher "Sou gestor/Sou colaborador" + senha comparada no navegador — incluindo a senha do gestor, que estava em texto simples no próprio código) por login com e-mail/senha via Supabase Auth. Sem uma sessão válida, o Supabase agora recusa qualquer leitura ou escrita — a chave `anon`/`publishable` sozinha não dá mais acesso a nada.
+- **RLS por utilizador**: nova tabela `profiles` liga cada conta de login a um papel (gestor/colaborador) e, se for colaborador, ao vendedor correspondente. Políticas novas: gestor tem acesso total; qualquer autenticado lê vendedores/catálogo/configurações gerais; **um colaborador só lê e escreve as suas próprias vendas, recorrências e funil diário** — nunca as de outro colaborador nem o financeiro (custos), que ficam exclusivos do gestor.
+- **Separação de dados por vendedor**: `crm:sales`/`crm:recurrences` (um blob único, todos misturados) viraram `crm:sales:<sellerId>`/`crm:recurrences:<sellerId>`/`crm:funil:<sellerId>` — uma linha por vendedor, script de migração incluído (`supabase/migration_v2_auth_rls.sql`) para separar os dados já existentes sem perder nada.
+- Removidos: o campo de senha do vendedor (cadastro, edição, listagem) e a senha do gestor embutida no código. Gestão de contas passa a ser feita no painel do Supabase (Authentication) — passo a passo completo em `docs/SECURITY_MIGRATION.md`.
+- As migrações de correção de dados (histórico de importação, reconciliação, etc.) agora só rodam quando quem faz login é o gestor.
+- Testada a lógica de carregamento/gravação por vendedor e o fluxo de login (sucesso, senha errada, perfil ausente) com um Supabase simulado antes da entrega — o comportamento real de RLS só pode ser confirmado depois de rodar a migração no projeto Supabase de verdade.
+
+## v0.31 — Botão "Efetuar pagamento" nas recorrências atrasadas
+- Na Visão Geral, a tabela de **Recorrências atrasadas** ganhou um botão **Efetuar pagamento** em cada linha — não precisa mais ir até Recorrências achar o cliente.
+- Abre um modal com as parcelas ainda pendentes daquele contrato (pode marcar mais de uma de uma vez), pede a data do pagamento e confirma.
+- Não existe "conexão" separada com o Financeiro: o botão marca a(s) parcela(s) como pagas no mesmo campo que já alimenta impostos, comissão e faturamento em todo o sistema — o lançamento aparece automaticamente em tudo assim que confirma (testado: marcar uma parcela de julho já muda na hora o total de impostos e a comissão daquele mês).
+
+## v0.30 — Composição do pipeline por origem também estava incompleta
+- Mesmo problema do gráfico de forma de pagamento, mas na aba **Clientes**: "Composição do pipeline por origem" excluía as vendas que também têm uma recorrência associada — mas "Valor Vendido" sempre conta essas vendas normalmente em todo o resto do sistema (a marcação de recorrência só existe pra não duplicar caixa/comissão, não afeta valor vendido). Corrigido: agora conta todas as vendas.
+- Conferi todos os outros gráficos do sistema um por um: **"Faturamento por mês"** (Visão Geral) e **"Top vendedores"** já usavam os dados corretos desde as correções anteriores (vêm de `buildEvents`/`computeSellerStats`, que já tinham sido corrigidos). O **funil agregado** (Clientes) não tem relação com vendas/recorrências — é dado próprio do funil diário de cada vendedor, então não precisava de ajuste.
+
+## v0.29 — Gráfico "Forma de pagamento" agora inclui recorrências
+- **Bug corrigido**: o gráfico "Forma de pagamento mais utilizada" (Visão Geral) olhava só para `Vendas`, ignorando completamente o caixa das recorrências (entrada + parcelas pagas) — por isso os valores pareciam pequenos/desatualizados mesmo depois de todas as correções feitas em recorrências.
+- Agora o gráfico soma vendas avulsas (sem duplicar as que já são o mesmo negócio de uma recorrência) **e** entrada + parcelas pagas de cada recorrência, usando a forma de pagamento gravada no contrato.
+- Recorrências passam a ter campo próprio de **forma de pagamento** — preenchido automaticamente nas 51 de 53 já existentes (usando a venda correspondente como referência) e disponível pra editar a qualquer momento (botão Editar) ou definir ao criar uma nova recorrência.
+
+## v0.28 — Correção em massa: valor de entrada das recorrências
+- Aplicada a correção nas recorrências que tinham o "valor do contrato" gravado como o valor da entrada (não o honorário final real), com o campo de entrada zerado. Usei a venda correspondente (mesmo cliente + mesma data) como fonte da correção: 50 de 53 recorrências foram corrigidas (as outras 3 não tinham venda correspondente pra usar como referência).
+- **Comissão sobre entradas que antes não contavam nada, recuperada por vendedor**: Fernanda €985,28 · Bernardo €235,77 · Karoline €229,01 · Larissa €144,31 · Luisa €30,49 — total geral **€1.624,85** somados de volta à comissão de todo mundo.
+- No caminho, encontrei e corrigi outro problema: algumas vendas tinham o campo de taxa administrativa gravado como texto ("EM REGRA NÃO APLICÁVEL") em vez de número — isso quebraria o cálculo (viraria erro) assim que fosse copiado pra recorrência. Agora esses casos viram 0 automaticamente.
+
+## v0.27 — Editar recorrência já cadastrada
+- Novo botão **Editar** ao lado de "Excluir" em toda tabela de recorrências (Recorrências, Recorrências pagas, perfil do vendedor, Minhas Vendas). Abre um modal pra ajustar cliente, serviço, vendedor, data, valor do contrato, valor de entrada/já pago, honorário base, IVA, taxa administrativa e nº de parcelas.
+- Ao mudar o nº de parcelas: aumentar adiciona parcelas pendentes no fim; reduzir remove as últimas (mantém o status pago/pendente das que continuam existindo).
+- Isso também serve pra corrigir manualmente, caso a caso, o problema de `valorContrato`/`valorEntrada` sinalizado antes — sem precisar esperar por uma correção em massa.
+
+## v0.26 — Correção da fórmula de comissão (IVA real do serviço, não % fixo) + catálogo alfabético
+- **Bug corrigido**: a comissão descontava o IVA como 23% em cima do valor recebido (ex.: venda de €100 → líquido €77). Isso estava errado — o Catálogo de Serviços já grava, pra cada serviço, o valor de IVA que foi somado ao Honorário Base pra formar o Honorário Final (ex.: PRESENCIAL: base €81,30 + IVA €18,70 = €100). A comissão agora usa esse **valor de IVA real do serviço**, guardado em cada venda/recorrência, proporcional ao quanto foi efetivamente pago — não mais um percentual fixo sobre o recebido.
+  - Exemplo conferido: Larissa, venda do Karanbir Singh (01/07, €100) — líquido agora €81,30 (10% = €8,13), não mais €77 (10% = €7,70).
+  - A taxa administrativa continua exatamente como já era: só entra nas parcelas de recorrência, diluída pelo nº de parcelas.
+  - O campo "Percentual de IVA a descontar" saiu de Configurações → Regras de comissão (não é mais usado em lugar nenhum do cálculo).
+- **Catálogo de Serviços** (Configurações) agora aparece em **ordem alfabética** — assim como as listas de serviço usadas ao lançar uma venda ou recorrência.
+
+## v0.25 — Subcards de vendas + detalhamento de comissão clicável
+- Abaixo dos cards principais (Valor vendido/Faturado) — na Visão Geral, no perfil do vendedor (gestor) e em Minhas Vendas (colaborador) — aparecem agora 4 subcards: **vendas integrais** (pagas à vista, valor + quantidade), **vendas recorrentes** (valor contratado + nº de contratos), **parcelas pagas** e **parcelas em aberto** das recorrências do período.
+- O valor da **comissão** (perfil do vendedor e Minhas Vendas) agora é clicável: abre um modal mostrando, linha a linha, todo recebimento que entrou na conta — data, cliente, tipo (venda/entrada/parcela), valor recebido, IVA descontado, taxa administrativa descontada, líquido e comissão — usando exatamente a mesma matemática do cálculo real, pra conferência.
+
+## v0.24 — Financeiro: custos fixos repetem todo mês, variáveis zeram, tudo separado por mês
+- **Financeiro agora abre por padrão no mês atual**, não mais no histórico total — antes o filtro "Total histórico" era o padrão, e por isso os impostos e custos de vários meses apareciam somados juntos.
+- **Custos fixos passam a repetir automaticamente todo mês**, usando o valor mais recente lançado (aparecem marcados "repete"). Se o valor mudar num mês específico, basta lançar um novo custo fixo com esse nome naquele mês — ele passa a valer a partir dali, sem precisar editar os meses anteriores. Não é possível editar/excluir uma linha "repete" diretamente (ela não existe como registo próprio); lance um novo nome-mês pra sobrepor.
+- **Custos variáveis continuam contando só no mês exato em que foram lançados** — já era assim, mas ficava escondido pela visão "histórico total" ser o padrão.
+- **Removidas 23 duplicatas exatas de custos** (mesmo nome, categoria, vencimento e valor) que vinham de importações anteriores — estavam sendo somadas duas vezes sempre que a visão "histórico total" era usada.
+- **Dois achados sinalizados, não corrigidos automaticamente** (envolvem valores de salário, então preferi não decidir sozinho):
+  - **BERNARDO**: há duas entradas de maio com valores diferentes (€1.337,50 e €1.200,00) — depois da deduplicação, o sistema está projetando €1.337,50 pra frente (junho em diante), mas pode ser que o valor certo pra repetir seja €1.200,00. Precisa de confirmação.
+  - **EVELIN**: só existe um lançamento (maio, €1.040,00), sem nenhum em junho — o sistema agora está repetindo esse valor pra frente indefinidamente. Se ela não trabalha mais no escritório desde maio, esse custo deve ser excluído/marcado como encerrado.
+
+## v0.23 — Nova aba "Clientes" (análise de clientes e funil agregado)
+- Nova aba própria na barra lateral do gestor, **Clientes**, com filtro de período (mês/semana/dia/histórico):
+  - Cards: clientes novos no período, clientes recorrentes, conversas no funil (com taxa de conversão), total de clientes fiéis (histórico completo).
+  - **Funil agregado de todos os vendedores**: soma o funil diário de cada um (conversas → respondeu → consulta marcada → consulta realizada → fechamentos), em barras — mesma estrutura da planilha.
+  - **Composição do pipeline por origem**: de onde vieram as vendas do período (indicação, tráfego, site/google, instagram, etc.), por valor.
+  - **Ranking de clientes**: quem mais fechou negócio com o escritório (histórico completo), valor total gerado, vendedor(es) responsável(is), 1ª e última compra, com selo "fiel" para quem tem 2+ fechamentos.
+- "Fechamento" aqui conta vendas avulsas + recorrências, sem duplicar o mesmo contrato (vendas marcadas `jaContabilizadoViaRecorrencia` não entram de novo, já que a recorrência já representa aquele negócio).
+
+## v0.22 — Resumo por vendedor em Vendas + barra lateral usando Valor Vendido
+- **Vendas**: ao filtrar por vendedor (mês/período), aparece um resumo ao lado do filtro com 4 números: líquido de vendas avulsas, líquido de recorrência, líquido total (soma dos dois) e vendas no total (valor vendido/contratado).
+- **Barra lateral (gestor)**: o valor ao lado de cada vendedor agora mostra o mesmo "Valor Vendido" do perfil individual dele — antes mostrava o faturamento em caixa (recebido), que é sempre menor quando há vendas parceladas ainda não totalmente pagas, e por isso não batia com o que aparece no perfil do vendedor. A ordenação da lista também passou a seguir esse valor.
+
+## v0.21 — Reconciliação de Maio/Junho com as planilhas REGISTRO DE VENDAS reenviadas
+- Comparei linha a linha as planilhas de Maio e Junho reenviadas contra o que já estava no sistema. Faltavam **31 vendas de maio** e **15 vendas de junho** — todas são o "Valor Vendido" de contratos que já existiam como recorrência (a entrada/parcela já estava sendo contada no caixa; só faltava o registo do valor total contratado). Entraram marcadas com `jaContabilizadoViaRecorrencia:true` para não duplicar caixa/comissão.
+- Resultado: **Maio bate 28.948,55** e **Junho bate 21.905,38** — os mesmos valores de "VALOR ALCANÇADO" no DASH INICIAL de cada planilha.
+- Corrigida a venda da **RAVENA GABRIELE DA SILVA**: estava datada de 15/05 mas só existe na aba REGISTRO DE VENDAS de **julho** — passou a contar para julho, fechando o Valor Vendido da Fernanda em €3.620,00 e o total de julho em €9.747,00 (Larissa €5.882 + Fernanda €3.620 + Bernardo €245).
+- **Achado que não foi mexido, aguardando confirmação**: várias recorrências têm o campo `valorContrato` gravado com o valor da **entrada/pago-no-dia**, não o Honorário Final total do contrato (ex.: Cristóvão Fernão está com contrato de €100, mas a venda mestre mostra €350). Isso pode estar subestimando pendências, atraso e comissão por parcela em vários contratos — é uma correção maior e mais arriscada, então preferi sinalizar antes de mexer.
+
+## v0.20 — "Funil Diário" separado de "Minhas Vendas"
+- O funil manual diário deixou de ficar embutido dentro da tela "Minhas Vendas" do colaborador. Agora é uma subcategoria própria na navegação, logo abaixo: **Funil Diário**.
+- Sem mudança de dados: os inputs continuam salvando em `seller.funilDiario`, só mudou onde a tabela aparece.
+
 ## v0.22 — Meta da Visão Geral agora usa "Valor Vendido" (mesma base da planilha)
 - A meta do mês (número grande no topo + primeiro card) passou a comparar com **"Valor Vendido"** (total contratado, pago ou não) em vez do "Faturamento recebido" (caixa) — é exatamente a mesma base de cálculo que a "DASH INICIAL" da planilha original sempre usou pra calcular "Valor Alcançado".
 - "Faturamento recebido (caixa)" continua disponível como card separado, só que não é mais o número comparado com a meta.
