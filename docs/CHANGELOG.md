@@ -1,5 +1,8 @@
 # Changelog
 
+## v3.17 — Corrigido: chip de Tipo (Recorrente/Integral) quebrava em duas linhas
+- O emoji e o texto do chip ("🔁 Recorrente" / "💳 Integral") podiam quebrar linha entre si quando a coluna ficava apertada — o emoji sozinho em cima, o nome embaixo. Corrigido pra nunca quebrar (vale pra todo chip do sistema, não só esse), e deixei essa coluna especificamente um pouco mais compacta.
+
 ## v3.16 — Corrigido: Vendas não mostrava recorrências, só vendas integrais
 - **Bug real encontrado e corrigido**: a tela "Vendas" só olhava pra tabela de Vendas — uma recorrência cadastrada direto no sistema (sem vir de uma venda importada) nunca aparecia ali, mesmo tendo sido "vendida" naquele mês. Era o mesmo tipo de lacuna já corrigida no Valor Vendido e na Composição do pipeline, agora também aqui.
 - Agora **"Vendas" mostra as duas coisas juntas**: vendas integrais e recorrências, com uma coluna **Tipo** (💳 Integral / 🔁 Recorrente) pra diferenciar. Editar e Excluir continuam funcionando certo pra cada tipo, respeitando as mesmas regras de sempre.
