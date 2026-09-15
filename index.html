@@ -536,7 +536,7 @@ const SessionDB = {
 
 let STATE = {
   sellers:[], sales:[], recurrences:[], services:[], costs:[], meta:{},
-  view:'overview', selectedSellerId:null, configTab:'servicos', financeiroTab:'fixos',
+  view:'overview', selectedSellerId:null, configTab:'servicos', financeiroTab:'resumo',
   role:null, myOwnSellerId:null, myEmail:null,
   periodFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   paidMonthFilter: 'all',
@@ -559,6 +559,9 @@ let STATE = {
   controleCampanhasTab: 'lista',
   campanhasFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   searchCampanhas: '',
+  indiceQuery: '',
+  indiceQuerySubmetida: '',
+  indiceFilter: { granularity:'all' },
   funilDiarioData: todayISO(),
   expandAtividade: false,
   expandAtrasadas: false,
@@ -1663,6 +1666,7 @@ const NAV_GESTOR = [
   {view:'campanhas', label:'🎯 Controle de Campanhas'},
   {view:'config', label:'Configurações'},
   {view:'financeiro', label:'Financeiro'},
+  {view:'indice', label:'🔎 Índice'},
 ];
 const NAV_COLAB = [ {view:'my-panel', label:'Minhas Vendas'}, {view:'my-funil', label:'Funil Diário'}, {view:'campanhas', label:'🎯 Controle de Campanhas'} ];
 
@@ -1704,7 +1708,7 @@ function renderSidebar(){
 }
 
 function renderTopbar(){
-  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', 'recurrences-nodate':'Sem data de pagamento', sales:'Vendas', ranking:'Ranking de Vendedores', clientes:'Clientes', metricas:'Métricas', campanhas:'Controle de Campanhas', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
+  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', 'recurrences-nodate':'Sem data de pagamento', sales:'Vendas', ranking:'Ranking de Vendedores', clientes:'Clientes', metricas:'Métricas', campanhas:'Controle de Campanhas', indice:'Índice', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
   document.getElementById('pageTitle').textContent = STATE.view==='overview' ? '' : (titles[STATE.view] || '');
   const inline = document.getElementById('metaInline');
   if(STATE.view==='overview'){
@@ -2576,6 +2580,13 @@ function composicaoPorServico(filter){
     if(!map[srv]) map[srv] = {count:0, valor:0, clientes:new Set()};
     map[srv].count++; map[srv].valor += s.valorTotal||0; map[srv].clientes.add(normCliente(s.cliente));
   });
+  // recorrências criadas direto no sistema (sem venda-sombra) também contam
+  // pro desempenho de cada serviço — mesma lógica já aplicada em origem.
+  STATE.recurrences.filter(r=>inPeriodOrAll(r.dataVenda, filter)).forEach(r=>{
+    const srv = r.servico || 'NÃO INFORMADO';
+    if(!map[srv]) map[srv] = {count:0, valor:0, clientes:new Set()};
+    map[srv].count++; map[srv].valor += r.valorContrato||0; map[srv].clientes.add(normCliente(r.cliente));
+  });
   return Object.entries(map).map(([servico,v])=>({servico, count:v.count, valor:v.valor, nClientes:v.clientes.size})).sort((a,b)=>b.nClientes-a.nClientes);
 }
 /* Detalhamento clicável: quem exatamente compõe uma barra de "origem" ou
@@ -2588,6 +2599,11 @@ function abrirDetalhePipeline(tipo, chave, filter){
     });
   if(tipo==='origem'){
     STATE.recurrences.filter(r=>r.origem && r.origem===chave && inPeriodOrAll(r.dataVenda, filter)).forEach(r=>{
+      const st = recStatus(r);
+      linhas.push({ data:r.dataVenda, cliente:r.cliente, vendedor:r.vendedorNome, servico:r.servico, origem:r.origem, valorTotal:r.valorContrato, valorPago:st.valorPago, pendente:st.valorPendente });
+    });
+  } else {
+    STATE.recurrences.filter(r=>(r.servico||'NÃO INFORMADO')===chave && inPeriodOrAll(r.dataVenda, filter)).forEach(r=>{
       const st = recStatus(r);
       linhas.push({ data:r.dataVenda, cliente:r.cliente, vendedor:r.vendedorNome, servico:r.servico, origem:r.origem, valorTotal:r.valorContrato, valorPago:st.valorPago, pendente:st.valorPendente });
     });
@@ -2659,6 +2675,92 @@ function leadComEdicoes(lead){
     _editado: true
   };
 }
+/* Busca tudo que existe no sistema sobre um cliente: vendas integrais,
+   recorrências (entrada + cada parcela + pagamentos personalizados),
+   formas de pagamento usadas, totais e pendências — juntando os dois
+   tipos de negócio numa linha do tempo só. */
+function buscarClienteCompleto(query, filter){
+  const q = query.trim().toUpperCase();
+  if(!q) return null;
+  const vendas = STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && normCliente(s.cliente).includes(q) && inPeriodOrAll(s.data, filter));
+  const recs = STATE.recurrences.filter(r=>normCliente(r.cliente).includes(q) && inPeriodOrAll(r.dataVenda, filter));
+  if(!vendas.length && !recs.length) return null;
+
+  const pagamentos = [];
+  vendas.forEach(s=>{
+    if((s.valorPago||0)>0) pagamentos.push({ data:s.data, tipo:'Venda integral', valor:s.valorPago, forma:s.formaPagamento, servico:s.servico, vendedor:s.vendedorNome, cliente:s.cliente });
+  });
+  recs.forEach(r=>{
+    const st = recStatus(r);
+    if((r.valorEntrada||0)>0) pagamentos.push({ data:r.dataVenda, tipo:'Entrada de recorrência', valor:r.valorEntrada, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
+    r.parcelas.forEach(p=>{
+      if(p.pago) pagamentos.push({ data:p.data, tipo:'Parcela '+p.numero, valor: p.valor!=null?p.valor:st.valorParcela, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
+    });
+    (r.pagamentosExtras||[]).forEach(ex=>{
+      pagamentos.push({ data:ex.data, tipo:'Pagamento personalizado', valor:ex.valor, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
+    });
+  });
+  pagamentos.sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+
+  const totalVendido = vendas.reduce((a,s)=>a+(s.valorTotal||0),0) + recs.reduce((a,r)=>a+(r.valorContrato||0),0);
+  const totalPago = pagamentos.reduce((a,p)=>a+(p.valor||0),0);
+  const totalPendente = vendas.reduce((a,s)=>a+saleStatus(s).valorPendente,0) + recs.reduce((a,r)=>a+recStatus(r).valorPendente,0);
+  const formasPagamento = [...new Set(pagamentos.map(p=>p.forma).filter(Boolean))];
+  const clientesDistintos = [...new Set([...vendas.map(s=>s.cliente), ...recs.map(r=>r.cliente)])];
+
+  return { clientesDistintos, vendas, recs, pagamentos, totalVendido, totalPago, totalPendente, formasPagamento, qtdNegocios: vendas.length+recs.length };
+}
+function renderIndice(){
+  const filter = STATE.indiceFilter;
+  const meses = [...new Set([...STATE.sales.map(s=>s.data), ...STATE.recurrences.map(r=>r.dataVenda)].filter(Boolean).map(d=>d.slice(0,7)))].sort();
+  const query = STATE.indiceQuerySubmetida;
+
+  const resultadoCliente = query ? buscarClienteCompleto(query, filter) : null;
+  const resultadoServicos = query ? composicaoPorServico(filter).filter(s=>s.servico.toUpperCase().includes(query.trim().toUpperCase())) : [];
+
+  return `
+  <div style="max-width:640px;margin:10px auto 24px;text-align:center;">
+    <h2 style="font-family:'Source Serif 4',serif;font-weight:600;color:var(--wine);margin-bottom:6px;">🔎 Índice geral</h2>
+    <p style="color:var(--ink-soft);font-size:13px;margin-bottom:18px;">Busque o nome de um cliente ou de um serviço pra ver tudo que existe no sistema sobre ele — vendas, recorrências, pagamentos, formas de pagamento.</p>
+    <div style="display:flex;gap:8px;justify-content:center;">
+      <input type="text" id="indiceQueryInput" value="${STATE.indiceQuery.replace(/"/g,'&quot;')}" placeholder="Nome do cliente ou do serviço…" style="flex:1;max-width:420px;padding:12px 16px;border:1px solid var(--line);border-radius:9px;font-size:14px;">
+      <button class="btn gold" id="btnBuscarIndice">Buscar</button>
+    </div>
+    <div style="margin-top:14px;display:flex;justify-content:center;">${renderGenericFilterBar('indiceFilter', ['all','month','day'], meses)}</div>
+  </div>
+  ${!query ? `<div class="empty" style="max-width:420px;margin:0 auto;">Digite um nome e clique em Buscar pra começar.</div>` : ''}
+  ${query && !resultadoCliente && !resultadoServicos.length ? `<div class="empty" style="max-width:420px;margin:0 auto;">Nada encontrado pra "${query}" nesse período. Tente outro nome ou mude o filtro pra "Todos".</div>` : ''}
+  ${resultadoCliente ? `
+  <section class="block">
+    <div class="block-head"><h3>👤 ${resultadoCliente.clientesDistintos.join(' / ')}</h3><span class="hint">${resultadoCliente.qtdNegocios} negócio(s) no período — ${resultadoCliente.vendas.length} venda(s) integral(is), ${resultadoCliente.recs.length} recorrência(s)</span></div>
+    <div class="cards" style="padding:18px 20px;margin:0;">
+      <div class="card"><div class="lbl">Total vendido</div><div class="val">${fmtEUR(resultadoCliente.totalVendido)}</div></div>
+      <div class="card"><div class="lbl">Total pago</div><div class="val good">${fmtEUR(resultadoCliente.totalPago)}</div></div>
+      <div class="card"><div class="lbl">Pendente</div><div class="val ${resultadoCliente.totalPendente>0.005?'bad':'good'}">${resultadoCliente.totalPendente>0.005?fmtEUR(resultadoCliente.totalPendente):'quitado'}</div></div>
+    </div>
+    <div style="padding:0 20px 16px;"><span class="field-hint">💳 Formas de pagamento usadas: ${resultadoCliente.formasPagamento.length ? resultadoCliente.formasPagamento.join(', ') : '—'}</span></div>
+  </section>
+  <section class="block">
+    <div class="block-head"><h3>Linha do tempo de pagamentos (${resultadoCliente.pagamentos.length})</h3><span class="hint">tudo que já foi pago, mais recente primeiro</span></div>
+    ${resultadoCliente.pagamentos.length ? `<table><thead><tr><th>Data</th><th>Tipo</th><th>Serviço</th><th>Vendedor</th><th>Forma</th><th>Valor</th></tr></thead>
+    <tbody>${resultadoCliente.pagamentos.map(p=>`<tr><td>${fmtDate(p.data)}</td><td><span class="chip neutral">${p.tipo}</span></td><td>${p.servico||'—'}</td><td>${p.vendedor||'—'}</td><td>${p.forma||'—'}</td><td class="tnum good">${fmtEUR(p.valor)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum pagamento registado ainda.</div>`}
+  </section>
+  <section class="block">
+    <div class="block-head"><h3>Negócios (${resultadoCliente.vendas.length + resultadoCliente.recs.length})</h3><span class="hint">contratos e vendas que compõem o total acima</span></div>
+    <table><thead><tr><th>Data</th><th>Tipo</th><th>Serviço</th><th>Valor total</th><th>Status</th></tr></thead>
+    <tbody>
+      ${resultadoCliente.vendas.map(s=>{ const st=saleStatus(s); return `<tr><td>${fmtDate(s.data)}</td><td><span class="chip neutral">💳 Integral</span></td><td>${s.servico||'—'}</td><td class="tnum">${fmtEUR(s.valorTotal)}</td><td>${st.valorPendente<=0.005?'<span class="chip good">quitado</span>':'<span class="chip bad">'+fmtEUR(st.valorPendente)+' pendente</span>'}</td></tr>`; }).join('')}
+      ${resultadoCliente.recs.map(r=>{ const st=recStatus(r); return `<tr><td>${fmtDate(r.dataVenda)}</td><td><span class="chip gold">🔁 Recorrente</span></td><td>${r.servico||'—'}</td><td class="tnum">${fmtEUR(r.valorContrato)}</td><td>${st.quitada?'<span class="chip good">quitado</span>':'<span class="chip bad">'+fmtEUR(st.valorPendente)+' pendente</span>'}</td></tr>`; }).join('')}
+    </tbody></table>
+  </section>` : ''}
+  ${resultadoServicos.length ? `
+  <section class="block">
+    <div class="block-head"><h3>⚖️ Serviço: ${resultadoServicos.map(s=>s.servico).join(', ')}</h3><span class="hint">${resultadoServicos.reduce((a,s)=>a+s.nClientes,0)} cliente(s) distinto(s) · ${fmtEUR(resultadoServicos.reduce((a,s)=>a+s.valor,0))} gerados no período</span></div>
+    <table><thead><tr><th>Serviço</th><th>Negócios</th><th>Clientes distintos</th><th>Valor gerado</th><th></th></tr></thead>
+    <tbody>${resultadoServicos.map(s=>`<tr><td><strong>${s.servico}</strong></td><td class="tnum">${s.count}</td><td class="tnum">${s.nClientes}</td><td class="tnum">${fmtEUR(s.valor)}</td><td><button class="btn ghost sm" data-detalhe-servico="${s.servico.replace(/"/g,'&quot;')}">Ver clientes</button></td></tr>`).join('')}</tbody></table>
+  </section>` : ''}`;
+}
+
 function renderControleCampanhas(){
   if(!STATE.leads.length && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData();
   if(STATE.leadsLoading && !STATE.leads.length){
@@ -2884,6 +2986,7 @@ function renderMetricas(){
     <div class="block-head"><h3>⚖️ Interesse por serviço</h3></div>
     <div style="padding:16px 20px;">${porServico.length ? porServico.map(p=>hbar(p.k,p.v,maxServico)).join('') : `<div class="empty">Sem dados.</div>`}</div>
   </section>
+  ${renderDesempenhoServicos(filter)}
   <section class="block">
     <div class="block-head"><h3>Leads do período (${leadsFiltrados.length})</h3></div>
     ${leadsFiltrados.length ? `<div style="max-height:420px;overflow:auto;"><table><thead><tr><th>Data</th><th>Nome</th><th>Telefone</th><th>Serviço</th><th>Plataforma/Canal</th><th>Status</th><th>Qualificação</th></tr></thead>
@@ -2894,6 +2997,31 @@ function renderMetricas(){
         <td><span class="chip" style="background:${corFriaParaTexto(l.qualificado).bg};color:${corFriaParaTexto(l.qualificado).fg};">${l.qualificado}</span></td>
       </tr>`).join('')}</tbody></table></div>` : `<div class="empty">Nenhum lead encontrado nesse período.</div>`}
   </section>`;
+}
+/* Desempenho dos serviços de verdade vendidos (não os leads de anúncio) —
+   efetividade = quantos negócios fecharam com aquele serviço; rotatividade
+   = quanto de valor aquele serviço já girou no período. Mesma fonte que
+   alimenta a Composição por serviço em Clientes. */
+function renderDesempenhoServicos(filter){
+  const comp = composicaoPorServico(filter);
+  if(!comp.length) return '';
+  const porEfetividade = [...comp].sort((a,b)=>b.count-a.count);
+  const porRotatividade = [...comp].sort((a,b)=>b.valor-a.valor);
+  const maxCount = Math.max(...comp.map(c=>c.count),1);
+  const maxValor = Math.max(...comp.map(c=>c.valor),1);
+  const hbar2 = (label, valStr, frac) => `
+    <div class="hbar-row"><span class="hbar-label" title="${label}">${label.length>30?label.slice(0,30)+'…':label}</span><div class="hbar-track"><span style="width:${(frac*100)}%"></span></div><span class="hbar-val">${valStr}</span></div>`;
+  return `
+  <div class="charts-grid">
+    <section class="block">
+      <div class="block-head"><h3>🏆 Serviços com maior efetividade</h3><span class="hint">quantidade de negócios fechados</span></div>
+      <div style="padding:16px 20px;max-height:320px;overflow:auto;">${porEfetividade.map(c=>hbar2(c.servico, c.count+' negócio'+(c.count===1?'':'s'), c.count/maxCount)).join('')}</div>
+    </section>
+    <section class="block">
+      <div class="block-head"><h3>💹 Maior rotatividade em valores</h3><span class="hint">quanto cada serviço já gerou no período</span></div>
+      <div style="padding:16px 20px;max-height:320px;overflow:auto;">${porRotatividade.map(c=>hbar2(c.servico, fmtEUR(c.valor), c.valor/maxValor)).join('')}</div>
+    </section>
+  </div>`;
 }
 
 function renderClientes(){
@@ -3299,6 +3427,7 @@ function renderFinanceiro(){
     <div class="card accent"><div class="lbl">Lucro líquido estimado</div><div class="val ${lucro>=0?'good':'bad'}">${fmtEUR(lucro)}</div><div class="sub">recebido − impostos − custos pagos, no período</div></div>
   </div>
   <div class="subtabs">
+    <button data-ftab="resumo" class="${tab==='resumo'?'active':''}">📊 Resumo</button>
     <button data-ftab="fixos" class="${tab==='fixos'?'active':''}">Custos fixos</button>
     <button data-ftab="variaveis" class="${tab==='variaveis'?'active':''}">Custos variáveis</button>
     <button data-ftab="impostos" class="${tab==='impostos'?'active':''}">Detalhamento de impostos</button>
@@ -3306,7 +3435,7 @@ function renderFinanceiro(){
     <button data-ftab="extrato" class="${tab==='extrato'?'active':''}">🧾 Extrato do dia</button>
   </div>
   <div style="margin-top:18px;">
-  ${tab==='impostos' ? renderImpostosTab(filter) : tab==='extrato' ? renderExtratoTab() : tab==='registro' ? renderRegistroTab(filter) : renderCostsTab(tab==='variaveis' ? costs.variaveis : costs.fixos, tab, monthKeyAtual)}
+  ${tab==='resumo' ? renderResumoFinanceiro(filter) : tab==='impostos' ? renderImpostosTab(filter) : tab==='extrato' ? renderExtratoTab() : tab==='registro' ? renderRegistroTab(filter) : renderCostsTab(tab==='variaveis' ? costs.variaveis : costs.fixos, tab, monthKeyAtual)}
   </div>`;
 }
 function renderCostsTab(list, tab, monthKeyAtual){
@@ -3441,6 +3570,87 @@ function renderRegistroTab(filter){
         <td class="tnum ${l.sinal>0?'good':'bad'}">${l.sinal>0?'+':'−'} ${fmtEUR(l.valor)}</td>
       </tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registo nesse período.</div>`}
   </section>`;
+}
+/* Resumo do período: 6 números-chave (3 de entrada, 3 de saída/pendência)
+   com uma lista de detalhamento embaixo de cada um, pra comparar de onde
+   vem mais receita e onde está pesando mais em despesa. */
+function renderResumoFinanceiro(filter){
+  const eventosPeriodo = buildEvents().filter(e=>inPeriodOrAll(e.date, filter));
+  const novasVendas = STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && inPeriodOrAll(s.data, filter));
+  const novasRecs = STATE.recurrences.filter(r=>inPeriodOrAll(r.dataVenda, filter));
+
+  // 1) Entrada de novos serviços — dinheiro de negócios fechados NESTE período
+  const linhasNovos = [
+    ...novasVendas.filter(s=>(s.valorPago||0)>0).map(s=>({ data:s.data, cliente:s.cliente, vendedor:s.vendedorNome, tipo:'Venda integral', valor:s.valorPago })),
+    ...novasRecs.filter(r=>(r.valorEntrada||0)>0).map(r=>({ data:r.dataVenda, cliente:r.cliente, vendedor:r.vendedorNome, tipo:'Entrada de recorrência', valor:r.valorEntrada }))
+  ].sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const entradaNovosServicos = linhasNovos.reduce((a,l)=>a+l.valor,0);
+
+  // 2) Receita geral — TUDO que entrou no período, novo ou não
+  const linhasReceita = eventosPeriodo.map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo, valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const receitaGeral = linhasReceita.reduce((a,l)=>a+l.valor,0);
+
+  // 3) Recorrências pagas no período — parcelas e pagamentos personalizados (não conta a entrada, essa já é "novo negócio")
+  const linhasRecPagas = eventosPeriodo.filter(e=>e.tipo.startsWith('Parcela')||e.tipo==='Pagamento personalizado').map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo, valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const recorrenciasPagas = linhasRecPagas.reduce((a,l)=>a+l.valor,0);
+
+  // 4) Despesas no período
+  const linhasDespesas = linhasFinanceiras(filter).filter(l=>l.sinal<0).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const despesasPeriodo = linhasDespesas.reduce((a,l)=>a+l.valor,0);
+
+  // 5) Impostos (IVA) sobre o que foi recebido no período
+  const linhasImpostos = eventosPeriodo.filter(e=>(e.ivaValor||0)>0.005).map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo, valor:e.ivaValor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const impostosPeriodo = linhasImpostos.reduce((a,l)=>a+l.valor,0);
+
+  // 6) Clientes de recorrência ainda pendentes, entre os que começaram nesse período
+  const recsPendentes = novasRecs.filter(r=>!recStatus(r).quitada).map(r=>{
+    const st = recStatus(r);
+    return { data:r.dataVenda, cliente:r.cliente, vendedor:r.vendedorNome, tipo:`${st.pagas}/${st.total} parcelas pagas`, valor:st.valorPendente };
+  }).sort((a,b)=>(b.valor||0)-(a.valor||0));
+  const qtdPendentes = recsPendentes.length;
+  const valorPendentesTotal = recsPendentes.reduce((a,l)=>a+l.valor,0);
+
+  // 7) Recorrências que ficaram QUITADAS entre as iniciadas nesse período
+  const linhasRecQuitadas = novasRecs.filter(r=>recStatus(r).quitada).map(r=>({ data:r.dataVenda, cliente:r.cliente, vendedor:r.vendedorNome, tipo:`${r.nParcelas} parcela${r.nParcelas>1?'s':''}`, valor:r.valorContrato })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const qtdRecQuitadas = linhasRecQuitadas.length;
+  const valorRecQuitadas = linhasRecQuitadas.reduce((a,l)=>a+l.valor,0);
+
+  // 8) Vendas integrais totalmente pagas nesse período
+  const linhasVendasPagas = novasVendas.filter(s=>saleStatus(s).valorPendente<=0.005).map(s=>({ data:s.data, cliente:s.cliente, vendedor:s.vendedorNome, tipo:s.servico||'—', valor:s.valorTotal })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const qtdVendasPagas = linhasVendasPagas.length;
+  const valorVendasPagas = linhasVendasPagas.reduce((a,l)=>a+l.valor,0);
+
+  const listaBlock = (titulo, hint, linhas, corValor) => `
+    <section class="block">
+      <div class="block-head"><h3>${titulo}</h3><span class="hint">${hint}</span></div>
+      ${linhas.length ? `<div style="max-height:260px;overflow:auto;"><table><thead><tr><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Detalhe</th><th>Valor</th></tr></thead>
+      <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.data)}</td><td><strong>${l.cliente}</strong></td><td>${l.vendedor||'—'}</td><td><span class="chip neutral">${l.tipo}</span></td><td class="tnum ${corValor||''}">${fmtEUR(l.valor)}</td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="empty">Nada nesse período.</div>`}
+    </section>`;
+
+  return `
+  <div class="cards" style="margin-bottom:10px;">
+    <div class="card accent"><div class="lbl">🆕 Entrada de novos serviços</div><div class="val good">${fmtEUR(entradaNovosServicos)}</div><div class="sub">${linhasNovos.length} lançamento(s) — negócios fechados neste período</div></div>
+    <div class="card accent"><div class="lbl">💰 Receita geral da empresa</div><div class="val good">${fmtEUR(receitaGeral)}</div><div class="sub">${linhasReceita.length} lançamento(s) — tudo que entrou no período</div></div>
+    <div class="card accent"><div class="lbl">🔁 Recorrências pagas</div><div class="val good">${fmtEUR(recorrenciasPagas)}</div><div class="sub">${linhasRecPagas.length} parcela(s)/pagamento(s) — não conta a entrada</div></div>
+  </div>
+  <div class="cards" style="margin-bottom:20px;">
+    <div class="card"><div class="lbl">📤 Despesas no período</div><div class="val bad">${fmtEUR(despesasPeriodo)}</div><div class="sub">${linhasDespesas.length} custo(s) pago(s)</div></div>
+    <div class="card"><div class="lbl">🧾 Impostos (IVA) no período</div><div class="val bad">${fmtEUR(impostosPeriodo)}</div><div class="sub">sobre o que foi recebido</div></div>
+    <div class="card"><div class="lbl">⏳ Clientes pendentes (recorrência)</div><div class="val bad">${qtdPendentes}</div><div class="sub">somando ${fmtEUR(valorPendentesTotal)} em aberto</div></div>
+  </div>
+  <div class="cards" style="margin-bottom:20px;">
+    <div class="card"><div class="lbl">✅ Recorrências quitadas</div><div class="val good">${qtdRecQuitadas}</div><div class="sub">${fmtEUR(valorRecQuitadas)} em contratos fechados</div></div>
+    <div class="card"><div class="lbl">✅ Vendas integrais pagas</div><div class="val good">${qtdVendasPagas}</div><div class="sub">${fmtEUR(valorVendasPagas)} recebidos</div></div>
+  </div>
+  ${listaBlock('🆕 Entrada de novos serviços — detalhamento', 'o que compõe esse valor', linhasNovos, 'good')}
+  ${listaBlock('💰 Receita geral — detalhamento', 'todo lançamento que gerou o valor de receita do período', linhasReceita, 'good')}
+  ${listaBlock('🔁 Recorrências pagas — detalhamento', 'quais parcelas/pagamentos compõem esse valor', linhasRecPagas, 'good')}
+  ${listaBlock('📤 Despesas — detalhamento', 'custos fixos e variáveis pagos no período', linhasDespesas, 'bad')}
+  ${listaBlock('🧾 Impostos — detalhamento', 'IVA de cada recebimento do período', linhasImpostos, 'bad')}
+  ${listaBlock('⏳ Clientes pendentes — detalhamento', 'recorrências iniciadas no período que ainda não quitaram', recsPendentes, 'bad')}
+  ${listaBlock('✅ Recorrências quitadas — detalhamento', 'contratos iniciados no período que já foram 100% pagos', linhasRecQuitadas, 'good')}
+  ${listaBlock('✅ Vendas integrais pagas — detalhamento', 'vendas integrais do período já totalmente recebidas', linhasVendasPagas, 'good')}`;
 }
 function renderImpostosTab(filter){
   const events = buildEvents().filter(e=>inPeriodOrAll(e.date, filter)).sort((a,b)=> b.date.localeCompare(a.date));
@@ -4384,6 +4594,13 @@ function wireViewportEvents(){
   const btnRetryLeads = document.getElementById('btnRetryLeads');
   if(btnRetryLeads) btnRetryLeads.addEventListener('click', ()=>{ STATE.leadsError = null; loadLeadsData(); });
   const btnRefreshLeads2 = document.getElementById('btnRefreshLeads2');
+  const btnBuscarIndice = document.getElementById('btnBuscarIndice');
+  const indiceQueryInput = document.getElementById('indiceQueryInput');
+  if(btnBuscarIndice && indiceQueryInput){
+    const dispara = ()=>{ STATE.indiceQuery = indiceQueryInput.value; STATE.indiceQuerySubmetida = indiceQueryInput.value.trim(); renderAll(); };
+    btnBuscarIndice.addEventListener('click', dispara);
+    indiceQueryInput.addEventListener('keydown', e=>{ if(e.key==='Enter') dispara(); });
+  }
   if(btnRefreshLeads2) btnRefreshLeads2.addEventListener('click', ()=>{ STATE.leads = []; loadLeadsData(); });
   vp.querySelectorAll('[data-cctab]').forEach(b=>{
     b.addEventListener('click', ()=>{ STATE.controleCampanhasTab = b.dataset.cctab; renderAll(); });
@@ -4465,6 +4682,7 @@ function renderAll(){
     else if(STATE.view==='clientes') vp.innerHTML = renderClientes();
     else if(STATE.view==='metricas') vp.innerHTML = renderMetricas();
     else if(STATE.view==='campanhas') vp.innerHTML = renderControleCampanhas();
+    else if(STATE.view==='indice') vp.innerHTML = renderIndice();
     else if(STATE.view==='seller-detail') vp.innerHTML = renderSellerDetail();
     else if(STATE.view==='config') vp.innerHTML = renderConfig();
     else if(STATE.view==='financeiro') vp.innerHTML = renderFinanceiro();
