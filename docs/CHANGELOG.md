@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.20 — Auditoria de comissões: corrigido o modal de detalhamento
+- **Fórmula de comissão confirmada correta** (auditada e testada): pra parcelas de recorrência, desconta-se 23% de IVA sobre o valor efetivamente pago (nunca sobre o valor total do contrato), depois a fatia da taxa administrativa daquela parcela (a menos que o contrato esteja isento), e o vendedor fica com 10% do que sobra. A comissão de uma parcela sempre vai pro vendedor original da venda, mesmo que a parcela seja paga muitos meses depois — isso já funcionava certo.
+- **Bug real encontrado e corrigido**: o modal de detalhamento de comissão (o que mostra linha por linha "de onde veio" o valor) filtrava as recorrências pela data da venda original, não pela data de cada pagamento — então uma parcela paga bem depois da venda (ex.: vendida em maio, parcela paga em setembro) contava certo no total oficial, mas **sumia do detalhamento** de setembro. Quem fosse conferir a comissão pelo modal não via de onde vinha aquele valor. Corrigido: agora cada linha (entrada, parcela, pagamento personalizado) é filtrada pela própria data dela, igual ao cálculo oficial.
+- Testei com o cenário exato: contrato vendido em maio, parcela 1 paga em junho, parcela 2 paga em setembro — o total oficial e a soma do detalhamento batem exatamente em todos os 4 períodos testados (maio, junho, setembro, histórico completo).
+
 ## v3.19 — Nova tela "🔎 Índice" (busca geral) + 2 números novos no Resumo
 - **Resumo do Financeiro ganhou mais 2 números**: ✅ Recorrências quitadas (quantas + valor, entre as iniciadas no período) e ✅ Vendas integrais pagas (quantas + valor) — cada um com sua lista de detalhamento embaixo, igual aos outros 6.
 - **Nova tela "🔎 Índice"** na barra lateral (só gestor) — busca central: digite o nome de um cliente ou de um serviço e aperte Buscar (ou Enter).
