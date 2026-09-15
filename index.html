@@ -183,7 +183,7 @@ tr:last-child td{border-bottom:none;}
 tr:hover td{background:#FBFBFA;}
 .tnum{font-family:'IBM Plex Mono',monospace;font-weight:500;}
 
-.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap;}
 .chip.good{background:var(--good-soft);color:var(--good);}
 .chip.bad{background:var(--bad-soft);color:var(--bad);}
 .chip.neutral{background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--line);}
@@ -2448,7 +2448,7 @@ function renderSales(){
       <tbody>${list.map(s=>{
         return `<tr>
           <td>${fmtDate(s.data)}</td>
-          <td><span class="chip ${s.tipo==='recorrente'?'gold':'neutral'}">${s.tipo==='recorrente'?'🔁 Recorrente':'💳 Integral'}</span></td>
+          <td style="white-space:nowrap;"><span class="chip ${s.tipo==='recorrente'?'gold':'neutral'}" style="font-size:10px;padding:3px 8px;">${s.tipo==='recorrente'?'🔁 Recorrente':'💳 Integral'}</span></td>
           <td><strong>${s.cliente}</strong></td><td>${s.vendedorNome||'—'}</td><td>${s.origem||'—'}</td><td>${s.servico||'—'}</td>
           <td class="tnum">${fmtEUR(s.valorTotal)}</td><td class="tnum">${fmtEUR(s.valorPago)}</td>
           <td>${s.quitada?'<span class="chip good">pago</span>':'<span class="chip bad">'+fmtEUR(s.valorPendente)+' pendente</span>'}</td>
