@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.19 — Nova tela "🔎 Índice" (busca geral) + 2 números novos no Resumo
+- **Resumo do Financeiro ganhou mais 2 números**: ✅ Recorrências quitadas (quantas + valor, entre as iniciadas no período) e ✅ Vendas integrais pagas (quantas + valor) — cada um com sua lista de detalhamento embaixo, igual aos outros 6.
+- **Nova tela "🔎 Índice"** na barra lateral (só gestor) — busca central: digite o nome de um cliente ou de um serviço e aperte Buscar (ou Enter).
+  - **Cliente**: mostra tudo o que existe dele no sistema — total vendido, total pago, pendente, formas de pagamento usadas, e uma linha do tempo completa de cada pagamento (venda integral, entrada, cada parcela, pagamentos personalizados), mais a lista de negócios (vendas + recorrências) que compõem o total.
+  - **Serviço**: mostra quantos negócios, quantos clientes distintos e quanto valor aquele serviço gerou no período, com botão pra ver a lista de clientes.
+  - Tem filtro de dia/mês/histórico, pra apurar com mais exatidão.
+- Testado com um cenário misto (cliente com venda integral + recorrência com entrada e parcela paga, formas de pagamento diferentes): todos os totais bateram exatamente.
+
+## v3.18 — Nova aba "📊 Resumo" no Financeiro + desempenho de serviços em Métricas
+- **Nova aba "Resumo"** dentro de Financeiro (agora a primeira, abre por padrão): 6 números-chave do período, em duas fileiras.
+  - Em cima (entradas): 🆕 Entrada de novos serviços (negócios fechados nesse período), 💰 Receita geral da empresa (tudo que entrou), 🔁 Recorrências pagas (parcelas e pagamentos personalizados, sem contar a entrada).
+  - Embaixo (saídas/pendências): 📤 Despesas do período, 🧾 Impostos (IVA) sobre o que foi recebido, ⏳ Quantidade de clientes de recorrência ainda pendentes (entre os que começaram nesse período).
+  - Cada um dos 6 tem uma **lista de detalhamento logo abaixo**, mostrando linha a linha o que compõe aquele número — pra comparar de onde vem mais receita e onde pesa mais a despesa.
+- **Métricas ganhou "Desempenho dos serviços"**: 🏆 quais serviços têm mais negócios fechados (efetividade) e 💹 quais geram mais valor (rotatividade) — usando os dados reais de vendas e recorrências, não os leads de anúncio.
+- Testado com um cenário misto (venda nova + recorrência nova com entrada + parcela paga + despesas): cada um dos 6 números bateu exatamente com o esperado.
+
 ## v3.17 — Corrigido: chip de Tipo (Recorrente/Integral) quebrava em duas linhas
 - O emoji e o texto do chip ("🔁 Recorrente" / "💳 Integral") podiam quebrar linha entre si quando a coluna ficava apertada — o emoji sozinho em cima, o nome embaixo. Corrigido pra nunca quebrar (vale pra todo chip do sistema, não só esse), e deixei essa coluna especificamente um pouco mais compacta.
 
