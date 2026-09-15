@@ -2390,22 +2390,38 @@ function recorrenciaCashSeller(sellerId, filter){
 }
 
 function renderSales(){
-  const months = [...new Set(STATE.sales.map(s=>s.data && s.data.slice(0,7)).filter(Boolean))].sort().reverse();
-  const vendedoresComVenda = STATE.sellers.filter(s=>STATE.sales.some(v=>v.vendedorId===s.id));
-  const list = STATE.sales
+  // "Vendas" precisa mostrar TUDO que foi vendido no período — venda
+  // integral (STATE.sales, sem contar a "venda-sombra" de uma recorrência
+  // duas vezes) e recorrências (que não têm registo nenhum em STATE.sales
+  // quando cadastradas direto no painel). Cada linha carrega o tipo.
+  const linhasIntegrais = STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia).map(s=>{
+    const st = saleStatus(s);
+    return { tipo:'integral', id:s.id, data:s.data, cliente:s.cliente, vendedorId:s.vendedorId, vendedorNome:s.vendedorNome,
+      origem:s.origem, servico:s.servico, valorTotal:s.valorTotal, valorPago:s.valorPago, valorPendente:st.valorPendente, quitada: st.valorPendente<=0.005 };
+  });
+  const linhasRecorrentes = STATE.recurrences.map(r=>{
+    const st = recStatus(r);
+    return { tipo:'recorrente', id:r.id, data:r.dataVenda, cliente:r.cliente, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome,
+      origem:r.origem, servico:r.servico, valorTotal:r.valorContrato, valorPago:st.valorPago, valorPendente:st.valorPendente, quitada:st.quitada };
+  });
+  const todasLinhas = [...linhasIntegrais, ...linhasRecorrentes];
+
+  const months = [...new Set(todasLinhas.map(s=>s.data && s.data.slice(0,7)).filter(Boolean))].sort().reverse();
+  const vendedoresComVenda = STATE.sellers.filter(s=>todasLinhas.some(v=>v.vendedorId===s.id));
+  const list = todasLinhas
     .filter(s=>inPeriodOrAll(s.data, STATE.salesFilter))
     .filter(s=>STATE.salesVendorFilter==='all' || s.vendedorId===STATE.salesVendorFilter)
     .filter(s=>matchesSearch(s.cliente, STATE.searchVendas))
-    .sort((a,b)=> b.data.localeCompare(a.data));
+    .sort((a,b)=> (b.data||'').localeCompare(a.data||''));
   const totalRecebido = list.reduce((a,s)=>a+(s.valorPago||0),0);
   const totalVendido = list.reduce((a,s)=>a+(s.valorTotal||0),0);
   const vendedorSelecionado = STATE.salesVendorFilter!=='all' ? sellerById(STATE.salesVendorFilter) : null;
   const resumoVendedor = vendedorSelecionado ? (()=>{
-    const liquidoVendas = totalRecebido;
+    const liquidoVendas = linhasIntegrais.filter(s=>s.vendedorId===vendedorSelecionado.id && inPeriodOrAll(s.data, STATE.salesFilter)).reduce((a,s)=>a+(s.valorPago||0),0);
     const liquidoRecorrencia = recorrenciaCashSeller(vendedorSelecionado.id, STATE.salesFilter);
     return `
     <div class="cards" style="margin:0 0 20px;">
-      <div class="card"><div class="lbl">${vendedorSelecionado.nome} · líquido de vendas</div><div class="val good">${fmtEUR(liquidoVendas)}</div></div>
+      <div class="card"><div class="lbl">${vendedorSelecionado.nome} · líquido de vendas integrais</div><div class="val good">${fmtEUR(liquidoVendas)}</div></div>
       <div class="card"><div class="lbl">${vendedorSelecionado.nome} · líquido de recorrência</div><div class="val good">${fmtEUR(liquidoRecorrencia)}</div></div>
       <div class="card accent"><div class="lbl">${vendedorSelecionado.nome} · líquido total (vendas + recorrência)</div><div class="val good">${fmtEUR(liquidoVendas+liquidoRecorrencia)}</div></div>
       <div class="card"><div class="lbl">${vendedorSelecionado.nome} · vendas no total (valor vendido)</div><div class="val">${fmtEUR(totalVendido)}</div></div>
@@ -2426,12 +2442,20 @@ function renderSales(){
   ${resumoVendedor}
   <section class="block">
     <div class="block-head"><h3>Registo de vendas (${list.length})</h3><button class="btn gold" id="btnAddSale">+ Nova venda</button></div>
-    <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">vendas integrais — não recorrentes · vendido no período: ${fmtEUR(totalVendido)} · recebido: ${fmtEUR(totalRecebido)}</span></div>
+    <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">vendas integrais + recorrentes, tudo junto · vendido no período: ${fmtEUR(totalVendido)} · recebido: ${fmtEUR(totalRecebido)}</span></div>
     ${list.length ? `<table>
-      <thead><tr><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Origem</th><th>Serviço</th><th>Total</th><th>Recebido</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Data</th><th>Tipo</th><th>Cliente</th><th>Vendedor</th><th>Origem</th><th>Serviço</th><th>Total</th><th>Recebido</th><th>Status</th><th></th></tr></thead>
       <tbody>${list.map(s=>{
-        const st = saleStatus(s);
-        return `<tr><td>${fmtDate(s.data)}</td><td><strong>${s.cliente}</strong></td><td>${s.vendedorNome||'—'}</td><td>${s.origem||'—'}</td><td>${s.servico||'—'}</td><td class="tnum">${fmtEUR(s.valorTotal)}</td><td class="tnum">${fmtEUR(s.valorPago)}</td><td>${st.quitada?'<span class="chip good">pago</span>':'<span class="chip bad">'+fmtEUR(st.valorPendente)+' pendente</span>'}</td><td><div class="btn-group btn-group-actions"><button class="btn ghost sm" data-edit-sale="${s.id}">Editar</button><button class="btn danger sm" data-del-sale="${s.id}">Excluir</button></div></td></tr>`;
+        return `<tr>
+          <td>${fmtDate(s.data)}</td>
+          <td><span class="chip ${s.tipo==='recorrente'?'gold':'neutral'}">${s.tipo==='recorrente'?'🔁 Recorrente':'💳 Integral'}</span></td>
+          <td><strong>${s.cliente}</strong></td><td>${s.vendedorNome||'—'}</td><td>${s.origem||'—'}</td><td>${s.servico||'—'}</td>
+          <td class="tnum">${fmtEUR(s.valorTotal)}</td><td class="tnum">${fmtEUR(s.valorPago)}</td>
+          <td>${s.quitada?'<span class="chip good">pago</span>':'<span class="chip bad">'+fmtEUR(s.valorPendente)+' pendente</span>'}</td>
+          <td><div class="btn-group btn-group-actions">${s.tipo==='recorrente'
+            ? `<button class="btn ghost sm" data-edit-rec="${s.id}">Editar</button><button class="btn danger sm" data-del-rec="${s.id}">Excluir</button>`
+            : `<button class="btn ghost sm" data-edit-sale="${s.id}">Editar</button><button class="btn danger sm" data-del-sale="${s.id}">Excluir</button>`}</div></td>
+        </tr>`;
       }).join('')}</tbody>
     </table>` : `<div class="empty">Nenhuma venda registada nesse período/vendedor.</div>`}
   </section>`;
