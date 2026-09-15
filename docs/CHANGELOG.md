@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.16 — Corrigido: Vendas não mostrava recorrências, só vendas integrais
+- **Bug real encontrado e corrigido**: a tela "Vendas" só olhava pra tabela de Vendas — uma recorrência cadastrada direto no sistema (sem vir de uma venda importada) nunca aparecia ali, mesmo tendo sido "vendida" naquele mês. Era o mesmo tipo de lacuna já corrigida no Valor Vendido e na Composição do pipeline, agora também aqui.
+- Agora **"Vendas" mostra as duas coisas juntas**: vendas integrais e recorrências, com uma coluna **Tipo** (💳 Integral / 🔁 Recorrente) pra diferenciar. Editar e Excluir continuam funcionando certo pra cada tipo, respeitando as mesmas regras de sempre.
+- Testado com o cenário exato relatado: uma recorrência cadastrada em agosto com um pagamento personalizado — agora aparece corretamente na lista de Vendas de agosto, marcada como "Recorrente", com o valor total do contrato.
+
+## v3.15 — Corrigido: isenção de taxa administrativa não reduzia o pendente + botões reorganizados
+- **Bug real encontrado e corrigido**: marcar um contrato como "isento de taxa administrativa" só afetava o cálculo de comissão — o valor pendente (o que falta o cliente pagar) continuava contando a taxa administrativa como se ainda fosse cobrada. Agora, isentar reduz de verdade o valor total devido daquele contrato, e o pendente reflete isso corretamente. Testei o cenário completo: contrato de €2.112,60 com €612 de taxa administrativa, isentando depois de uma parcela paga — o pendente cai exatamente pelo valor da taxa isentada, sem ficar negativo mesmo em contratos já totalmente pagos.
+- **Botões reorganizados** pra não empilhar: a célula de parcelas de uma recorrência (que podia ficar com entrada + várias bolinhas + pagamentos personalizados + botão, tudo espremido) agora quebra linha de forma organizada em vez de bagunçar. O mesmo ajuste nas colunas de ação (Editar/Excluir) de Vendas, Recorrências e Custos, e nas sub-abas do Financeiro (que podiam cortar em telas mais estreitas).
+
+## v3.14 — Corrigido bug crítico: venda podia "sumir" ao ser editada por um colaborador
+- **Causa raiz encontrada**: no modal de editar venda ("Minhas Vendas"), o campo "Vendedor" era uma lista com **todos** os vendedores, mesmo pra quem não é gestor. Um colaborador não tem permissão de gravar na chave do Supabase de outro vendedor — então se esse campo fosse alterado (ou até acidentalmente, dependendo de qual vendedor aparecia selecionado), a venda deixava de bater com o próprio vendedor, saía da lista que o colaborador consegue gravar, e **não entrava em lugar nenhum** — ela sumia do sistema, sem erro visível.
+- **Corrigido**: o campo Vendedor agora fica travado (só leitura) pra quem não é gestor — só o gestor pode reatribuir uma venda pra outro vendedor. Testei o cenário completo: colaborador edita e guarda a própria venda, e ela continua exatamente onde deveria, sem se perder.
+- **Rede de segurança adicionada**: se por qualquer outro motivo uma venda ou recorrência ficar associada a um vendedor diferente do que está gravando, agora aparece um aviso visível na tela em vez de o dado simplesmente desaparecer — assim, se acontecer de novo (por outro caminho que eu não tenha coberto), pelo menos fica claro que algo precisa de atenção do gestor.
+- Isso explica diretamente a queixa de vendas que "não se espelhavam corretamente" quando lançadas pelo vendedor — não era um problema de comunicação com o backend, e sim essa lacuna específica de permissão no formulário de edição.
+
 ## v3.13 — Favicon
 - Adicionado um favicon (o ícone que aparece na aba do navegador) — um monograma "P" dourado sobre fundo vinho, na mesma paleta de cores do resto do sistema. Não depende de nenhum arquivo externo (é um SVG embutido direto no `index.html`), então não tem nada a mais pra subir — só o próprio arquivo já traz o ícone.
 
