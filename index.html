@@ -1415,16 +1415,22 @@ function comissaoBreakdownEvents(sellerId, filter){
     const liquido = Math.max(0, s.valorPago - ivaDesc);
     linhas.push({ date:s.data, cliente:s.cliente, tipo:'Venda', recebido:s.valorPago, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
   });
-  STATE.recurrences.filter(r=>r.vendedorId===sellerId && inPeriodOrAll(r.dataVenda, filter)).forEach(r=>{
+  // Importante: cada evento (entrada/parcela/pagamento personalizado) é
+  // filtrado pela PRÓPRIA data dele contra o período — não pela data da
+  // venda original da recorrência. Uma parcela paga vários meses depois
+  // de uma recorrência antiga tem que aparecer no mês em que foi PAGA,
+  // exatamente como já acontece no cálculo oficial (buildEvents). Filtrar
+  // pela data da venda deixava essa parcela de fora do detalhamento.
+  STATE.recurrences.filter(r=>r.vendedorId===sellerId).forEach(r=>{
     const st = recStatus(r);
-    if((r.valorEntrada||0)>0){
+    if((r.valorEntrada||0)>0 && r.dataVenda && inPeriodOrAll(r.dataVenda, filter)){
       const ivaDesc = r.valorEntrada*iva;
       const liquido = Math.max(0, r.valorEntrada - ivaDesc);
       linhas.push({ date:r.dataVenda, cliente:r.cliente, tipo:'Entrada', recebido:r.valorEntrada, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
     }
     const txAdmPorParcela = (r.isentoTaxaAdm || st.total<=0) ? 0 : (r.txAdm||0)/st.total;
     r.parcelas.forEach(p=>{
-      if(p.pago && p.data){
+      if(p.pago && p.data && inPeriodOrAll(p.data, filter)){
         const valorReal = (p.valor!=null ? p.valor : st.valorParcela);
         const ivaDesc = valorReal*iva;
         const liquido = Math.max(0, valorReal - ivaDesc - txAdmPorParcela);
@@ -1432,7 +1438,7 @@ function comissaoBreakdownEvents(sellerId, filter){
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
-      if(!ex.data) return;
+      if(!ex.data || !inPeriodOrAll(ex.data, filter)) return;
       const ivaDesc = (ex.valor||0)*iva;
       const liquido = Math.max(0, (ex.valor||0) - ivaDesc);
       linhas.push({ date: ex.data, cliente:r.cliente, tipo:'Pagamento personalizado', recebido: ex.valor||0, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
