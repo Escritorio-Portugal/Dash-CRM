@@ -975,6 +975,43 @@ async function applyRemoveStaleLeandroRecorrencia(){
    precisou mudar. Um colaborador só tenta gravar a PRÓPRIA linha (é tudo
    que ele teria em STATE.sales/recurrences mesmo, já que loadState só
    carregou isso); o gestor grava a de todos os vendedores. */
+/* Gravação pontual — usada por toda interação normal do dia a dia
+   (salvar uma venda, pagar uma parcela, editar). Toca só o registro
+   que mudou: 1 upsert de venda, ou upsert da recorrência + upsert das
+   parcelas dela + limpeza só das parcelas/pagamentos órfãos DELA
+   (nunca de todas as outras recorrências do sistema). Isso é o que
+   torna a gravação rápida — antes, persist('recurrences') reprocessava
+   TODAS as recorrências a cada clique em Salvar, o que ficava lento
+   (e às vezes travava a tela) na medida em que a base crescia. */
+async function persistVenda(sale){
+  const { error } = await supa.from('vendas').upsert(vendaToRow(sale));
+  if(error) throw error;
+}
+async function persistRecorrencia(rec){
+  const { error: eRec } = await supa.from('recorrencias').upsert(recToRow(rec));
+  if(eRec) throw eRec;
+
+  const parcelaRows = rec.parcelas.map(p=>({
+    recorrencia_id: rec.id, numero: p.numero, data: p.data||null, pago: !!p.pago, valor: p.valor!=null ? p.valor : null
+  }));
+  if(parcelaRows.length){
+    const { error: eP } = await supa.from('parcelas').upsert(parcelaRows);
+    if(eP) throw eP;
+  }
+  const { error: eDelP } = await supa.from('parcelas').delete().eq('recorrencia_id', rec.id).gt('numero', rec.nParcelas||1);
+  if(eDelP) throw eDelP;
+
+  const extraRows = (rec.pagamentosExtras||[]).map(ex=>({ id: ex.id, recorrencia_id: rec.id, data: ex.data, valor: ex.valor||0 }));
+  if(extraRows.length){
+    const { error: eX } = await supa.from('pagamentos_extras').upsert(extraRows);
+    if(eX) throw eX;
+  }
+  const idsAtuais = (rec.pagamentosExtras||[]).map(ex=>ex.id);
+  let q = supa.from('pagamentos_extras').delete().eq('recorrencia_id', rec.id);
+  if(idsAtuais.length) q = q.not('id', 'in', `(${idsAtuais.map(id=>'"'+id+'"').join(',')})`);
+  const { error: eDelX } = await q;
+  if(eDelX) throw eDelX;
+}
 async function persist(part, sellerId){
   if(part==='sellers'){
     // crm:sellers é partilhado e não guarda mais o funil de ninguém
@@ -2006,7 +2043,7 @@ function abrirPagamentoModal(recId, parcelaNumero){
       if(!p) return;
       p.pago = true; p.valor = valor; p.data = data;
     }
-    await persist('recurrences'); closeModal(); renderAll();
+    await persistRecorrencia(rec); closeModal(); renderAll();
   };
 }
 function abrirPagamentoRecorrenciaModal(recId){
@@ -2041,7 +2078,7 @@ function abrirPagamentoRecorrenciaModal(recId){
     const selecionadas = Array.from(document.querySelectorAll('.pgParcelaChk:checked')).map(el=>Number(el.value));
     if(!selecionadas.length){ alert('Selecione ao menos uma parcela.'); return; }
     rec.parcelas.forEach(p=>{ if(selecionadas.includes(p.numero)){ p.pago = true; p.data = data; } });
-    await persist('recurrences');
+    await persistRecorrencia(rec);
     closeModal();
     renderAll();
   };
@@ -3632,24 +3669,24 @@ async function estornarLancamento(ref){
     const s = STATE.sales.find(x=>x.id===ref.saleId);
     if(!s) return;
     s.valorPago = 0;
-    await persist('sales');
+    await persistVenda(s);
   } else if(ref.tipo==='entrada'){
     const r = STATE.recurrences.find(x=>x.id===ref.recId);
     if(!r) return;
     r.valorEntrada = 0;
-    await persist('recurrences');
+    await persistRecorrencia(r);
   } else if(ref.tipo==='parcela'){
     const r = STATE.recurrences.find(x=>x.id===ref.recId);
     if(!r) return;
     const p = r.parcelas.find(x=>x.numero===ref.numero);
     if(!p) return;
     p.pago = false; p.data = null; p.valor = null;
-    await persist('recurrences');
+    await persistRecorrencia(r);
   } else if(ref.tipo==='extra'){
     const r = STATE.recurrences.find(x=>x.id===ref.recId);
     if(!r) return;
     r.pagamentosExtras = (r.pagamentosExtras||[]).filter(e=>e.id!==ref.extraId);
-    await persist('recurrences');
+    await persistRecorrencia(r);
   } else if(ref.tipo==='custoFixoExato'){
     const c = STATE.costs.find(x=>x.id===ref.custoId);
     if(!c) return;
@@ -3973,14 +4010,15 @@ function openQuickAddModal(initialTipo, forColaborador){
         const valorPago = Number(document.getElementById('qValorPago').value)||0;
         if(!valorPago){ alert('Informe o valor pago.'); return; }
         const formaPagamento = document.getElementById('qFormaPagamento').value;
-        STATE.sales.push({
+        const novaVenda = {
           id:'vda-'+Date.now(), data, cliente, vendedorId, vendedorNome: vendedor?vendedor.nome:'—',
           origem, servico, valorTotal: valorPago, valorPago, pagamentoIntegral:true, nParcelas:null,
           formaPagamento, registro:null, obs:null,
           honorarioBase: matchedService?matchedService.honorarioBase:valorPago,
           iva: matchedService?matchedService.iva:0, txAdm: matchedService?matchedService.txAdm:0
-        });
-        await persist('sales'); closeModal(); renderAll();
+        };
+        STATE.sales.push(novaVenda);
+        await persistVenda(novaVenda); closeModal(); renderAll();
       } else {
         const valorContrato = Number(document.getElementById('qValorContrato').value)||0;
         const valorEntrada = Number(document.getElementById('qEntrada').value)||0;
@@ -3989,13 +4027,14 @@ function openQuickAddModal(initialTipo, forColaborador){
         if(!valorContrato){ alert('Informe o valor do contrato.'); return; }
         if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
         const parcelas = Array.from({length:nParcelas}, (_,i)=>({numero:i+1, data:null, pago:false}));
-        STATE.recurrences.push({
+        const novaRec = {
           id:'rec-'+Date.now(), dataVenda:data, cliente, servico, nParcelas, valorEntrada, formaPagamento, origem,
           honorarioBase: matchedService?matchedService.honorarioBase:valorContrato,
           iva: matchedService?matchedService.iva:0, txAdm: matchedService?matchedService.txAdm:0,
           valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'—', parcelas, origemSheet:'manual'
-        });
-        await persist('recurrences'); closeModal(); renderAll();
+        };
+        STATE.recurrences.push(novaRec);
+        await persistRecorrencia(novaRec); closeModal(); renderAll();
       }
     };
   }
@@ -4161,7 +4200,7 @@ function openEditSaleModal(saleId){
       cliente, servico, data, vendedorId, vendedorNome: vendedor?vendedor.nome:sale.vendedorNome,
       origem, formaPagamento, valorTotal, valorPago, pagamentoIntegral, honorarioBase, iva, txAdm
     });
-    await persist('sales'); closeModal(); renderAll();
+    await persistVenda(sale); closeModal(); renderAll();
   };
 }
 
@@ -4254,7 +4293,7 @@ function openEditRecModal(recId){
       vendedorNome: vendedor?vendedor.nome:rec.vendedorNome,
       valorContrato, valorEntrada, honorarioBase, iva, txAdm, formaPagamento, origem, isentoTaxaAdm, nParcelas: nParcelasNovo, parcelas
     });
-    await persist('recurrences'); closeModal(); renderAll();
+    await persistRecorrencia(rec); closeModal(); renderAll();
   };
 }
 
@@ -4316,15 +4355,16 @@ function openAddRecModal(forColaborador){
     if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
     const vendedor = sellerById(vendedorId);
     const parcelas = Array.from({length:nParcelas}, (_,i)=>({numero:i+1, data:null, pago:false}));
-    STATE.recurrences.push({
+    const novaRec2 = {
       id:'rec-'+Date.now(), dataVenda:data||todayISO(), cliente, servico,
       nParcelas, valorEntrada, formaPagamento, origem,
       honorarioBase: matchedService?matchedService.honorarioBase:valorContrato,
       iva: matchedService?matchedService.iva:0,
       txAdm: matchedService?matchedService.txAdm:0,
       valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'—', parcelas, origemSheet:'manual'
-    });
-    await persist('recurrences'); closeModal(); renderAll();
+    };
+    STATE.recurrences.push(novaRec2);
+    await persistRecorrencia(novaRec2); closeModal(); renderAll();
   };
 }
 
@@ -4470,7 +4510,7 @@ function wireViewportEvents(){
         // uma parcela pendente agora abre o modal, ver data-parcela-pagar.
         parcela.pago = false; parcela.data = null; parcela.valor = null;
         renderAll(); // atualiza a tela já, independente do resultado da gravação
-        await persist('recurrences');
+        await persistRecorrencia(rec);
       }catch(err){
         showErrorToast(err && err.message ? err.message : String(err));
       }
@@ -4529,7 +4569,7 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir venda', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a venda de <strong>${sale.cliente}</strong> (${fmtEUR(sale.valorTotal)}, ${fmtDate(sale.data)})? Esta ação não pode ser desfeita — use isto pra remover duplicatas.`,
-        onConfirm: async ()=>{ STATE.sales = STATE.sales.filter(s=>s.id!==saleId); await supa.from('vendas').delete().eq('id', saleId); await persist('sales'); renderAll(); }
+        onConfirm: async ()=>{ STATE.sales = STATE.sales.filter(s=>s.id!==saleId); await supa.from('vendas').delete().eq('id', saleId); renderAll(); }
       });
     });
   });
@@ -4539,7 +4579,7 @@ function wireViewportEvents(){
       const rec = STATE.recurrences.find(r=>r.id===btn.dataset.toggleIsento);
       if(!rec) return;
       rec.isentoTaxaAdm = !rec.isentoTaxaAdm;
-      await persist('recurrences'); renderAll();
+      await persistRecorrencia(rec); renderAll();
     });
   });
 
@@ -4554,7 +4594,7 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir recorrência', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a recorrência de <strong>${rec.cliente}</strong>? Esta ação não pode ser desfeita.`,
-        onConfirm: async ()=>{ STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); await supa.from('recorrencias').delete().eq('id', recId); await persist('recurrences'); renderAll(); }
+        onConfirm: async ()=>{ STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); await supa.from('recorrencias').delete().eq('id', recId); renderAll(); }
       });
     });
   });
@@ -4695,7 +4735,7 @@ function wireViewportEvents(){
       const p = rec && rec.parcelas.find(x=>x.numero===num);
       if(!p) return;
       p.data = input.value;
-      await persist('recurrences'); renderAll();
+      await persistRecorrencia(rec); renderAll();
     });
   });
 
