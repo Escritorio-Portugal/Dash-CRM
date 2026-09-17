@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.0 — Vendas e recorrências migradas para tabelas relacionais
+- **Mudança de arquitetura**: vendas e recorrências deixaram de viver num blob JSON por vendedor (`crm:sales:<id>`/`crm:recurrences:<id>`) e passaram a morar em tabelas de verdade no Supabase (`vendas`, `recorrencias`, `parcelas`, `pagamentos_extras`). Isso elimina o risco de duas gravações quase simultâneas se sobrescreverem — cada mudança agora é uma linha só, não o array inteiro do vendedor.
+- Nenhuma tela mudou de comportamento — o formato em memória continua idêntico, só troquei de onde o dado vem e pra onde vai.
+- Testado o ciclo completo antes de entregar: criar, ler, editar (inclusive reduzir o nº de parcelas de um contrato), estornar um pagamento personalizado, excluir venda e recorrência, e a separação de permissão entre gestor e colaborador.
+- Ver `docs/DEPLOY_TABELAS_RELACIONAIS.md` pro passo a passo de como publicar essa mudança.
+
+## v3.21 — Desfazer/estornar lançamentos direto do Extrato e do Registro
+- **Novo botão em cada movimentação** do Extrato do dia (↩️) e do Registro (Desfazer) — só o gestor vê. Cada tipo de lançamento volta atrás do jeito certo:
+  - **Venda integral**: vira um **estorno** — o valor recebido volta a zero e a venda passa a aparecer como pendente, sem desaparecer do sistema (continua no histórico de Vendas).
+  - **Entrada de recorrência**: volta a zero.
+  - **Parcela**: volta a ficar pendente (igual clicar numa parcela já paga pra desfazer).
+  - **Pagamento personalizado**: é removido.
+  - **Custo fixo/variável**: volta a ficar por pagar.
+- Sempre pede confirmação antes de executar, com uma frase específica pro caso de venda ("vai estornar... a venda passa a aparecer como pendente") pra deixar claro que não é uma exclusão de verdade.
+- Testado um a um: os 5 tipos de estorno (venda, entrada, parcela, pagamento personalizado, custo) devolvem exatamente o valor certo ao pendente.
+
 ## v3.20 — Auditoria de comissões: corrigido o modal de detalhamento
 - **Fórmula de comissão confirmada correta** (auditada e testada): pra parcelas de recorrência, desconta-se 23% de IVA sobre o valor efetivamente pago (nunca sobre o valor total do contrato), depois a fatia da taxa administrativa daquela parcela (a menos que o contrato esteja isento), e o vendedor fica com 10% do que sobra. A comissão de uma parcela sempre vai pro vendedor original da venda, mesmo que a parcela seja paga muitos meses depois — isso já funcionava certo.
 - **Bug real encontrado e corrigido**: o modal de detalhamento de comissão (o que mostra linha por linha "de onde veio" o valor) filtrava as recorrências pela data da venda original, não pela data de cada pagamento — então uma parcela paga bem depois da venda (ex.: vendida em maio, parcela paga em setembro) contava certo no total oficial, mas **sumia do detalhamento** de setembro. Quem fosse conferir a comissão pelo modal não via de onde vinha aquele valor. Corrigido: agora cada linha (entrada, parcela, pagamento personalizado) é filtrada pela própria data dela, igual ao cálculo oficial.
