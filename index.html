@@ -223,6 +223,28 @@ tr:hover td{background:#FBFBFA;}
 .cc-select, .cc-input{width:100%;min-width:120px;border:1px solid var(--line);border-radius:6px;padding:5px 6px;font-size:12px;background:var(--surface);}
 .cc-select:focus, .cc-input:focus{outline:2px solid var(--gold-soft);border-color:var(--gold);}
 .linechart-wrap{cursor:crosshair;}
+/* Notificação "gamificada" de sucesso — desce do topo com um pop
+   elástico, mostra o check, e depois de um tempo se retrai sozinha
+   de volta pra cima, com fade. Fica em cima de tudo (inclusive
+   modais), pra sempre ser vista. */
+.success-toast{
+  position:fixed; top:0; left:50%; z-index:2000; pointer-events:none;
+  display:flex; align-items:center; gap:10px;
+  background:linear-gradient(135deg, var(--wine), #6b0330);
+  color:#fff; padding:14px 22px 14px 16px; border-radius:0 0 14px 14px;
+  box-shadow:0 12px 32px rgba(0,0,0,.35);
+  font-family:'IBM Plex Sans',sans-serif; font-size:13.5px; font-weight:600;
+  opacity:0; transform:translate(-50%,-120%);
+  transition:transform .45s cubic-bezier(.34,1.56,.64,1), opacity .3s ease;
+}
+.success-toast.show{ opacity:1; transform:translate(-50%,0); }
+.success-toast-check{
+  display:flex; align-items:center; justify-content:center;
+  width:24px; height:24px; border-radius:50%; background:var(--gold); color:var(--wine);
+  font-size:14px; font-weight:800; flex-shrink:0;
+  animation:successCheckPop .5s cubic-bezier(.34,1.56,.64,1) .1s both;
+}
+@keyframes successCheckPop{ 0%{transform:scale(0);} 60%{transform:scale(1.25);} 100%{transform:scale(1);} }
 .lc-tooltip{position:absolute;top:6px;background:var(--wine);color:#fff;padding:8px 11px;border-radius:8px;font-size:11.5px;line-height:1.5;pointer-events:none;box-shadow:var(--shadow);z-index:5;white-space:nowrap;transform:translateX(-50%);}
 .lc-tooltip strong{display:block;font-size:11px;opacity:.85;margin-bottom:3px;}
 .saldo-hero-block{padding:0;overflow:hidden;}
@@ -326,12 +348,56 @@ tr:hover td{background:#FBFBFA;}
 
 <div id="modalRoot"></div>
 <div id="errorToast" style="display:none;position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#B0503B;color:#fff;padding:12px 18px;border-radius:8px;font-size:12.5px;font-family:'IBM Plex Sans',sans-serif;max-width:640px;z-index:999;box-shadow:0 10px 30px rgba(0,0,0,.3);"></div>
+<div id="successToast" class="success-toast">
+  <span class="success-toast-check">✓</span>
+  <span id="successToastMsg" class="success-toast-msg"></span>
+</div>
 
 <script>
 /* =========================================================
    DIAGNÓSTICO DE ERROS — mostra qualquer erro em tela (em vez de
    falhar silenciosamente), para conseguirmos identificar a causa exata
    ========================================================= */
+/* Toca um "ding" curto e agradável (dois tons subindo) sem precisar de
+   nenhum arquivo de áudio — gerado na hora pelo próprio navegador. Se
+   o navegador bloquear áudio (política de autoplay), simplesmente
+   ignora — o toast visual continua funcionando normalmente. */
+function tocarSomSucesso(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const tocarTom = (freq, inicio, duracao)=>{
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      osc.connect(gain); gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + inicio);
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + inicio + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + inicio + duracao);
+      osc.start(ctx.currentTime + inicio);
+      osc.stop(ctx.currentTime + inicio + duracao + 0.02);
+    };
+    tocarTom(740, 0, 0.11);
+    tocarTom(1108, 0.09, 0.16);
+  }catch(e){ /* sem audio, sem problema — o toast visual ja basta */ }
+}
+/* Notificação gamificada de confirmação — usada depois de qualquer
+   ação que "fecha o ciclo" pro usuário: adicionar venda/recorrência,
+   registar um pagamento, excluir/estornar algo. Pop vindo de cima,
+   some sozinha, com som. Nunca usar isso pra erros — erros continuam
+   indo pro showErrorToast (vermelho, embaixo, fica até o usuário ver). */
+function showSuccessToast(msg){
+  const el = document.getElementById('successToast');
+  const msgEl = document.getElementById('successToastMsg');
+  if(!el || !msgEl) return;
+  msgEl.textContent = msg;
+  clearTimeout(window.__successToastTimer);
+  el.classList.remove('show');
+  // força reflow pra reiniciar a animação mesmo se um toast já estava visível
+  void el.offsetWidth;
+  el.classList.add('show');
+  tocarSomSucesso();
+  window.__successToastTimer = setTimeout(()=>{ el.classList.remove('show'); }, 2400);
+}
 function showErrorToast(msg){
   const el = document.getElementById('errorToast');
   el.textContent = 'Erro: ' + msg + ' (tire um print e mande — isso ajuda a corrigir rápido)';
@@ -2056,7 +2122,7 @@ function abrirPagamentoModal(recId, parcelaNumero){
       if(!p) return;
       p.pago = true; p.valor = valor; p.data = data;
     }
-    await persistRecorrencia(rec); closeModal(); renderAll();
+    await persistRecorrencia(rec); showSuccessToast('Pagamento registado com sucesso!'); closeModal(); renderAll();
   };
 }
 function abrirPagamentoRecorrenciaModal(recId){
@@ -2931,7 +2997,7 @@ function abrirNovoLeadManualModal(leadId){
     };
     if(editando){ Object.assign(editando, dados); }
     else { STATE.controleLeads.push({ id:'cl-'+Date.now(), ...dados }); }
-    await persist('controleLeads'); closeModal(); renderAll();
+    await persist('controleLeads'); showSuccessToast('Lead salvo com sucesso!'); closeModal(); renderAll();
   };
 }
 function renderControleLeads(){
@@ -3012,7 +3078,7 @@ function abrirNovoFollowUpModal(){
       responsavel: document.getElementById('fuResponsavel').value,
       registros: []
     });
-    await persist('followUps'); closeModal(); renderAll();
+    await persist('followUps'); showSuccessToast('Ficha de follow-up criada!'); closeModal(); renderAll();
   };
 }
 function abrirRegistroContatoModal(followUpId){
@@ -3036,6 +3102,7 @@ function abrirRegistroContatoModal(followUpId){
     if(!resposta){ alert('Selecione a resposta do lead.'); return; }
     ficha.registros.push({ id:'reg-'+Date.now(), data: document.getElementById('rcData').value||todayISO(), resposta, obs: document.getElementById('rcObs').value.trim() });
     await persist('followUps');
+    showSuccessToast('Contato registado com sucesso!');
     abrirDetalheFollowUpModal(followUpId);
   };
 }
@@ -4286,7 +4353,7 @@ function openQuickAddModal(initialTipo, forColaborador){
           iva: matchedService?matchedService.iva:0, txAdm: matchedService?matchedService.txAdm:0
         };
         STATE.sales.push(novaVenda);
-        await persistVenda(novaVenda); closeModal(); renderAll();
+        await persistVenda(novaVenda); showSuccessToast('Venda registada com sucesso!'); closeModal(); renderAll();
       } else {
         const valorContrato = Number(document.getElementById('qValorContrato').value)||0;
         const valorEntrada = Number(document.getElementById('qEntrada').value)||0;
@@ -4302,7 +4369,7 @@ function openQuickAddModal(initialTipo, forColaborador){
           valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'—', parcelas, origemSheet:'manual'
         };
         STATE.recurrences.push(novaRec);
-        await persistRecorrencia(novaRec); closeModal(); renderAll();
+        await persistRecorrencia(novaRec); showSuccessToast('Recorrência criada com sucesso!'); closeModal(); renderAll();
       }
     };
   }
@@ -4632,7 +4699,7 @@ function openAddRecModal(forColaborador){
       valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'—', parcelas, origemSheet:'manual'
     };
     STATE.recurrences.push(novaRec2);
-    await persistRecorrencia(novaRec2); closeModal(); renderAll();
+    await persistRecorrencia(novaRec2); showSuccessToast('Recorrência criada com sucesso!'); closeModal(); renderAll();
   };
 }
 
@@ -4837,7 +4904,7 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir venda', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a venda de <strong>${sale.cliente}</strong> (${fmtEUR(sale.valorTotal)}, ${fmtDate(sale.data)})? Esta ação não pode ser desfeita — use isto pra remover duplicatas.`,
-        onConfirm: async ()=>{ STATE.sales = STATE.sales.filter(s=>s.id!==saleId); await supa.from('vendas').delete().eq('id', saleId); renderAll(); }
+        onConfirm: async ()=>{ STATE.sales = STATE.sales.filter(s=>s.id!==saleId); await supa.from('vendas').delete().eq('id', saleId); showSuccessToast('Venda excluída.'); renderAll(); }
       });
     });
   });
@@ -4862,7 +4929,7 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir recorrência', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a recorrência de <strong>${rec.cliente}</strong>? Esta ação não pode ser desfeita.`,
-        onConfirm: async ()=>{ STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); await supa.from('recorrencias').delete().eq('id', recId); renderAll(); }
+        onConfirm: async ()=>{ STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); await supa.from('recorrencias').delete().eq('id', recId); showSuccessToast('Recorrência excluída.'); renderAll(); }
       });
     });
   });
@@ -5080,7 +5147,7 @@ function wireViewportEvents(){
         message: ehVenda
           ? `Isso vai estornar <strong>${desc}</strong> — o valor recebido volta a zero e a venda passa a aparecer como pendente (ela não desaparece do sistema). Tem a certeza?`
           : `Isso vai desfazer <strong>${desc}</strong>, voltando o valor a ficar em aberto. Tem a certeza?`,
-        onConfirm: async ()=>{ await estornarLancamento(ref); renderAll(); }
+        onConfirm: async ()=>{ await estornarLancamento(ref); showSuccessToast(ehVenda ? 'Venda estornada.' : 'Lançamento desfeito.'); renderAll(); }
       });
     });
   });
@@ -5149,15 +5216,20 @@ function wireViewportEvents(){
     if(!c) return;
     const mes = b.dataset.costMonth;
     const mesOrigem = c.vencimento ? c.vencimento.slice(0,7) : null;
+    let ficouPago = false;
     if(c.categoria==='FIXO' && mes && mes!==mesOrigem){
       if(!c.pagoPorMes) c.pagoPorMes = {};
       const estavaPago = costPagoNoMes(c, mes);
       c.pagoPorMes[mes] = estavaPago ? {pago:false} : {pago:true, data:todayISO()};
+      ficouPago = !estavaPago;
     } else {
       c.pago = !c.pago;
       c.dataPagamento = c.pago ? todayISO() : null;
+      ficouPago = c.pago;
     }
-    await persist('costs'); renderAll();
+    await persist('costs');
+    if(ficouPago) showSuccessToast('Pagamento registado com sucesso!');
+    renderAll();
   }));
   vp.querySelectorAll('[data-pagar-custo]').forEach(b=> b.addEventListener('click', async ()=>{
     const c = STATE.costs.find(x=>x.id===b.dataset.pagarCusto);
