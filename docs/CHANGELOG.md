@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.3 — Barra lateral em grupos recolhíveis
+- **Nova organização do menu** (só gestor): duas abas agrupadoras, que abrem e fecham com um clique, com animação suave (altura + seta girando):
+  - **🧭 Operacional**: Vendedores, Métricas, Controle de Campanhas, Controle de Leads, Follow-up.
+  - **💰 Financeiro**: Recorrências, Recorrências pagas, Sem data de pagamento, Vendas, Financeiro.
+  - Ficam livres, fora de qualquer grupo: Visão Geral, Ranking, Clientes, Configurações, Índice.
+- **Bolinha dourada pulsante** no cabeçalho do grupo sempre que a tela em que você está fica dentro dele — assim, mesmo com o grupo fechado, dá pra saber onde você está sem precisar abrir.
+- Os grupos começam abertos; o estado de aberto/fechado de cada um é só da sessão atual (não fica salvo entre logins).
+- Testado: estrutura inicial correta, a bolinha aparece/some certo conforme a tela ativa, abrir e fechar funciona nos dois sentidos, e o menu do colaborador (que não tem grupos) continua funcionando normalmente.
+
 ## v4.2 — Notificação gamificada de confirmação
 - Nova notificação que desce do topo da tela com um "pop" elástico, um ✓ dourado, e um som curto (gerado na hora, sem precisar de nenhum arquivo de áudio) — depois de ~2,4s se retrai sozinha, com fade.
 - Aparece depois de: **adicionar** uma venda ou recorrência nova, **registar um pagamento** (parcela, pagamento personalizado, custo marcado como pago), **excluir** uma venda ou recorrência, e **desfazer/estornar** um lançamento pelo Extrato/Registro. Também nas duas telas novas (Controle de Leads, Follow-up).
