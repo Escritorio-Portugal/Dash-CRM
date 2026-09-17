@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.2 — Notificação gamificada de confirmação
+- Nova notificação que desce do topo da tela com um "pop" elástico, um ✓ dourado, e um som curto (gerado na hora, sem precisar de nenhum arquivo de áudio) — depois de ~2,4s se retrai sozinha, com fade.
+- Aparece depois de: **adicionar** uma venda ou recorrência nova, **registar um pagamento** (parcela, pagamento personalizado, custo marcado como pago), **excluir** uma venda ou recorrência, e **desfazer/estornar** um lançamento pelo Extrato/Registro. Também nas duas telas novas (Controle de Leads, Follow-up).
+- Erros continuam indo pelo aviso vermelho de sempre (embaixo, fica até você ver) — o novo toast é só pra confirmações de sucesso.
+- Testado o mecanismo isoladamente: mensagem certa, aparece, toca o som, e se retrai sozinha no tempo certo.
+
 ## v4.1 — Responsável por prospecção, Controle de Leads, Follow-up e Vendedores
 - **Controle de Campanhas** ganhou a coluna **Responsável** — atribui o lead a um vendedor (select), com filtro pra ver só os leads de um responsável específico. É a base do novo fluxo comercial: atribuir alguém torna aquele lead rastreável no controle dele.
 - **Nova tela "📋 Controle de Leads"** (barra lateral, gestor e vendedores) — cadastro manual de leads orgânicos (indicação, boca a boca), sem vir de planilha nenhuma. Campos: nome, data, serviço, status do lead, tipo de consultoria, qualidade, valor pago no dia, follow-up (sim/não) e responsável — com editar e excluir.
