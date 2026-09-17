@@ -60,20 +60,40 @@ input,select{font-family:inherit;}
 .nav button.active{background:var(--wine-2);color:#fff;box-shadow:inset 3px 0 0 var(--gold);}
 .nav button .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5;}
 
-/* Grupos recolhíveis da barra lateral — abrem/fecham com animação suave
-   (altura + chevron girando), e mostram uma bolinha dourada pulsante no
-   cabeçalho do grupo sempre que a tela atual está dentro dele — assim
-   dá pra saber onde você está mesmo com o grupo fechado. */
-.nav-group{margin-bottom:2px;}
-.nav-group-header{width:100%;text-align:left;background:none;border:none;color:#9AA3BD;padding:9px 12px;border-radius:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:.15s;}
-.nav-group-header:hover{background:rgba(255,255,255,.06);color:#fff;}
-.nav-group-chevron{display:inline-block;font-size:9px;transition:transform .3s cubic-bezier(.34,1.56,.64,1);}
+/* Grupos recolhíveis da barra lateral. Cada grupo tem uma cor própria
+   (dourado pra Operacional, azul-petróleo pra Financeiro) que aparece
+   como uma linha vertical à esquerda envolvendo o cabeçalho E os itens
+   de dentro — assim fica óbvio, visualmente, o que pertence a qual
+   setor, mesmo com vários itens abertos ao mesmo tempo. */
+.nav-group{
+  margin-bottom:8px; border-radius:10px; position:relative; padding-left:10px;
+  border-left:3px solid var(--nav-rail-dim);
+  background:linear-gradient(90deg, var(--nav-rail-glow) 0%, transparent 40%);
+  transition:border-color .25s ease;
+}
+.nav-group-gold{ --nav-rail-dim:rgba(187,142,29,.32); --nav-rail-glow:rgba(187,142,29,.08); --nav-rail-lit:#D9A82C; }
+.nav-group-teal{ --nav-rail-dim:rgba(45,150,163,.35); --nav-rail-glow:rgba(45,150,163,.09); --nav-rail-lit:#3FB8C9; }
+.nav-group.tem-ativo{ border-left-color:var(--nav-rail-lit); }
+.nav-group-header{
+  width:100%;text-align:left;background:none;border:none;color:#9AA3BD;
+  padding:9px 10px;border-radius:8px;font-size:11px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:8px;
+  cursor:pointer;transition:.15s;
+}
+.nav-group-header:hover{background:rgba(255,255,255,.07);color:#fff;}
+.nav-group-header.aberto{color:#EDEFF6;}
+.nav-group-chevron{display:inline-block;font-size:9px;color:var(--nav-rail-lit);transition:transform .3s cubic-bezier(.34,1.56,.64,1);}
 .nav-group-header.aberto .nav-group-chevron{transform:rotate(90deg);}
-.nav-group-dot-ativo{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px 2px rgba(187,142,29,.7);animation:navDotPulse 1.8s ease-in-out infinite;}
-@keyframes navDotPulse{0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.45;transform:scale(.85);}}
+/* A bolinha fica sempre presente (fraca) do lado esquerdo de cada
+   cabeçalho de grupo, igual já acontece em cada item individual — só
+   acende (dourado/azul, com brilho pulsante) quando a tela atual está
+   dentro daquele grupo. */
+.nav-group-dot-ativo{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.35;flex-shrink:0;transition:.2s;}
+.nav-group-dot-ativo.lit{background:var(--nav-rail-lit);opacity:1;box-shadow:0 0 8px 2px var(--nav-rail-lit);animation:navDotPulse 1.8s ease-in-out infinite;}
+@keyframes navDotPulse{0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.5;transform:scale(.82);}}
 .nav-group-body{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(.4,0,.2,1);}
 .nav-group-body.aberto{max-height:400px;}
-.nav-group-body-inner{padding-left:8px;padding-top:2px;}
+.nav-group-body-inner{padding-left:4px;padding-top:2px;}
 
 .sellers-block{flex:1;overflow-y:auto;padding:14px 12px;}
 .sellers-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#8992AC;}
@@ -1907,24 +1927,24 @@ function enterApp(){
    ========================================================= */
 const NAV_GESTOR = [
   {view:'overview', label:'Visão Geral'},
-  {group:'operacional', label:'🧭 Operacional', items:[
+  {view:'config', label:'Configurações'},
+  {view:'indice', label:'🔎 Índice'},
+  {group:'operacional', color:'gold', label:'🧭 Operacional', items:[
     {view:'vendedores', label:'👥 Vendedores'},
+    {view:'ranking', label:'Ranking'},
+    {view:'clientes', label:'Clientes'},
     {view:'metricas', label:'📈 Métricas'},
     {view:'campanhas', label:'🎯 Controle de Campanhas'},
     {view:'controle-leads', label:'📋 Controle de Leads'},
     {view:'follow-up', label:'📞 Follow-up'},
   ]},
-  {group:'financeiroGrupo', label:'💰 Financeiro', items:[
+  {group:'financeiroGrupo', color:'teal', label:'💰 Financeiro', items:[
     {view:'recurrences', label:'Recorrências'},
     {view:'recurrences-paid', label:'Recorrências pagas'},
     {view:'recurrences-nodate', label:'Sem data de pagamento'},
     {view:'sales', label:'Vendas'},
     {view:'financeiro', label:'Financeiro'},
   ]},
-  {view:'ranking', label:'Ranking'},
-  {view:'clientes', label:'Clientes'},
-  {view:'config', label:'Configurações'},
-  {view:'indice', label:'🔎 Índice'},
 ];
 const NAV_COLAB = [ {view:'my-panel', label:'Minhas Vendas'}, {view:'my-funil', label:'Funil Diário'}, {view:'campanhas', label:'🎯 Controle de Campanhas'}, {view:'controle-leads', label:'📋 Controle de Leads'}, {view:'follow-up', label:'📞 Follow-up'} ];
 
@@ -1936,11 +1956,11 @@ function renderNav(){
       const aberto = STATE.navGruposAbertos[it.group] !== false; // aberto por padrão
       const temAtivo = it.items.some(sub=>sub.view===STATE.view);
       return `
-      <div class="nav-group">
+      <div class="nav-group nav-group-${it.color} ${temAtivo?'tem-ativo':''}">
         <button class="nav-group-header ${aberto?'aberto':''}" data-nav-group="${it.group}">
+          <span class="nav-group-dot-ativo ${temAtivo?'lit':''}"></span>
           <span class="nav-group-chevron">▸</span>
           <span style="flex:1;">${it.label}</span>
-          ${temAtivo?'<span class="nav-group-dot-ativo" title="Você está aqui dentro"></span>':''}
         </button>
         <div class="nav-group-body ${aberto?'aberto':''}"><div class="nav-group-body-inner">${it.items.map(itemBtn).join('')}</div></div>
       </div>`;
@@ -3939,11 +3959,10 @@ function renderConfig(){
       <button class="btn gold" id="btnSaveComissao">Guardar regras</button>
     </div>
   </section>` : ''}
-  ${tab==='vendedores' ? `
-  <section class="block">
-    <div class="block-head"><h3>Vendedores (${STATE.sellers.length})</h3><div style="display:flex;gap:8px;"><button class="btn ghost" data-criar-conta-seller="">Criar conta de acesso</button><button class="btn gold" id="btnAddSellerCfg">+ Adicionar vendedor</button></div></div>
-    <table><thead><tr><th>Nome</th><th>Status</th><th>ID (p/ profiles)</th><th></th></tr></thead>
-    <tbody>${STATE.sellers.map(s=>`<tr>
+  ${tab==='vendedores' ? (()=>{
+    const ativos = STATE.sellers.filter(s=>s.ativo);
+    const inativos = STATE.sellers.filter(s=>!s.ativo);
+    const linhaVendedor = s => `<tr>
         <td><strong>${s.nome}</strong></td>
         <td><span class="chip ${s.ativo?'good':'bad'}">${s.ativo?'ativo':'inativo'}</span></td>
         <td><code>${s.id}</code></td>
@@ -3951,8 +3970,25 @@ function renderConfig(){
           <button class="btn ghost sm" data-view-seller="${s.id}">Ver perfil</button>
           ${s.ativo ? `<button class="btn danger sm" data-toggle-seller-cfg="${s.id}">Desativar</button>` : `<button class="btn gold sm" data-toggle-seller-cfg="${s.id}">Reativar</button>`}
         </td>
-      </tr>`).join('')}</tbody></table>
-  </section>` : ''}
+      </tr>`;
+    const painelAberto = !!STATE.mostrarVendedoresInativos;
+    return `
+  <section class="block">
+    <div class="block-head"><h3>Vendedores ativos (${ativos.length})</h3><div style="display:flex;gap:8px;"><button class="btn ghost" data-criar-conta-seller="">Criar conta de acesso</button><button class="btn gold" id="btnAddSellerCfg">+ Adicionar vendedor</button></div></div>
+    <table><thead><tr><th>Nome</th><th>Status</th><th>ID (p/ profiles)</th><th></th></tr></thead>
+    <tbody>${ativos.map(linhaVendedor).join('') || `<tr><td colspan="4"><div class="empty">Nenhum vendedor ativo.</div></td></tr>`}</tbody></table>
+  </section>
+  <div style="margin:10px 0;">
+    <button class="btn ghost sm" id="btnToggleVendedoresInativos"><span class="nav-group-chevron" style="display:inline-block;color:var(--ink-soft);transition:transform .3s cubic-bezier(.34,1.56,.64,1);transform:rotate(${painelAberto?'90deg':'0deg'});">▸</span> Vendedores inativos ${inativos.length?`<span class="chip neutral" style="margin-left:4px;">${inativos.length}</span>`:''}</button>
+    <div class="nav-group-body ${painelAberto?'aberto':''}" style="max-height:${painelAberto?'600px':'0'};">
+      <section class="block" style="margin-top:10px;">
+        <div class="block-head"><h3>Vendedores inativos</h3><span class="hint">fora do dia a dia — reative se precisar</span></div>
+        <table><thead><tr><th>Nome</th><th>Status</th><th>ID (p/ profiles)</th><th></th></tr></thead>
+        <tbody>${inativos.map(linhaVendedor).join('') || `<tr><td colspan="4"><div class="empty">Nenhum vendedor inativo.</div></td></tr>`}</tbody></table>
+      </section>
+    </div>
+  </div>`;
+  })() : ''}
   ${tab==='pagamentos' ? `
   <section class="block">
     <div class="block-head"><h3>Formas de pagamento (${formasPagamentoList().length})</h3></div>
@@ -5239,6 +5275,8 @@ function wireViewportEvents(){
   const btnBuscarIndice = document.getElementById('btnBuscarIndice');
   const btnToggleRecemPagas = document.getElementById('btnToggleRecemPagas');
   if(btnToggleRecemPagas) btnToggleRecemPagas.addEventListener('click', ()=>{ STATE.mostrarRecemPagas = !STATE.mostrarRecemPagas; renderAll(); });
+  const btnToggleVendedoresInativos = document.getElementById('btnToggleVendedoresInativos');
+  if(btnToggleVendedoresInativos) btnToggleVendedoresInativos.addEventListener('click', ()=>{ STATE.mostrarVendedoresInativos = !STATE.mostrarVendedoresInativos; renderAll(); });
   const campanhasResponsavelSelect = document.getElementById('campanhasResponsavelSelect');
   if(campanhasResponsavelSelect) campanhasResponsavelSelect.addEventListener('change', ()=>{ STATE.campanhasResponsavelFilter = campanhasResponsavelSelect.value; renderAll(); });
 
