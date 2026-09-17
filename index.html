@@ -392,6 +392,99 @@ async function sbSet(key, value){
   if(error) throw error;
 }
 
+/* ============================================================
+   Camada de dados — tabelas relacionais (vendas/recorrências)
+   ============================================================
+   Migração v5/v6: vendas e recorrências deixaram de viver dentro de um
+   blob JSON por vendedor (crm:sales:<id>/crm:recurrences:<id>) e agora
+   moram em tabelas de verdade (vendas/recorrencias/parcelas/
+   pagamentos_extras) — cada gravação vira um UPDATE/INSERT de uma
+   linha só, não mais a reescrita do array inteiro do vendedor.
+
+   O resto do sistema NÃO percebe essa mudança: STATE.sales e
+   STATE.recurrences continuam com exatamente o mesmo formato de
+   sempre (mesmos nomes de campo em camelCase, parcelas e
+   pagamentosExtras aninhados dentro de cada recorrência). Essas
+   funções abaixo são a ÚNICA ponte entre os dois formatos — todo o
+   resto do código (recStatus, buildEvents, todas as telas) continua
+   igual, sem saber que a persistência mudou por baixo. */
+function vendaToRow(s){
+  return {
+    id: s.id, data: s.data, cliente: s.cliente, vendedor_id: s.vendedorId, vendedor_nome: s.vendedorNome||null,
+    origem: s.origem||null, servico: s.servico||null, valor_total: s.valorTotal||0, valor_pago: s.valorPago||0,
+    pagamento_integral: s.pagamentoIntegral!==false, forma_pagamento: s.formaPagamento||null,
+    honorario_base: s.honorarioBase!=null ? s.honorarioBase : null, iva: s.iva!=null ? s.iva : null,
+    tx_adm: s.txAdm!=null ? s.txAdm : null, ja_contabilizado_via_recorrencia: !!s.jaContabilizadoViaRecorrencia,
+    registro: s.registro||null, obs: s.obs||null
+  };
+}
+function rowToVenda(row){
+  return {
+    id: row.id, data: row.data, cliente: row.cliente, vendedorId: row.vendedor_id, vendedorNome: row.vendedor_nome,
+    origem: row.origem, servico: row.servico, valorTotal: Number(row.valor_total)||0, valorPago: Number(row.valor_pago)||0,
+    pagamentoIntegral: row.pagamento_integral, nParcelas: null, formaPagamento: row.forma_pagamento,
+    honorarioBase: row.honorario_base!=null ? Number(row.honorario_base) : null,
+    iva: row.iva!=null ? Number(row.iva) : null, txAdm: row.tx_adm!=null ? Number(row.tx_adm) : null,
+    jaContabilizadoViaRecorrencia: !!row.ja_contabilizado_via_recorrencia, registro: row.registro, obs: row.obs
+  };
+}
+function recToRow(r){
+  return {
+    id: r.id, data_venda: r.dataVenda, cliente: r.cliente, servico: r.servico||null,
+    vendedor_id: r.vendedorId, vendedor_nome: r.vendedorNome||null, valor_contrato: r.valorContrato||0,
+    valor_entrada: r.valorEntrada||0, honorario_base: r.honorarioBase!=null ? r.honorarioBase : null,
+    iva: r.iva!=null ? r.iva : null, tx_adm: r.txAdm!=null ? r.txAdm : null, n_parcelas: r.nParcelas||1,
+    forma_pagamento: r.formaPagamento||null, origem: r.origem||null, isento_taxa_adm: !!r.isentoTaxaAdm,
+    origem_sheet: r.origemSheet||null
+  };
+}
+function rowToRec(row, parcelasRows, extrasRows){
+  return {
+    id: row.id, dataVenda: row.data_venda, cliente: row.cliente, servico: row.servico,
+    vendedorId: row.vendedor_id, vendedorNome: row.vendedor_nome, valorContrato: Number(row.valor_contrato)||0,
+    valorEntrada: Number(row.valor_entrada)||0, honorarioBase: row.honorario_base!=null ? Number(row.honorario_base) : null,
+    iva: row.iva!=null ? Number(row.iva) : null, txAdm: row.tx_adm!=null ? Number(row.tx_adm) : null,
+    nParcelas: row.n_parcelas, formaPagamento: row.forma_pagamento, origem: row.origem,
+    isentoTaxaAdm: !!row.isento_taxa_adm, origemSheet: row.origem_sheet,
+    parcelas: parcelasRows.filter(p=>p.recorrencia_id===row.id).sort((a,b)=>a.numero-b.numero).map(p=>({
+      numero: p.numero, data: p.data, pago: !!p.pago, valor: p.valor!=null ? Number(p.valor) : null
+    })),
+    pagamentosExtras: extrasRows.filter(e=>e.recorrencia_id===row.id).map(e=>({
+      id: e.id, data: e.data, valor: Number(e.valor)||0
+    }))
+  };
+}
+/* Busca vendas e recorrências direto das tabelas relacionais — gestor
+   vê tudo, colaborador só as suas (a própria query já filtra, e a RLS
+   garante isso de novo do lado do servidor, então é seguro mesmo que
+   um bug aqui esqueça o filtro). */
+async function carregarVendasRecorrencias(){
+  const gestorMode = STATE.role==='gestor';
+  let vendasQuery = supa.from('vendas').select('*');
+  let recsQuery = supa.from('recorrencias').select('*');
+  if(!gestorMode){
+    vendasQuery = vendasQuery.eq('vendedor_id', STATE.myOwnSellerId);
+    recsQuery = recsQuery.eq('vendedor_id', STATE.myOwnSellerId);
+  }
+  const [vendasRes, recsRes] = await Promise.all([vendasQuery, recsQuery]);
+  if(vendasRes.error) throw vendasRes.error;
+  if(recsRes.error) throw recsRes.error;
+  const recIds = (recsRes.data||[]).map(r=>r.id);
+  let parcelasRows = [], extrasRows = [];
+  if(recIds.length){
+    const [pRes, xRes] = await Promise.all([
+      supa.from('parcelas').select('*').in('recorrencia_id', recIds),
+      supa.from('pagamentos_extras').select('*').in('recorrencia_id', recIds)
+    ]);
+    if(pRes.error) throw pRes.error;
+    if(xRes.error) throw xRes.error;
+    parcelasRows = pRes.data||[];
+    extrasRows = xRes.data||[];
+  }
+  STATE.sales = (vendasRes.data||[]).map(rowToVenda);
+  STATE.recurrences = (recsRes.data||[]).map(row=>rowToRec(row, parcelasRows, extrasRows));
+}
+
 // Dados de negócio: Supabase é a fonte única partilhada
 const DB = {
   async get(key, fallback){
@@ -588,28 +681,15 @@ async function loadState(){
   STATE.recurrences = [];
   if(STATE.role==='gestor'){
     STATE.costs = await DB.get('crm:costs', SEED_DATA.costs);
+    await carregarVendasRecorrencias();
     for(const s of STATE.sellers){
-      const [sSales, sRecs, sFunil] = await Promise.all([
-        DB.get('crm:sales:'+s.id, []),
-        DB.get('crm:recurrences:'+s.id, []),
-        DB.get('crm:funil:'+s.id, {})
-      ]);
-      STATE.sales.push(...sSales);
-      STATE.recurrences.push(...sRecs);
-      s.funilDiario = sFunil;
+      s.funilDiario = await DB.get('crm:funil:'+s.id, {});
     }
   } else if(STATE.role==='colaborador' && STATE.myOwnSellerId){
     STATE.costs = [];
-    const id = STATE.myOwnSellerId;
-    const [mySales, myRecs, myFunil] = await Promise.all([
-      DB.get('crm:sales:'+id, []),
-      DB.get('crm:recurrences:'+id, []),
-      DB.get('crm:funil:'+id, {})
-    ]);
-    STATE.sales = mySales;
-    STATE.recurrences = myRecs;
-    const me = STATE.sellers.find(s=>s.id===id);
-    if(me) me.funilDiario = myFunil;
+    await carregarVendasRecorrencias();
+    const me = STATE.sellers.find(s=>s.id===STATE.myOwnSellerId);
+    if(me) me.funilDiario = await DB.get('crm:funil:'+STATE.myOwnSellerId, {});
   }
 }
 
@@ -906,19 +986,56 @@ async function persist(part, sellerId){
   if(part==='costs'){ await DB.set('crm:costs', STATE.costs); return; }
   if(part==='meta'){ await DB.set('crm:meta', STATE.meta); return; }
   if(part==='sales'){
-    const ids = STATE.role==='gestor' ? STATE.sellers.map(s=>s.id) : [STATE.myOwnSellerId];
+    const escopo = STATE.role==='gestor' ? STATE.sales : STATE.sales.filter(s=>s.vendedorId===STATE.myOwnSellerId);
     if(STATE.role==='colaborador' && STATE.sales.some(s=>s.vendedorId!==STATE.myOwnSellerId)){
       showErrorToast('Uma venda ficou associada a outro vendedor e não pôde ser gravada por aqui — peça ao gestor pra corrigir o vendedor dela.');
     }
-    for(const id of ids){ await DB.set('crm:sales:'+id, STATE.sales.filter(s=>s.vendedorId===id)); }
+    if(escopo.length){
+      const { error } = await supa.from('vendas').upsert(escopo.map(vendaToRow));
+      if(error) throw error;
+    }
     return;
   }
   if(part==='recurrences'){
-    const ids = STATE.role==='gestor' ? STATE.sellers.map(s=>s.id) : [STATE.myOwnSellerId];
+    const escopo = STATE.role==='gestor' ? STATE.recurrences : STATE.recurrences.filter(r=>r.vendedorId===STATE.myOwnSellerId);
     if(STATE.role==='colaborador' && STATE.recurrences.some(r=>r.vendedorId!==STATE.myOwnSellerId)){
       showErrorToast('Uma recorrência ficou associada a outro vendedor e não pôde ser gravada por aqui — peça ao gestor pra corrigir o vendedor dela.');
     }
-    for(const id of ids){ await DB.set('crm:recurrences:'+id, STATE.recurrences.filter(r=>r.vendedorId===id)); }
+    if(escopo.length){
+      const { error: eRec } = await supa.from('recorrencias').upsert(escopo.map(recToRow));
+      if(eRec) throw eRec;
+
+      const parcelaRows = [];
+      escopo.forEach(r=>r.parcelas.forEach(p=>parcelaRows.push({
+        recorrencia_id: r.id, numero: p.numero, data: p.data||null, pago: !!p.pago, valor: p.valor!=null ? p.valor : null
+      })));
+      if(parcelaRows.length){
+        const { error: eP } = await supa.from('parcelas').upsert(parcelaRows);
+        if(eP) throw eP;
+      }
+      // limpa parcelas "orfãs" — sobram quando uma edição reduz o nº de parcelas
+      for(const r of escopo){
+        const { error: eDelP } = await supa.from('parcelas').delete().eq('recorrencia_id', r.id).gt('numero', r.nParcelas||1);
+        if(eDelP) throw eDelP;
+      }
+
+      const extraRows = [];
+      escopo.forEach(r=>(r.pagamentosExtras||[]).forEach(ex=>extraRows.push({
+        id: ex.id, recorrencia_id: r.id, data: ex.data, valor: ex.valor||0
+      })));
+      if(extraRows.length){
+        const { error: eX } = await supa.from('pagamentos_extras').upsert(extraRows);
+        if(eX) throw eX;
+      }
+      // limpa pagamentos personalizados removidos (ex.: um estorno)
+      for(const r of escopo){
+        const idsAtuais = (r.pagamentosExtras||[]).map(ex=>ex.id);
+        let q = supa.from('pagamentos_extras').delete().eq('recorrencia_id', r.id);
+        if(idsAtuais.length) q = q.not('id', 'in', `(${idsAtuais.map(id=>'"'+id+'"').join(',')})`);
+        const { error: eDelX } = await q;
+        if(eDelX) throw eDelX;
+      }
+    }
     return;
   }
   if(part==='funil'){
@@ -3470,40 +3587,85 @@ function renderCostsTab(list, tab, monthKeyAtual){
 function linhasFinanceiras(filter){
   const linhas = [];
   STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && (s.valorPago||0)>0 && inPeriodOrAll(s.data, filter)).forEach(s=>{
-    linhas.push({ data:s.data, emoji:'💳', tipo:'Venda integral', categoria:'Receita', cliente:s.cliente, vendedor:s.vendedorNome, forma:s.formaPagamento||'—', valor:s.valorPago, sinal:1 });
+    linhas.push({ data:s.data, emoji:'💳', tipo:'Venda integral', categoria:'Receita', cliente:s.cliente, vendedor:s.vendedorNome, forma:s.formaPagamento||'—', valor:s.valorPago, sinal:1, _ref:{tipo:'venda', saleId:s.id} });
   });
   STATE.recurrences.forEach(r=>{
     const st = recStatus(r);
     if((r.valorEntrada||0)>0 && inPeriodOrAll(r.dataVenda, filter)){
-      linhas.push({ data:r.dataVenda, emoji:'🔁', tipo:'Entrada de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor:r.valorEntrada, sinal:1 });
+      linhas.push({ data:r.dataVenda, emoji:'🔁', tipo:'Entrada de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor:r.valorEntrada, sinal:1, _ref:{tipo:'entrada', recId:r.id} });
     }
     r.parcelas.forEach(p=>{
       if(p.pago && p.data && inPeriodOrAll(p.data, filter)){
-        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor: p.valor!=null ? p.valor : st.valorParcela, sinal:1 });
+        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor: p.valor!=null ? p.valor : st.valorParcela, sinal:1, _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
       if(ex.data && inPeriodOrAll(ex.data, filter)){
-        linhas.push({ data:ex.data, emoji:'💠', tipo:'Pagamento personalizado', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor: ex.valor||0, sinal:1 });
+        linhas.push({ data:ex.data, emoji:'💠', tipo:'Pagamento personalizado', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor: ex.valor||0, sinal:1, _ref:{tipo:'extra', recId:r.id, extraId:ex.id} });
       }
     });
   });
   STATE.costs.filter(c=>c.categoria==='FIXO').forEach(c=>{
     if(c.pago && c.dataPagamento && inPeriodOrAll(c.dataPagamento, filter)){
-      linhas.push({ data:c.dataPagamento, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
+      linhas.push({ data:c.dataPagamento, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoExato', custoId:c.id} });
     }
     if(c.pagoPorMes){
-      Object.values(c.pagoPorMes).forEach(reg=>{
+      Object.entries(c.pagoPorMes).forEach(([mesKey,reg])=>{
         if(reg && typeof reg==='object' && reg.pago && reg.data && inPeriodOrAll(reg.data, filter)){
-          linhas.push({ data:reg.data, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
+          linhas.push({ data:reg.data, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoMes', custoId:c.id, mes:mesKey} });
         }
       });
     }
   });
   STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.pago && inPeriodOrAll(c.vencimento, filter)).forEach(c=>{
-    linhas.push({ data:c.vencimento, emoji:'📦', tipo:'Custo variável', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
+    linhas.push({ data:c.vencimento, emoji:'📦', tipo:'Custo variável', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1, _ref:{tipo:'custoVariavel', custoId:c.id} });
   });
   return linhas.sort((a,b)=> (b.data||'').localeCompare(a.data||''));
+}
+/* Desfaz um lançamento diretamente do Extrato/Registro — cada tipo tem seu
+   jeito certo de "voltar atrás": uma venda vira estorno (o valor pago
+   zera, a venda continua existindo como pendente, pra não sumir do
+   histórico); uma parcela ou entrada volta a ficar pendente; um pagamento
+   personalizado é removido; um custo volta a ficar por pagar. */
+async function estornarLancamento(ref){
+  if(ref.tipo==='venda'){
+    const s = STATE.sales.find(x=>x.id===ref.saleId);
+    if(!s) return;
+    s.valorPago = 0;
+    await persist('sales');
+  } else if(ref.tipo==='entrada'){
+    const r = STATE.recurrences.find(x=>x.id===ref.recId);
+    if(!r) return;
+    r.valorEntrada = 0;
+    await persist('recurrences');
+  } else if(ref.tipo==='parcela'){
+    const r = STATE.recurrences.find(x=>x.id===ref.recId);
+    if(!r) return;
+    const p = r.parcelas.find(x=>x.numero===ref.numero);
+    if(!p) return;
+    p.pago = false; p.data = null; p.valor = null;
+    await persist('recurrences');
+  } else if(ref.tipo==='extra'){
+    const r = STATE.recurrences.find(x=>x.id===ref.recId);
+    if(!r) return;
+    r.pagamentosExtras = (r.pagamentosExtras||[]).filter(e=>e.id!==ref.extraId);
+    await persist('recurrences');
+  } else if(ref.tipo==='custoFixoExato'){
+    const c = STATE.costs.find(x=>x.id===ref.custoId);
+    if(!c) return;
+    c.pago = false; c.dataPagamento = null;
+    await persist('costs');
+  } else if(ref.tipo==='custoFixoMes'){
+    const c = STATE.costs.find(x=>x.id===ref.custoId);
+    if(!c || !c.pagoPorMes) return;
+    c.pagoPorMes[ref.mes] = {pago:false};
+    await persist('costs');
+  } else if(ref.tipo==='custoVariavel'){
+    const c = STATE.costs.find(x=>x.id===ref.custoId);
+    if(!c) return;
+    c.pago = false;
+    await persist('costs');
+  }
 }
 function renderExtratoTab(){
   const data = STATE.extratoData || todayISO();
@@ -3546,6 +3708,7 @@ function renderExtratoTab(){
           <div class="extrato-tags"><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span>${l.vendedor&&l.vendedor!=='—'?`<span class="chip neutral">👤 ${l.vendedor}</span>`:''}${l.forma&&l.forma!=='—'?`<span class="chip neutral">💳 ${l.forma}</span>`:''}${l.tipo.includes('pendente')?'<span class="chip bad">pendente</span>':''}</div>
         </div>
         <div class="extrato-valor ${l.sinal>0?'good':'bad'}">${l.sinal>0?'+':'−'} ${fmtEUR(l.valor)}</div>
+        ${(STATE.role==='gestor' && l._ref) ? `<button class="btn ghost sm" data-estornar='${JSON.stringify(l._ref)}' data-estornar-desc="${l.tipo} de ${l.cliente} (${fmtEUR(l.valor)})" title="Desfazer este lançamento">↩️</button>` : ''}
       </div>`).join('')}</div>` : `<div class="empty">Nenhuma movimentação registada nesse dia.</div>`}
   </section>`;
 }
@@ -3566,7 +3729,7 @@ function renderRegistroTab(filter){
   </div>
   <section class="block">
     <div class="block-head"><h3>Registos do período (${linhas.length})</h3><span class="hint">ao vivo — toda venda, recorrência e custo pago aparece aqui na hora</span></div>
-    ${linhas.length ? `<table><thead><tr><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Data</th><th>Fonte</th><th>Valor</th></tr></thead>
+    ${linhas.length ? `<table><thead><tr><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Data</th><th>Fonte</th><th>Valor</th>${STATE.role==='gestor'?'<th></th>':''}</tr></thead>
     <tbody>${linhas.map(l=>`<tr>
         <td>${l.emoji} <strong>${l.cliente}</strong>${l.vendedor&&l.vendedor!=='—'?` <span style="color:var(--ink-soft);font-size:11.5px;">· ${l.vendedor}</span>`:''}</td>
         <td>${l.tipo}</td>
@@ -3574,6 +3737,7 @@ function renderRegistroTab(filter){
         <td>${fmtDate(l.data)}</td>
         <td>${l.forma}</td>
         <td class="tnum ${l.sinal>0?'good':'bad'}">${l.sinal>0?'+':'−'} ${fmtEUR(l.valor)}</td>
+        ${STATE.role==='gestor' ? `<td>${l._ref?`<button class="btn ghost sm" data-estornar='${JSON.stringify(l._ref)}' data-estornar-desc="${l.tipo} de ${l.cliente} (${fmtEUR(l.valor)})">Desfazer</button>`:''}</td>` : ''}
       </tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registo nesse período.</div>`}
   </section>`;
 }
@@ -4365,7 +4529,7 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir venda', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a venda de <strong>${sale.cliente}</strong> (${fmtEUR(sale.valorTotal)}, ${fmtDate(sale.data)})? Esta ação não pode ser desfeita — use isto pra remover duplicatas.`,
-        onConfirm: async ()=>{ STATE.sales = STATE.sales.filter(s=>s.id!==saleId); await persist('sales'); renderAll(); }
+        onConfirm: async ()=>{ STATE.sales = STATE.sales.filter(s=>s.id!==saleId); await supa.from('vendas').delete().eq('id', saleId); await persist('sales'); renderAll(); }
       });
     });
   });
@@ -4390,7 +4554,7 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir recorrência', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a recorrência de <strong>${rec.cliente}</strong>? Esta ação não pode ser desfeita.`,
-        onConfirm: async ()=>{ STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); await persist('recurrences'); renderAll(); }
+        onConfirm: async ()=>{ STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); await supa.from('recorrencias').delete().eq('id', recId); await persist('recurrences'); renderAll(); }
       });
     });
   });
@@ -4595,6 +4759,23 @@ function wireViewportEvents(){
     });
   });
   const extratoDataInput = document.getElementById('extratoDataInput');
+  vp.querySelectorAll('[data-estornar]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      let ref;
+      try{ ref = JSON.parse(btn.dataset.estornar); }catch(e){ return; }
+      const desc = btn.dataset.estornarDesc || 'este lançamento';
+      const ehVenda = ref.tipo==='venda';
+      openConfirmModal({
+        title: ehVenda ? 'Estornar venda' : 'Desfazer lançamento',
+        danger: true,
+        confirmLabel: ehVenda ? 'Estornar' : 'Desfazer',
+        message: ehVenda
+          ? `Isso vai estornar <strong>${desc}</strong> — o valor recebido volta a zero e a venda passa a aparecer como pendente (ela não desaparece do sistema). Tem a certeza?`
+          : `Isso vai desfazer <strong>${desc}</strong>, voltando o valor a ficar em aberto. Tem a certeza?`,
+        onConfirm: async ()=>{ await estornarLancamento(ref); renderAll(); }
+      });
+    });
+  });
   const btnRefreshLeads = document.getElementById('btnRefreshLeads');
   if(btnRefreshLeads) btnRefreshLeads.addEventListener('click', ()=>{ STATE.leads = []; loadLeadsData(); });
   const btnRetryLeads = document.getElementById('btnRetryLeads');
