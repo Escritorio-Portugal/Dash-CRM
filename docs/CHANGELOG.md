@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.4 — Painel "Pagamentos de hoje" em Recorrências (reverter clique errado na hora)
+- Em **Recorrências em aberto**, logo acima do botão "+ Nova recorrência", uma setinha recolhida com "Pagamentos de hoje" (mostra quantos, se houver algum). Clicando, expande com animação suave.
+- Mostra toda parcela, entrada ou pagamento personalizado marcado como pago **hoje**, de qualquer cliente, com um botão **Ressarcir** em cada linha — reaproveita o mesmo mecanismo já existente de estorno do Extrato, então já vem com a confirmação antes de agir e o toast de sucesso depois.
+- Resolve direto o cenário de clicar sem querer numa parcela: em vez de precisar ir até o Extrato do dia procurar o lançamento, o próprio local onde o erro aconteceu já mostra o jeito de desfazer.
+- Testado o cenário completo: parcela paga por engano hoje aparece no painel, o botão carrega a referência certa, e "Ressarcir" devolve a parcela pro estado pendente e ela some do painel.
+
 ## v4.3 — Barra lateral em grupos recolhíveis
 - **Nova organização do menu** (só gestor): duas abas agrupadoras, que abrem e fecham com um clique, com animação suave (altura + seta girando):
   - **🧭 Operacional**: Vendedores, Métricas, Controle de Campanhas, Controle de Leads, Follow-up.
