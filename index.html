@@ -2648,7 +2648,6 @@ function renderRecurrences(){
   </div>
   <section class="block">
     <div class="block-head"><h3>Recorrências em aberto (${abertas.length})</h3><button class="btn gold" id="btnAddRec">+ Nova recorrência</button></div>
-    <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">Recorrências 100% pagas saem automaticamente desta lista e vão para "Recorrências pagas", no menu ao lado.</span></div>
     ${recurrenceTable([...abertas].sort((a,b)=> (b.dataVenda||'').localeCompare(a.dataVenda||'')))}
   </section>`;
 }
