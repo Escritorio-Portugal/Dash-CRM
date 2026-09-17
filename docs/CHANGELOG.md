@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.5 — Menu reorganizado, visual dos grupos mais elaborado, vendedores inativos escondidos
+- **Reorganização do menu**: agora só ficam livres no topo Visão Geral, Configurações e Índice. Logo abaixo, os dois grupos — Ranking e Clientes entraram pra dentro de "Operacional".
+- **Visual dos grupos bem mais aparente**: cada grupo tem uma linha vertical colorida à esquerda que envolve o cabeçalho e os itens de dentro — dourado pra Operacional, azul-petróleo pra Financeiro — deixando claro visualmente o que pertence a qual setor.
+- **Bolinha de atividade movida pra esquerda**, no mesmo lugar onde já tem a bolinha de cada item individual — sempre presente (fraca), e acende com brilho pulsante na cor do grupo quando a tela atual está lá dentro.
+- **Vendedores inativos** saíram da tabela principal em Configurações → Vendedores e foram pra um painel recolhido, escondido por padrão ("Vendedores inativos"), pra não poluir o dia a dia — a tabela principal agora mostra só os ativos.
+- Testado: ordem do menu, Ranking/Clientes dentro de Operacional, cores certas por grupo, bolinha à esquerda apagada/acesa no lugar certo, e vendedor inativo escondido até abrir o painel.
+
 ## v4.4 — Painel "Pagamentos de hoje" em Recorrências (reverter clique errado na hora)
 - Em **Recorrências em aberto**, logo acima do botão "+ Nova recorrência", uma setinha recolhida com "Pagamentos de hoje" (mostra quantos, se houver algum). Clicando, expande com animação suave.
 - Mostra toda parcela, entrada ou pagamento personalizado marcado como pago **hoje**, de qualquer cliente, com um botão **Ressarcir** em cada linha — reaproveita o mesmo mecanismo já existente de estorno do Extrato, então já vem com a confirmação antes de agir e o toast de sucesso depois.
