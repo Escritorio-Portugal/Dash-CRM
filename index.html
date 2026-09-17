@@ -649,6 +649,12 @@ let STATE = {
   leadsFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   searchLeads: '',
   leadEdits: {},
+  controleLeads: [],
+  controleLeadsFilter: { granularity:'all' },
+  searchControleLeads: '',
+  followUps: [],
+  followUpsFilter: { granularity:'all' },
+  searchFollowUps: '',
   controleCampanhasTab: 'lista',
   campanhasFilter: { granularity:'month', anchor: todayISO().slice(0,7) },
   searchCampanhas: '',
@@ -677,6 +683,8 @@ async function loadState(){
   STATE.services = await DB.get('crm:services', SEED_DATA.services);
   STATE.meta = await DB.get('crm:meta', SEED_DATA.meta);
   STATE.leadEdits = await DB.get('crm:leadEdits', {});
+  STATE.controleLeads = await DB.get('crm:controleLeads', []);
+  STATE.followUps = await DB.get('crm:followUps', []);
   STATE.sales = [];
   STATE.recurrences = [];
   if(STATE.role==='gestor'){
@@ -1082,6 +1090,8 @@ async function persist(part, sellerId){
     return;
   }
   if(part==='leadEdits'){ await DB.set('crm:leadEdits', STATE.leadEdits); return; }
+  if(part==='controleLeads'){ await DB.set('crm:controleLeads', STATE.controleLeads); return; }
+  if(part==='followUps'){ await DB.set('crm:followUps', STATE.followUps); return; }
 }
 
 
@@ -1820,15 +1830,18 @@ const NAV_GESTOR = [
   {view:'recurrences-paid', label:'Recorrências pagas'},
   {view:'recurrences-nodate', label:'Sem data de pagamento'},
   {view:'sales', label:'Vendas'},
+  {view:'vendedores', label:'👥 Vendedores'},
   {view:'ranking', label:'Ranking'},
   {view:'clientes', label:'Clientes'},
   {view:'metricas', label:'📈 Métricas'},
   {view:'campanhas', label:'🎯 Controle de Campanhas'},
+  {view:'controle-leads', label:'📋 Controle de Leads'},
+  {view:'follow-up', label:'📞 Follow-up'},
   {view:'config', label:'Configurações'},
   {view:'financeiro', label:'Financeiro'},
   {view:'indice', label:'🔎 Índice'},
 ];
-const NAV_COLAB = [ {view:'my-panel', label:'Minhas Vendas'}, {view:'my-funil', label:'Funil Diário'}, {view:'campanhas', label:'🎯 Controle de Campanhas'} ];
+const NAV_COLAB = [ {view:'my-panel', label:'Minhas Vendas'}, {view:'my-funil', label:'Funil Diário'}, {view:'campanhas', label:'🎯 Controle de Campanhas'}, {view:'controle-leads', label:'📋 Controle de Leads'}, {view:'follow-up', label:'📞 Follow-up'} ];
 
 function renderNav(){
   const items = STATE.role==='gestor' ? NAV_GESTOR : NAV_COLAB;
@@ -1868,7 +1881,7 @@ function renderSidebar(){
 }
 
 function renderTopbar(){
-  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', 'recurrences-nodate':'Sem data de pagamento', sales:'Vendas', ranking:'Ranking de Vendedores', clientes:'Clientes', metricas:'Métricas', campanhas:'Controle de Campanhas', indice:'Índice', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
+  const titles = {overview:'Visão Geral', recurrences:'Recorrências', 'recurrences-paid':'Recorrências pagas', 'recurrences-nodate':'Sem data de pagamento', sales:'Vendas', vendedores:'Vendedores', ranking:'Ranking de Vendedores', clientes:'Clientes', metricas:'Métricas', campanhas:'Controle de Campanhas', 'controle-leads':'Controle de Leads', 'follow-up':'Follow-up', indice:'Índice', 'seller-detail':'Vendedor', config:'Configurações', financeiro:'Financeiro', 'my-panel':'Minhas Vendas', 'my-funil':'Funil Diário'};
   document.getElementById('pageTitle').textContent = STATE.view==='overview' ? '' : (titles[STATE.view] || '');
   const inline = document.getElementById('metaInline');
   if(STATE.view==='overview'){
@@ -2832,6 +2845,7 @@ function leadComEdicoes(lead){
     qualificado: e.qualidade!=null ? e.qualidade : lead.qualificado,
     consultoria: e.consultoria!=null ? e.consultoria : lead.consultoria,
     servicoFechado: e.servicoFechado!=null ? e.servicoFechado : lead.servicoFechado,
+    responsavel: e.responsavel!=null ? e.responsavel : (lead.responsavel||''),
     _editado: true
   };
 }
@@ -2870,6 +2884,248 @@ function buscarClienteCompleto(query, filter){
 
   return { clientesDistintos, vendas, recs, pagamentos, totalVendido, totalPago, totalPendente, formasPagamento, qtdNegocios: vendas.length+recs.length };
 }
+/* ===== Controle de Leads — leads orgânicos, cadastrados na mão ===== */
+function abrirNovoLeadManualModal(leadId){
+  const editando = leadId ? STATE.controleLeads.find(l=>l.id===leadId) : null;
+  const vendedoresAtivos = activeSellers();
+  const servicoOpts = [...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>`<option value="${s.nome}">`).join('');
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal">
+    <div class="modal-head"><h3>${editando?'Editar lead':'Novo lead'}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nome do lead</label><input type="text" id="clNome" value="${editando?editando.nome:''}"></div>
+      <div class="field-row">
+        <div class="field"><label>Data</label><input type="date" id="clData" value="${editando?editando.data:todayISO()}"></div>
+        <div class="field"><label>Serviço</label><input list="clServicoList" id="clServico" value="${editando?editando.servico||'':''}"><datalist id="clServicoList">${servicoOpts}</datalist></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Status do lead</label><select id="clStatus"><option value="">—</option>${STATUS_LEAD_OPCOES.map(o=>`<option ${editando&&editando.status===o?'selected':''}>${o}</option>`).join('')}</select></div>
+        <div class="field"><label>Qualidade</label><select id="clQualidade"><option value="">—</option>${QUALIDADE_LEAD_OPCOES.map(o=>`<option ${editando&&editando.qualidade===o?'selected':''}>${o}</option>`).join('')}</select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Tipo de consultoria</label><select id="clConsultoria"><option value="">—</option>${CONSULTORIA_OPCOES.map(o=>`<option ${editando&&editando.consultoria===o?'selected':''}>${o}</option>`).join('')}</select></div>
+        <div class="field"><label>Valor pago no dia (€)</label><input type="number" min="0" step="0.01" id="clValorPago" value="${editando?editando.valorPagoDia||0:0}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Responsável</label><select id="clResponsavel"><option value="">—</option>${vendedoresAtivos.map(s=>`<option ${editando&&editando.responsavel===s.nome?'selected':''}>${s.nome}</option>`).join('')}</select></div>
+        <div class="field"><label>Follow-up?</label><select id="clFollowUp"><option value="nao" ${editando&&!editando.followUp?'selected':''}>Não</option><option value="sim" ${editando&&editando.followUp?'selected':''}>Sim</option></select></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">${editando?'Guardar':'Adicionar'}</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+  document.getElementById('mSave').onclick = async ()=>{
+    const nome = document.getElementById('clNome').value.trim();
+    if(!nome){ alert('Informe o nome do lead.'); return; }
+    const dados = {
+      nome, data: document.getElementById('clData').value || todayISO(),
+      servico: document.getElementById('clServico').value.trim(),
+      status: document.getElementById('clStatus').value,
+      qualidade: document.getElementById('clQualidade').value,
+      consultoria: document.getElementById('clConsultoria').value,
+      valorPagoDia: Number(document.getElementById('clValorPago').value)||0,
+      responsavel: document.getElementById('clResponsavel').value,
+      followUp: document.getElementById('clFollowUp').value==='sim'
+    };
+    if(editando){ Object.assign(editando, dados); }
+    else { STATE.controleLeads.push({ id:'cl-'+Date.now(), ...dados }); }
+    await persist('controleLeads'); closeModal(); renderAll();
+  };
+}
+function renderControleLeads(){
+  const filter = STATE.controleLeadsFilter;
+  const meses = [...new Set(STATE.controleLeads.map(l=>l.data.slice(0,7)))].sort();
+  const vendedoresAtivos = activeSellers();
+  const responsavelFiltro = STATE.controleLeadsResponsavelFilter || 'all';
+  const lista = STATE.controleLeads
+    .filter(l=>inPeriodOrAll(l.data, filter) && matchesSearch(l.nome, STATE.searchControleLeads))
+    .filter(l=> responsavelFiltro==='all' || l.responsavel===responsavelFiltro)
+    .sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  return `
+  <div class="field-hint" style="margin-bottom:12px;">📋 Leads que chegaram de forma orgânica (indicação, boca a boca, etc.) — cadastrados na mão, não vêm de planilha nenhuma.</div>
+  ${renderGenericFilterBar('controleLeadsFilter', ['all','month','week','day'], meses)}
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0;">
+    <span style="font-size:12.5px;font-weight:600;color:var(--ink-soft);">Responsável:</span>
+    <select id="clResponsavelSelect">
+      <option value="all" ${responsavelFiltro==='all'?'selected':''}>Todos</option>
+      <option value="" ${responsavelFiltro===''?'selected':''}>Sem responsável</option>
+      ${vendedoresAtivos.map(s=>`<option value="${s.nome}" ${responsavelFiltro===s.nome?'selected':''}>${s.nome}</option>`).join('')}
+    </select>
+  </div>
+  ${renderSearchBar('searchControleLeads','Buscar por nome do lead…')}
+  <section class="block" style="margin-top:14px;">
+    <div class="block-head"><h3>Leads (${lista.length})</h3><button class="btn gold" id="btnNovoLeadManual">+ Novo lead</button></div>
+    <div style="overflow-x:auto;">
+    <table class="cc-table">
+      <thead><tr><th>Nome</th><th>Data</th><th>Serviço</th><th>Status</th><th>Consultoria</th><th>Qualidade</th><th>Pago no dia</th><th>Follow-up</th><th>Responsável</th><th></th></tr></thead>
+      <tbody>${lista.length ? lista.map(l=>`<tr>
+          <td><strong>${l.nome}</strong></td>
+          <td>${fmtDate(l.data)}</td>
+          <td>${l.servico||'—'}</td>
+          <td>${l.status?`<span class="chip" style="background:${corFriaParaTexto(l.status).bg};color:${corFriaParaTexto(l.status).fg};">${l.status}</span>`:'—'}</td>
+          <td>${l.consultoria||'—'}</td>
+          <td>${l.qualidade?`<span class="chip" style="background:${corFriaParaTexto(l.qualidade).bg};color:${corFriaParaTexto(l.qualidade).fg};">${l.qualidade}</span>`:'—'}</td>
+          <td class="tnum">${fmtEUR(l.valorPagoDia||0)}</td>
+          <td>${l.followUp?'<span class="chip gold">Sim</span>':'<span class="chip neutral">Não</span>'}</td>
+          <td>${l.responsavel||'—'}</td>
+          <td><div class="btn-group btn-group-actions"><button class="btn ghost sm" data-edit-lead-manual="${l.id}">Editar</button><button class="btn danger sm" data-del-lead-manual="${l.id}">Excluir</button></div></td>
+        </tr>`).join('') : `<tr><td colspan="10"><div class="empty">Nenhum lead cadastrado nesse período.</div></td></tr>`}
+      </tbody>
+    </table>
+    </div>
+  </section>`;
+}
+
+/* ===== Follow-up — ficha por lead, com histórico de contatos ===== */
+const RESPOSTA_FOLLOWUP_OPCOES = ['Positiva','Negativa','Sem resposta','Respondeu mas sem interesse','Cancelou a proposta','Perdeu o interesse'];
+function abrirNovoFollowUpModal(){
+  const vendedoresAtivos = activeSellers();
+  const servicoOpts = [...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>`<option value="${s.nome}">`).join('');
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal">
+    <div class="modal-head"><h3>Novo follow-up</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nome do lead</label><input type="text" id="fuNome"></div>
+      <div class="field-row">
+        <div class="field"><label>Data do primeiro contato</label><input type="date" id="fuData" value="${todayISO()}"></div>
+        <div class="field"><label>Serviço de interesse</label><input list="fuServicoList" id="fuServico"><datalist id="fuServicoList">${servicoOpts}</datalist></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Valor da proposta (€)</label><input type="number" min="0" step="0.01" id="fuValor" value="0"></div>
+        <div class="field"><label>Responsável</label><select id="fuResponsavel"><option value="">—</option>${vendedoresAtivos.map(s=>`<option>${s.nome}</option>`).join('')}</select></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Criar ficha</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+  document.getElementById('mSave').onclick = async ()=>{
+    const nome = document.getElementById('fuNome').value.trim();
+    if(!nome){ alert('Informe o nome do lead.'); return; }
+    STATE.followUps.push({
+      id:'fu-'+Date.now(), nome, dataPrimeiroContato: document.getElementById('fuData').value||todayISO(),
+      servico: document.getElementById('fuServico').value.trim(),
+      valorProposta: Number(document.getElementById('fuValor').value)||0,
+      responsavel: document.getElementById('fuResponsavel').value,
+      registros: []
+    });
+    await persist('followUps'); closeModal(); renderAll();
+  };
+}
+function abrirRegistroContatoModal(followUpId){
+  const ficha = STATE.followUps.find(f=>f.id===followUpId);
+  if(!ficha) return;
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal">
+    <div class="modal-head"><h3>Registrar contato — ${ficha.nome}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Data do contato</label><input type="date" id="rcData" value="${todayISO()}"></div>
+      <div class="field"><label>Resposta do lead</label><select id="rcResposta"><option value="">—</option>${RESPOSTA_FOLLOWUP_OPCOES.map(o=>`<option>${o}</option>`).join('')}</select></div>
+      <div class="field"><label>Observação (opcional)</label><input type="text" id="rcObs" placeholder="Algum detalhe da conversa…"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Registrar</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+  document.getElementById('mSave').onclick = async ()=>{
+    const resposta = document.getElementById('rcResposta').value;
+    if(!resposta){ alert('Selecione a resposta do lead.'); return; }
+    ficha.registros.push({ id:'reg-'+Date.now(), data: document.getElementById('rcData').value||todayISO(), resposta, obs: document.getElementById('rcObs').value.trim() });
+    await persist('followUps');
+    abrirDetalheFollowUpModal(followUpId);
+  };
+}
+function abrirDetalheFollowUpModal(followUpId){
+  const ficha = STATE.followUps.find(f=>f.id===followUpId);
+  if(!ficha) return;
+  const registrosOrdenados = [...ficha.registros].sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:640px;">
+    <div class="modal-head"><h3>${ficha.nome}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:14px;">Primeiro contato em <strong>${fmtDate(ficha.dataPrimeiroContato)}</strong> · Serviço: <strong>${ficha.servico||'—'}</strong> · Proposta: <strong>${fmtEUR(ficha.valorProposta)}</strong> · Responsável: <strong>${ficha.responsavel||'—'}</strong></div>
+      <div class="block-head" style="padding:0 0 10px;border:none;"><h3 style="font-size:13px;">Histórico de contatos (${registrosOrdenados.length})</h3><button class="btn gold sm" id="btnAddRegistroContato">+ Adicionar registro de contato</button></div>
+      ${registrosOrdenados.length ? registrosOrdenados.map(r=>`
+        <div class="extrato-item">
+          <div class="extrato-icon">📞</div>
+          <div class="extrato-main">
+            <div class="extrato-titulo">${fmtDate(r.data)}</div>
+            <div class="extrato-tags"><span class="chip" style="background:${corFriaParaTexto(r.resposta).bg};color:${corFriaParaTexto(r.resposta).fg};">${r.resposta}</span>${r.obs?`<span class="chip neutral">${r.obs}</span>`:''}</div>
+          </div>
+        </div>`).join('') : `<div class="empty">Nenhum contato registado ainda.</div>`}
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Fechar</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+  document.getElementById('btnAddRegistroContato').onclick = ()=> abrirRegistroContatoModal(followUpId);
+}
+function renderFollowUp(){
+  const filter = STATE.followUpsFilter;
+  const meses = [...new Set(STATE.followUps.map(f=>f.dataPrimeiroContato.slice(0,7)))].sort();
+  const lista = STATE.followUps
+    .filter(f=>inPeriodOrAll(f.dataPrimeiroContato, filter) && matchesSearch(f.nome, STATE.searchFollowUps))
+    .sort((a,b)=>(b.dataPrimeiroContato||'').localeCompare(a.dataPrimeiroContato||''));
+  return `
+  <div class="field-hint" style="margin-bottom:12px;">📞 Uma ficha por lead em acompanhamento — cada ficha guarda o histórico completo de contatos feitos com ele.</div>
+  ${renderGenericFilterBar('followUpsFilter', ['all','month','week','day'], meses)}
+  ${renderSearchBar('searchFollowUps','Buscar por nome do lead…')}
+  <section class="block" style="margin-top:14px;">
+    <div class="block-head"><h3>Fichas (${lista.length})</h3><button class="btn gold" id="btnNovoFollowUp">+ Novo follow-up</button></div>
+    ${lista.length ? `<div style="padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">${lista.map(f=>{
+      const ultimo = [...f.registros].sort((a,b)=>(b.data||'').localeCompare(a.data||''))[0];
+      return `<div class="card" style="cursor:pointer;" data-ver-followup="${f.id}">
+        <div class="lbl">${f.nome}</div>
+        <div class="val" style="font-size:18px;">${fmtEUR(f.valorProposta)}</div>
+        <div class="sub">${f.servico||'—'} · desde ${fmtDate(f.dataPrimeiroContato)}</div>
+        <div class="sub" style="margin-top:6px;">${f.registros.length} contato(s)${ultimo?` · último: <span class="chip" style="background:${corFriaParaTexto(ultimo.resposta).bg};color:${corFriaParaTexto(ultimo.resposta).fg};font-size:9px;">${ultimo.resposta}</span>`:''}</div>
+      </div>`;
+    }).join('')}</div>` : `<div class="empty">Nenhuma ficha de follow-up ainda.</div>`}
+  </section>`;
+}
+
+/* ===== Vendedores — visão macro do gestor (funil + campanhas por pessoa) ===== */
+function renderVendedoresOverview(){
+  if(!STATE.leads.length && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData();
+  const filter = STATE.vendedoresFilter || {granularity:'month', anchor: todayISO().slice(0,7)};
+  STATE.vendedoresFilter = filter;
+  const vendedoresAtivos = activeSellers();
+  const leadsComEdicoes = STATE.leads.map(leadComEdicoes);
+
+  return `
+  ${renderGenericFilterBar('vendedoresFilter', ['all','month','week','day'], [])}
+  <div class="field-hint" style="margin:10px 0 16px;">Visão macro de cada vendedor no período: o funil diário que eles preenchem, e quantos leads de Controle de Campanhas estão sob a responsabilidade de cada um.</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;">
+    ${vendedoresAtivos.map(s=>{
+      const funil = sumFunilDiario(s, filter);
+      const leadsDele = leadsComEdicoes.filter(l=>l.responsavel===s.nome && inPeriodOrAll(l.data, filter));
+      const qualificados = leadsDele.filter(l=>l.qualificado==='Qualificado').length;
+      const fechados = leadsDele.filter(l=>l.status==='Cliente fechado' || (l.servicoFechado||'').trim()).length;
+      return `
+      <section class="block">
+        <div class="block-head"><h3>${s.nome}</h3></div>
+        <div style="padding:14px 20px;">
+          <div class="field-hint" style="margin-bottom:8px;font-weight:600;color:var(--ink);">Funil diário</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12.5px;margin-bottom:14px;">
+            ${FUNIL_DIARIO_COLS.map(([campo,label])=>`<div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-soft);">${label}</span><strong>${funil[campo]||0}</strong></div>`).join('')}
+          </div>
+          <div class="field-hint" style="margin-bottom:8px;font-weight:600;color:var(--ink);">Controle de Campanhas</div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;">
+            <span>📥 ${leadsDele.length} lead(s) sob responsabilidade</span>
+            <span>✅ ${qualificados} qualificado(s)</span>
+            <span>🏆 ${fechados} fechado(s)</span>
+          </div>
+        </div>
+      </section>`;
+    }).join('')}
+  </div>`;
+}
+
 function renderIndice(){
   const filter = STATE.indiceFilter;
   const meses = [...new Set([...STATE.sales.map(s=>s.data), ...STATE.recurrences.map(r=>r.dataVenda)].filter(Boolean).map(d=>d.slice(0,7)))].sort();
@@ -2945,9 +3201,12 @@ function renderControleCampanhas(){
 function renderListaLeadsEditavel(leads){
   const filter = STATE.campanhasFilter;
   const meses = [...new Set(STATE.leads.map(l=>l.data.slice(0,7)))].sort();
+  const responsavelFiltro = STATE.campanhasResponsavelFilter || 'all';
   const filtrados = leads.filter(l=>inPeriodOrAll(l.data, filter) && matchesSearch(l.nome, STATE.searchCampanhas))
+    .filter(l=> responsavelFiltro==='all' || l.responsavel===responsavelFiltro)
     .sort((a,b)=> (b.data+  'T'+(b.hora||'00:00')).localeCompare(a.data+'T'+(a.hora||'00:00')));
   const servicoOpts = [...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>s.nome);
+  const vendedoresAtivos = activeSellers();
 
   const selectCell = (lead, campo, opcoes, valorAtual) => {
     const cor = corFriaParaTexto(valorAtual);
@@ -2958,25 +3217,34 @@ function renderListaLeadsEditavel(leads){
   };
 
   return `
-  <div class="field-hint" style="margin-bottom:12px;">📡 Dados ao vivo da planilha, mas as 4 colunas com seleção abaixo são editadas aqui no painel — não alteram a planilha original. ${STATE.leadsLoadedAt ? `Última busca: ${STATE.leadsLoadedAt.toLocaleTimeString('pt-PT')}` : ''} <button class="btn ghost sm" id="btnRefreshLeads2" style="margin-left:10px;">🔄 Atualizar agora</button></div>
+  <div class="field-hint" style="margin-bottom:12px;">📡 Dados ao vivo da planilha, mas as colunas com seleção abaixo são editadas aqui no painel — não alteram a planilha original. Atribuir um responsável coloca esse lead sob o controle dele — use o filtro abaixo pra ver só os seus. ${STATE.leadsLoadedAt ? `Última busca: ${STATE.leadsLoadedAt.toLocaleTimeString('pt-PT')}` : ''} <button class="btn ghost sm" id="btnRefreshLeads2" style="margin-left:10px;">🔄 Atualizar agora</button></div>
   ${renderGenericFilterBar('campanhasFilter', ['all','month','week','day'], meses)}
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0;">
+    <span style="font-size:12.5px;font-weight:600;color:var(--ink-soft);">Responsável:</span>
+    <select id="campanhasResponsavelSelect">
+      <option value="all" ${responsavelFiltro==='all'?'selected':''}>Todos</option>
+      <option value="" ${responsavelFiltro===''?'selected':''}>Sem responsável</option>
+      ${vendedoresAtivos.map(s=>`<option value="${s.nome}" ${responsavelFiltro===s.nome?'selected':''}>${s.nome}</option>`).join('')}
+    </select>
+  </div>
   ${renderSearchBar('searchCampanhas','Buscar por nome do lead…')}
   <section class="block" style="margin-top:14px;">
     <div class="block-head"><h3>Leads (${filtrados.length})</h3><span class="hint">mais recente primeiro</span></div>
     <div style="overflow-x:auto;">
     <table class="cc-table">
-      <thead><tr><th>Lead</th><th>Data</th><th>Hora</th><th>Campanha</th><th>Origem</th><th>Status do lead</th><th>Tipo de consultoria</th><th>Qualidade</th><th>Serviço fechado</th></tr></thead>
+      <thead><tr><th>Lead</th><th>Data</th><th>Hora</th><th>Campanha</th><th>Origem</th><th>Responsável</th><th>Status do lead</th><th>Tipo de consultoria</th><th>Qualidade</th><th>Serviço fechado</th></tr></thead>
       <tbody>${filtrados.length ? filtrados.map(l=>`<tr>
           <td><strong>${l.nome}</strong>${l._editado?' <span class="chip gold" style="font-size:9px;">editado</span>':''}</td>
           <td>${fmtDate(l.data)}</td>
           <td>${l.hora||'—'}</td>
           <td title="${l.campanha}">${l.campanha.length>28?l.campanha.slice(0,28)+'…':l.campanha}</td>
           <td>${l.plataforma}${l.canal&&l.canal!==l.plataforma?' / '+l.canal:''}</td>
+          <td><select data-lead-key="${l.leadKey}" data-lead-field="responsavel" class="cc-select"><option value="">—</option>${vendedoresAtivos.map(s=>`<option ${s.nome===l.responsavel?'selected':''}>${s.nome}</option>`).join('')}</select></td>
           <td>${selectCell(l,'status',STATUS_LEAD_OPCOES,l.status)}</td>
           <td>${selectCell(l,'consultoria',CONSULTORIA_OPCOES,l.consultoria)}</td>
           <td>${selectCell(l,'qualidade',QUALIDADE_LEAD_OPCOES,l.qualificado)}</td>
           <td><input type="text" list="ccServicoList" data-lead-key="${l.leadKey}" data-lead-field="servicoFechado" class="cc-input" value="${l.servicoFechado||''}" placeholder="—"></td>
-        </tr>`).join('') : `<tr><td colspan="9"><div class="empty">Nenhum lead nesse período.</div></td></tr>`}
+        </tr>`).join('') : `<tr><td colspan="10"><div class="empty">Nenhum lead nesse período.</div></td></tr>`}
       </tbody>
     </table>
     <datalist id="ccServicoList">${servicoOpts.map(s=>`<option value="${s}">`).join('')}</datalist>
@@ -4822,6 +5090,33 @@ function wireViewportEvents(){
   if(btnRetryLeads) btnRetryLeads.addEventListener('click', ()=>{ STATE.leadsError = null; loadLeadsData(); });
   const btnRefreshLeads2 = document.getElementById('btnRefreshLeads2');
   const btnBuscarIndice = document.getElementById('btnBuscarIndice');
+  const campanhasResponsavelSelect = document.getElementById('campanhasResponsavelSelect');
+  if(campanhasResponsavelSelect) campanhasResponsavelSelect.addEventListener('change', ()=>{ STATE.campanhasResponsavelFilter = campanhasResponsavelSelect.value; renderAll(); });
+
+  const btnNovoLeadManual = document.getElementById('btnNovoLeadManual');
+  if(btnNovoLeadManual) btnNovoLeadManual.addEventListener('click', ()=> abrirNovoLeadManualModal(null));
+  vp.querySelectorAll('[data-edit-lead-manual]').forEach(btn=>{
+    btn.addEventListener('click', ()=> abrirNovoLeadManualModal(btn.dataset.editLeadManual));
+  });
+  vp.querySelectorAll('[data-del-lead-manual]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const lead = STATE.controleLeads.find(l=>l.id===btn.dataset.delLeadManual);
+      if(!lead) return;
+      openConfirmModal({
+        title:'Excluir lead', danger:true, confirmLabel:'Excluir',
+        message:`Tem a certeza que deseja excluir o lead <strong>${lead.nome}</strong>?`,
+        onConfirm: async ()=>{ STATE.controleLeads = STATE.controleLeads.filter(l=>l.id!==lead.id); await persist('controleLeads'); renderAll(); }
+      });
+    });
+  });
+  const clResponsavelSelect = document.getElementById('clResponsavelSelect');
+  if(clResponsavelSelect) clResponsavelSelect.addEventListener('change', ()=>{ STATE.controleLeadsResponsavelFilter = clResponsavelSelect.value; renderAll(); });
+
+  const btnNovoFollowUp = document.getElementById('btnNovoFollowUp');
+  if(btnNovoFollowUp) btnNovoFollowUp.addEventListener('click', ()=> abrirNovoFollowUpModal());
+  vp.querySelectorAll('[data-ver-followup]').forEach(card=>{
+    card.addEventListener('click', ()=> abrirDetalheFollowUpModal(card.dataset.verFollowup));
+  });
   const indiceQueryInput = document.getElementById('indiceQueryInput');
   if(btnBuscarIndice && indiceQueryInput){
     const dispara = ()=>{ STATE.indiceQuery = indiceQueryInput.value; STATE.indiceQuerySubmetida = indiceQueryInput.value.trim(); renderAll(); };
@@ -4910,6 +5205,9 @@ function renderAll(){
     else if(STATE.view==='metricas') vp.innerHTML = renderMetricas();
     else if(STATE.view==='campanhas') vp.innerHTML = renderControleCampanhas();
     else if(STATE.view==='indice') vp.innerHTML = renderIndice();
+    else if(STATE.view==='vendedores') vp.innerHTML = renderVendedoresOverview();
+    else if(STATE.view==='controle-leads') vp.innerHTML = renderControleLeads();
+    else if(STATE.view==='follow-up') vp.innerHTML = renderFollowUp();
     else if(STATE.view==='seller-detail') vp.innerHTML = renderSellerDetail();
     else if(STATE.view==='config') vp.innerHTML = renderConfig();
     else if(STATE.view==='financeiro') vp.innerHTML = renderFinanceiro();
