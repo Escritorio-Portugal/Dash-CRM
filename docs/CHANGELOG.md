@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.1 — Responsável por prospecção, Controle de Leads, Follow-up e Vendedores
+- **Controle de Campanhas** ganhou a coluna **Responsável** — atribui o lead a um vendedor (select), com filtro pra ver só os leads de um responsável específico. É a base do novo fluxo comercial: atribuir alguém torna aquele lead rastreável no controle dele.
+- **Nova tela "📋 Controle de Leads"** (barra lateral, gestor e vendedores) — cadastro manual de leads orgânicos (indicação, boca a boca), sem vir de planilha nenhuma. Campos: nome, data, serviço, status do lead, tipo de consultoria, qualidade, valor pago no dia, follow-up (sim/não) e responsável — com editar e excluir.
+- **Nova tela "📞 Follow-up"** (barra lateral, gestor e vendedores) — uma ficha por lead em acompanhamento, com nome, data do primeiro contato, serviço de interesse e valor da proposta. Botão "+ Adicionar registro de contato" em cada ficha registra cada tentativa: data e resposta do lead (Positiva, Negativa, Sem resposta, Respondeu mas sem interesse, Cancelou a proposta, Perdeu o interesse), formando um histórico completo por lead.
+- **Nova tela "👥 Vendedores"** (barra lateral, logo abaixo de Vendas, só gestor) — visão macro de cada vendedor no período: o funil diário que ele preenche (ligações, conversas, consultas etc.) e quantos leads de Controle de Campanhas estão sob a responsabilidade dele, com quantos qualificados e fechados.
+- Testado o fluxo completo: adicionar lead manual, editar a coluna responsável em Controle de Campanhas, criar ficha de follow-up e registrar um contato, e a visão macro do gestor puxando os números certos de cada vendedor.
+- Nova migração `supabase/migration_v6_controle_leads_followup.sql` — precisa rodar pra liberar a escrita partilhada nas duas telas novas (Controle de Leads e Follow-up) pros vendedores, não só o gestor.
+
 ## v4.0 — Vendas e recorrências migradas para tabelas relacionais
 - **Mudança de arquitetura**: vendas e recorrências deixaram de viver num blob JSON por vendedor (`crm:sales:<id>`/`crm:recurrences:<id>`) e passaram a morar em tabelas de verdade no Supabase (`vendas`, `recorrencias`, `parcelas`, `pagamentos_extras`). Isso elimina o risco de duas gravações quase simultâneas se sobrescreverem — cada mudança agora é uma linha só, não o array inteiro do vendedor.
 - Nenhuma tela mudou de comportamento — o formato em memória continua idêntico, só troquei de onde o dado vem e pra onde vai.
