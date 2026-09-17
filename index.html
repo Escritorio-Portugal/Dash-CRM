@@ -2586,9 +2586,47 @@ function renderRecurrencesNoDate(){
   </section>`;
 }
 
+/* Junta toda parcela, entrada e pagamento personalizado marcado como
+   pago HOJE, de qualquer recorrência — pra quem clicou errado
+   conseguir desfazer na hora, sem precisar ir procurar no Extrato. */
+function pagamentosRecentesHoje(){
+  const hoje = todayISO();
+  const linhas = [];
+  STATE.recurrences.forEach(r=>{
+    if(r.dataVenda===hoje && (r.valorEntrada||0)>0){
+      linhas.push({ ref:{tipo:'entrada', recId:r.id}, cliente:r.cliente, tipo:'Entrada', valor:r.valorEntrada });
+    }
+    r.parcelas.forEach(p=>{
+      if(p.pago && p.data===hoje){
+        const st = recStatus(r);
+        linhas.push({ ref:{tipo:'parcela', recId:r.id, numero:p.numero}, cliente:r.cliente, tipo:'Parcela '+p.numero, valor: p.valor!=null?p.valor:st.valorParcela });
+      }
+    });
+    (r.pagamentosExtras||[]).forEach(ex=>{
+      if(ex.data===hoje){
+        linhas.push({ ref:{tipo:'extra', recId:r.id, extraId:ex.id}, cliente:r.cliente, tipo:'Pagamento personalizado', valor:ex.valor });
+      }
+    });
+  });
+  return linhas;
+}
 function renderRecurrences(){
   const abertas = STATE.recurrences.filter(r=>!recStatus(r).quitada).filter(r=>matchesSearch(r.cliente, STATE.searchRecorrencias));
-  return `${renderSearchBar('searchRecorrencias','Buscar por nome do cliente…')}<section class="block">
+  const recentes = pagamentosRecentesHoje();
+  const painelAberto = !!STATE.mostrarRecemPagas;
+  return `${renderSearchBar('searchRecorrencias','Buscar por nome do cliente…')}
+  <div style="margin-bottom:10px;">
+    <button class="btn ghost sm" id="btnToggleRecemPagas"><span class="nav-group-chevron" style="display:inline-block;transition:transform .3s cubic-bezier(.34,1.56,.64,1);transform:rotate(${painelAberto?'90deg':'0deg'});">▸</span> Pagamentos de hoje ${recentes.length?`<span class="chip gold" style="margin-left:4px;">${recentes.length}</span>`:''}</button>
+    <div class="nav-group-body ${painelAberto?'aberto':''}" style="max-height:${painelAberto?'600px':'0'};">
+      <section class="block" style="margin-top:10px;">
+        <div class="block-head"><h3>Pagamentos registados hoje</h3><span class="hint">clicou errado? reverte aqui na hora</span></div>
+        ${recentes.length ? `<table><thead><tr><th>Cliente</th><th>Tipo</th><th>Valor</th><th></th></tr></thead>
+        <tbody>${recentes.map(l=>`<tr><td><strong>${l.cliente}</strong></td><td><span class="chip neutral">${l.tipo}</span></td><td class="tnum good">${fmtEUR(l.valor)}</td><td><button class="btn danger sm" data-estornar='${JSON.stringify(l.ref)}' data-estornar-desc="${l.tipo} de ${l.cliente} (${fmtEUR(l.valor)})">Ressarcir</button></td></tr>`).join('')}</tbody></table>`
+        : `<div class="empty">Nenhum pagamento registado hoje ainda.</div>`}
+      </section>
+    </div>
+  </div>
+  <section class="block">
     <div class="block-head"><h3>Recorrências em aberto (${abertas.length})</h3><button class="btn gold" id="btnAddRec">+ Nova recorrência</button></div>
     <div class="block-head" style="border-top:1px solid var(--line);border-bottom:none;background:var(--surface-2);"><span class="hint">Recorrências 100% pagas saem automaticamente desta lista e vão para "Recorrências pagas", no menu ao lado.</span></div>
     ${recurrenceTable([...abertas].sort((a,b)=> (b.dataVenda||'').localeCompare(a.dataVenda||'')))}
@@ -5199,6 +5237,8 @@ function wireViewportEvents(){
   if(btnRetryLeads) btnRetryLeads.addEventListener('click', ()=>{ STATE.leadsError = null; loadLeadsData(); });
   const btnRefreshLeads2 = document.getElementById('btnRefreshLeads2');
   const btnBuscarIndice = document.getElementById('btnBuscarIndice');
+  const btnToggleRecemPagas = document.getElementById('btnToggleRecemPagas');
+  if(btnToggleRecemPagas) btnToggleRecemPagas.addEventListener('click', ()=>{ STATE.mostrarRecemPagas = !STATE.mostrarRecemPagas; renderAll(); });
   const campanhasResponsavelSelect = document.getElementById('campanhasResponsavelSelect');
   if(campanhasResponsavelSelect) campanhasResponsavelSelect.addEventListener('change', ()=>{ STATE.campanhasResponsavelFilter = campanhasResponsavelSelect.value; renderAll(); });
 
