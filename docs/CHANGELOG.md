@@ -1,5 +1,17 @@
 # Changelog
 
+## v4.7 — Auditoria financeira: unificado o critério de "despesa" em todo o Financeiro
+- **Causa raiz encontrada**: os cards sempre visíveis no topo do Financeiro ("Custos fixos", "Custos variáveis", "Lucro líquido") calculavam despesa pela **data de vencimento** (um orçamento do mês, contando até custo ainda não pago). Já o Resumo, o Extrato e o Registro sempre calcularam despesa pela **data real de pagamento** (regime de caixa). Os dois nunca tinham motivo pra bater, mesmo no mesmo período — daí a sensação de incoerência.
+- **Corrigido**: os totais dos cards do topo agora usam o mesmo regime de caixa do resto do Financeiro. Um custo com vencimento em agosto mas pago só em setembro agora conta em setembro em **todo lugar**, não mais em agosto num canto e em setembro noutro. Renomeei os cards pra "Custos fixos pagos"/"Custos variáveis pagos", deixando o critério explícito.
+- **O que não mudou de propósito**: as abas "Custos fixos" e "Custos variáveis" continuam mostrando todo o lançamento, pago ou pendente — isso é pra gestão dos custos, precisa mostrar o que falta pagar, não só o que já foi.
+- **Auditoria completa feita antes de entregar**: testei um cenário com custo pago no prazo, custo pago com atraso, custo ainda pendente, e o histórico completo — em todos os casos, o card do topo e o Resumo bateram exatamente, e o lucro líquido conferiu com o cálculo manual (recebido − impostos − despesas pagas).
+- Inclui também, dessa entrega: a correção pendente da barra lateral (lista de vendedores removida, rodapé com "Sair da conta" sempre fixo).
+
+## v4.6 — Barra lateral: rodapé sempre visível, lista de vendedores removida
+- **Removida a lista rápida de vendedores** que ficava na barra lateral geral (abaixo do menu) — ela só existia antes de "Vendedores" virar uma tela própria, e agora era duplicada/desnecessária. Essa informação continua disponível normalmente em **Vendedores** e em **Configurações**.
+- **Corrigido**: com os dois grupos (Operacional/Financeiro) abertos ao mesmo tempo, o menu ficava alto demais e empurrava o botão "Sair da conta" pra fora da tela. Agora o menu tem sua própria rolagem interna quando necessário, e o rodapé (sessão ativa + Sair da conta) fica sempre fixo e visível, não importa quantos grupos estejam abertos.
+- Ao remover o bloco antigo, encontrei e corrigi uma referência órfã que travaria o carregamento do sistema inteiro assim que essa tela fosse aberta — testei o boot completo antes de entregar pra garantir que isso não aconteceu.
+
 ## v4.5 — Menu reorganizado, visual dos grupos mais elaborado, vendedores inativos escondidos
 - **Reorganização do menu**: agora só ficam livres no topo Visão Geral, Configurações e Índice. Logo abaixo, os dois grupos — Ranking e Clientes entraram pra dentro de "Operacional".
 - **Visual dos grupos bem mais aparente**: cada grupo tem uma linha vertical colorida à esquerda que envolve o cabeçalho e os itens de dentro — dourado pra Operacional, azul-petróleo pra Financeiro — deixando claro visualmente o que pertence a qual setor.
