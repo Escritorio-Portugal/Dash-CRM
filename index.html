@@ -54,7 +54,7 @@ input,select{font-family:inherit;}
 .brand h1{font-size:17px;color:#fff;letter-spacing:.2px;}
 .brand p{margin:4px 0 0;font-size:11.5px;color:#9AA4BC;letter-spacing:.4px;text-transform:uppercase;}
 
-.nav{padding:14px 12px;border-bottom:1px solid var(--wine-line);}
+.nav{padding:14px 12px;flex:1;overflow-y:auto;}
 .nav button{width:100%;text-align:left;background:none;border:none;color:#C7CEDF;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:9px;margin-bottom:2px;transition:.15s;}
 .nav button:hover{background:rgba(255,255,255,.06);color:#fff;}
 .nav button.active{background:var(--wine-2);color:#fff;box-shadow:inset 3px 0 0 var(--gold);}
@@ -95,7 +95,6 @@ input,select{font-family:inherit;}
 .nav-group-body.aberto{max-height:400px;}
 .nav-group-body-inner{padding-left:4px;padding-top:2px;}
 
-.sellers-block{flex:1;overflow-y:auto;padding:14px 12px;}
 .sellers-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#8992AC;}
 .iconbtn{width:22px;height:22px;border-radius:6px;border:1px solid var(--wine-line);background:var(--wine-2);color:#C7CEDF;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;}
 .iconbtn:hover{background:var(--gold);color:var(--wine);border-color:var(--gold);}
@@ -359,13 +358,6 @@ tr:hover td{background:#FBFBFA;}
       <p id="mesLabel">Controlo Geral · Julho 2026</p>
     </div>
     <nav class="nav" id="mainNav"></nav>
-    <div class="sellers-block" id="sellersBlock">
-      <div class="sellers-head">
-        <span>Vendedores</span>
-        <button class="iconbtn" id="btnAddSeller" title="Adicionar vendedor">+</button>
-      </div>
-      <div id="sellerList"></div>
-    </div>
     <div class="sidebar-foot">
       <div id="sessionLabel"></div>
       <button class="logout-btn" id="btnLogout">Sair da conta</button>
@@ -1625,9 +1617,18 @@ function computeCosts(filter){
   }
   const fixos = list.filter(c=>c.categoria==='FIXO');
   const variaveis = list.filter(c=>c.categoria==='VARIÁVEL');
-  const sum = arr=>arr.reduce((a,c)=>a+(c.valor||0),0);
-  const sumPago = arr=>arr.filter(c=>c.pago).reduce((a,c)=>a+(c.valor||0),0);
-  return { list, fixos, variaveis, totalFixos: sum(fixos), totalVariaveis: sum(variaveis), total: sum(list), totalPago: sumPago(list) };
+  /* "fixos"/"variaveis"/"list" continuam com TODOS os lançamentos do
+     período (pagos e pendentes, por data de vencimento) — é o que a
+     tela de gestão de Custos Fixos/Variáveis precisa pra mostrar e
+     deixar editar mesmo o que ainda não foi pago.
+     Já os TOTAIS dos cards seguem o mesmo regime de caixa (data real
+     de pagamento) que Resumo, Extrato e Registro já usam — assim os
+     mesmos números aparecem em qualquer canto do Financeiro, sem
+     depender de vencimento vs. pagamento de fato. */
+  const despesasPagas = linhasFinanceiras(filter).filter(l=>l.categoria==='Despesa');
+  const totalFixos = despesasPagas.filter(l=>l.tipo==='Custo fixo').reduce((a,l)=>a+l.valor,0);
+  const totalVariaveis = despesasPagas.filter(l=>l.tipo==='Custo variável').reduce((a,l)=>a+l.valor,0);
+  return { list, fixos, variaveis, totalFixos, totalVariaveis, total: totalFixos+totalVariaveis, totalPago: totalFixos+totalVariaveis };
 }
 function computeLucro(filter){
   const events = buildEvents().filter(e=>inPeriodOrAll(e.date, filter));
@@ -1977,7 +1978,6 @@ function renderNav(){
       renderNav();
     });
   });
-  document.getElementById('sellersBlock').style.display = STATE.role==='gestor' ? '' : 'none';
   const me = STATE.role==='colaborador' ? sellerById(STATE.myOwnSellerId) : null;
   document.getElementById('sessionLabel').innerHTML = STATE.role==='gestor'
     ? '<span class="role-tag">Sessão ativa</span><strong>Gestor(a)</strong>'
@@ -1986,26 +1986,6 @@ function renderNav(){
 
 function currentMonthFilter(){
   return { granularity:'month', anchor: todayISO().slice(0,7) };
-}
-
-function renderSidebar(){
-  if(STATE.role!=='gestor') return;
-  const rk = ranking(currentMonthFilter()).slice().sort((a,b)=>b.stats.valorVendido - a.stats.valorVendido);
-  const topId = rk[0] && rk[0].stats.valorVendido>0 ? rk[0].seller.id : null;
-  const list = document.getElementById('sellerList');
-  const inactive = STATE.sellers.filter(s=>!s.ativo);
-  list.innerHTML = `<div class="sellers-head" style="padding-top:0;">${monthLabel(todayISO().slice(0,7))}</div>` + rk.map(({seller,stats})=>`
-    <div class="seller-row ${seller.id===STATE.selectedSellerId?'active':''} ${seller.id===topId?'rank1':''}" data-seller="${seller.id}">
-      <div class="avatar">${initials(seller.nome)}</div>
-      <div class="info"><div class="name">${seller.nome}</div><div class="sub">${fmtEUR(stats.valorVendido)} vendido no mês</div></div>
-    </div>`).join('') + (inactive.length ? `
-    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--wine-line);">
-      <div class="sellers-head" style="padding-bottom:6px;">Inativos</div>
-      ${inactive.map(s=>`<div class="seller-row inactive" data-seller="${s.id}"><div class="avatar">${initials(s.nome)}</div><div class="info"><div class="name">${s.nome}</div><div class="sub">reativar</div></div></div>`).join('')}
-    </div>` : '');
-  list.querySelectorAll('.seller-row').forEach(row=>{
-    row.addEventListener('click', ()=>{ STATE.selectedSellerId = row.dataset.seller; STATE.view = 'seller-detail'; renderAll(); });
-  });
 }
 
 function renderTopbar(){
@@ -4029,10 +4009,10 @@ function renderFinanceiro(){
   const lucro = computeLucro(filter);
   return `
   ${renderGenericFilterBar('financeiroFilter', ['all','month','week','day'], months)}
-  <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado) — só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte.</div>
+  <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado) — só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte. Os cards abaixo mostram só o que já foi <strong>efetivamente pago</strong> no período (mesmo critério do Resumo, Extrato e Registro) — as abas "Custos fixos"/"Custos variáveis" mostram todo o lançamento, pago ou ainda pendente.</div>
   <div class="cards">
-    <div class="card"><div class="lbl">Custos fixos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val">${fmtEUR(costs.totalFixos)}</div></div>
-    <div class="card"><div class="lbl">Custos variáveis${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val">${fmtEUR(costs.totalVariaveis)}</div></div>
+    <div class="card"><div class="lbl">Custos fixos pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val">${fmtEUR(costs.totalFixos)}</div></div>
+    <div class="card"><div class="lbl">Custos variáveis pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val">${fmtEUR(costs.totalVariaveis)}</div></div>
     <div class="card"><div class="lbl">Impostos devidos (sobre valor recebido)</div><div class="val bad">${fmtEUR(tax.total)}</div><div class="sub">IVA ${fmtEUR(tax.ivaDevido)} · Taxa adm. ${fmtEUR(tax.txAdmDevido)}</div></div>
     <div class="card accent"><div class="lbl">Lucro líquido estimado</div><div class="val ${lucro>=0?'good':'bad'}">${fmtEUR(lucro)}</div><div class="sub">recebido − impostos − custos pagos, no período</div></div>
   </div>
@@ -5384,7 +5364,6 @@ function renderAll(){
     if(!STATE.role){ renderLoginScreen('signin'); return; }
     renderNav();
     renderTopbar();
-    renderSidebar();
     const vp = document.getElementById('viewport');
     if(STATE.view==='overview') vp.innerHTML = renderOverview();
     else if(STATE.view==='recurrences') vp.innerHTML = renderRecurrences();
@@ -5414,7 +5393,6 @@ function renderAll(){
 /* =========================================================
    INIT
    ========================================================= */
-document.getElementById('btnAddSeller').addEventListener('click', openAddSellerModal);
 document.getElementById('btnLogout').addEventListener('click', async ()=>{
   await supa.auth.signOut();
   STATE.role=null; STATE.myOwnSellerId=null; STATE.myEmail=null;
