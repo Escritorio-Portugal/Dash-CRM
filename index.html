@@ -1374,18 +1374,34 @@ function recStatus(rec){
 }
 /* "Atrasada" = ainda não quitada e já passou mais de 30 dias desde a venda.
    A planilha não guarda data de vencimento por parcela, então esta é uma
-   estimativa razoável (não uma data de vencimento contratual exata). */
+   estimativa razoável (não uma data de vencimento contratual exata).
+   O "hoje" usado nesse cálculo passa a ser o ÚLTIMO DIA do período
+   selecionado na tela (ou hoje de verdade, se esse dia ainda não chegou)
+   — assim, escolher um mês passado mostra a situação REAL daquele mês,
+   em vez de sempre misturar com o que está em aberto agora. */
 const DIAS_TOLERANCIA_ATRASO = 30;
-function diasAtraso(rec){
+function referenceDateForFilter(filter){
+  if(!filter || filter.granularity==='all') return todayISO();
+  const { end } = periodRange(filter);
+  const ultimoDia = new Date(end); ultimoDia.setDate(ultimoDia.getDate()-1);
+  const ultimoDiaISO = toLocalISODate(ultimoDia);
+  return ultimoDiaISO < todayISO() ? ultimoDiaISO : todayISO();
+}
+function diasAtraso(rec, refDateISO){
   const st = recStatus(rec);
   if(st.quitada) return 0;
   const inicio = new Date(rec.dataVenda+'T00:00:00');
-  const hoje = new Date(todayISO()+'T00:00:00');
-  const dias = Math.floor((hoje - inicio) / 86400000);
+  const ref = new Date((refDateISO||todayISO())+'T00:00:00');
+  const dias = Math.floor((ref - inicio) / 86400000);
   return dias > DIAS_TOLERANCIA_ATRASO ? dias : 0;
 }
-function recorrenciasAtrasadas(){
-  return STATE.recurrences.filter(r=>diasAtraso(r) > 0).sort((a,b)=>diasAtraso(b)-diasAtraso(a));
+function recorrenciasAtrasadas(filter){
+  const ref = referenceDateForFilter(filter);
+  return STATE.recurrences
+    .map(r=>({ r, dias: diasAtraso(r, ref) }))
+    .filter(x=>x.dias > 0)
+    .sort((a,b)=>b.dias-a.dias)
+    .map(x=>x.r);
 }
 function saleStatus(sale){
   const valorPendente = Math.max(0, (sale.valorTotal||0) - (sale.valorPago||0));
@@ -1578,12 +1594,12 @@ function custoDataPagamentoNoMes(cost, monthKey){
 }
 /* Custos fixos do mês atual, vencidos e ainda pendentes — mostrados como
    aviso na Visão Geral, com botão de pagar ali mesmo. */
-function custosFixosAtrasados(){
-  const hoje = todayISO();
-  return custosFixosDoMes(hoje.slice(0,7)).filter(c=>!c.pago && c.vencimento && c.vencimento < hoje);
+function custosFixosAtrasados(filter){
+  const ref = referenceDateForFilter(filter);
+  return custosFixosDoMes(ref.slice(0,7)).filter(c=>!c.pago && c.vencimento && c.vencimento < ref);
 }
-function diasAtrasoCusto(c){
-  const d1 = new Date(c.vencimento+'T00:00:00'), d2 = new Date(todayISO()+'T00:00:00');
+function diasAtrasoCusto(c, refDateISO){
+  const d1 = new Date(c.vencimento+'T00:00:00'), d2 = new Date((refDateISO||todayISO())+'T00:00:00');
   return Math.round((d2-d1)/86400000);
 }
 
@@ -2078,7 +2094,7 @@ function renderPeriodActivity(){
    OVERVIEW
    ========================================================= */
 function renderAlertaAtraso(){
-  const atrasadas = recorrenciasAtrasadas();
+  const atrasadas = recorrenciasAtrasadas(STATE.periodFilter);
   if(!atrasadas.length) return '';
   if(STATE.alertaDispensadoHoje) return '';
   return `
@@ -2088,16 +2104,17 @@ function renderAlertaAtraso(){
   </div>`;
 }
 function renderRecorrenciasAtrasadasBox(){
-  const atrasadas = recorrenciasAtrasadas();
+  const ref = referenceDateForFilter(STATE.periodFilter);
+  const atrasadas = recorrenciasAtrasadas(STATE.periodFilter);
   if(!atrasadas.length) return '';
   const shown = STATE.expandAtrasadas ? atrasadas : atrasadas.slice(0,5);
   return `
   <section class="block atraso-block">
-    <div class="block-head"><h3>⚠️ Recorrências atrasadas (${atrasadas.length})</h3><span class="hint">sem quitar há mais de ${DIAS_TOLERANCIA_ATRASO} dias</span></div>
+    <div class="block-head"><h3>⚠️ Recorrências atrasadas (${atrasadas.length})</h3><span class="hint">sem quitar há mais de ${DIAS_TOLERANCIA_ATRASO} dias, considerando a situação em ${fmtDate(ref)}${STATE.periodFilter.granularity!=='all'?' (fim do período selecionado)':' (hoje)'}</span></div>
     <table><thead><tr><th>Cliente</th><th>Serviço</th><th>Vendedor</th><th>Parcelas</th><th>Dias em atraso</th><th>Pendente</th><th></th></tr></thead>
     <tbody>${shown.map(r=>{
       const st = recStatus(r);
-      return `<tr><td><strong>${r.cliente}</strong></td><td>${r.servico||'—'}</td><td>${r.vendedorNome||'—'}</td><td>${st.pagas}/${st.total} pagas</td><td><span class="chip bad">${diasAtraso(r)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
+      return `<tr><td><strong>${r.cliente}</strong></td><td>${r.servico||'—'}</td><td>${r.vendedorNome||'—'}</td><td>${st.pagas}/${st.total} pagas</td><td><span class="chip bad">${diasAtraso(r, ref)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
     }).join('')}</tbody></table>
     ${atrasadas.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandAtrasadas">${STATE.expandAtrasadas ? 'Ver menos' : `••• Ver mais (${atrasadas.length-5})`}</button></div>` : ''}
   </section>`;
@@ -2106,14 +2123,15 @@ function renderRecorrenciasAtrasadasBox(){
    botão "Pagar" já registra a data de hoje como data real do pagamento, e o
    valor aparece automaticamente no Extrato do dia de hoje como saída. */
 function renderCustosAtrasadosBox(){
-  const atrasados = custosFixosAtrasados();
+  const ref = referenceDateForFilter(STATE.periodFilter);
+  const atrasados = custosFixosAtrasados(STATE.periodFilter);
   if(!atrasados.length) return '';
   const shown = STATE.expandCustosAtrasados ? atrasados : atrasados.slice(0,5);
   return `
   <section class="block atraso-block">
-    <div class="block-head"><h3>⚠️ Custos fixos vencidos (${atrasados.length})</h3><span class="hint">Situação atual (hoje, ${fmtDate(todayISO())}) — independente do período selecionado acima</span></div>
+    <div class="block-head"><h3>⚠️ Custos fixos vencidos (${atrasados.length})</h3><span class="hint">ainda não pagos, considerando a situação em ${fmtDate(ref)}${STATE.periodFilter.granularity!=='all'?' (fim do período selecionado)':' (hoje)'}</span></div>
     <table><thead><tr><th>Custo</th><th>Valor</th><th>Vencimento</th><th>Dias em atraso</th><th></th></tr></thead>
-    <tbody>${shown.map(c=>`<tr><td><strong>${c.nome}</strong></td><td class="tnum">${fmtEUR(c.valor)}</td><td>${fmtDate(c.vencimento)}</td><td><span class="chip bad">${diasAtrasoCusto(c)} dias</span></td><td><button class="btn gold sm" data-pagar-custo="${c.id}" data-custo-month="${c.vencimento.slice(0,7)}">Pagar</button></td></tr>`).join('')}</tbody></table>
+    <tbody>${shown.map(c=>`<tr><td><strong>${c.nome}</strong></td><td class="tnum">${fmtEUR(c.valor)}</td><td>${fmtDate(c.vencimento)}</td><td><span class="chip bad">${diasAtrasoCusto(c, ref)} dias</span></td><td><button class="btn gold sm" data-pagar-custo="${c.id}" data-custo-month="${c.vencimento.slice(0,7)}">Pagar</button></td></tr>`).join('')}</tbody></table>
     ${atrasados.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandCustosAtrasados">${STATE.expandCustosAtrasados ? 'Ver menos' : `••• Ver mais (${atrasados.length-5})`}</button></div>` : ''}
   </section>`;
 }
