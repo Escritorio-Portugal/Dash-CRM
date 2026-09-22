@@ -2103,19 +2103,49 @@ function renderAlertaAtraso(){
     <button id="btnFecharAlerta" title="Fechar por hoje">×</button>
   </div>`;
 }
+function faixaAtraso(dias){
+  if(dias>=90) return '90+';
+  if(dias>=60) return '60-90';
+  return '30-60';
+}
 function renderRecorrenciasAtrasadasBox(){
   const ref = referenceDateForFilter(STATE.periodFilter);
-  const atrasadas = recorrenciasAtrasadas(STATE.periodFilter);
-  if(!atrasadas.length) return '';
+  const todasAtrasadas = recorrenciasAtrasadas(STATE.periodFilter);
+  if(!todasAtrasadas.length) return '';
+  const fVendedor = STATE.atrasadasFiltroVendedor || 'all';
+  const fCliente = (STATE.atrasadasFiltroCliente || '').trim().toLowerCase();
+  const fFaixa = STATE.atrasadasFiltroFaixa || 'all';
+  const atrasadas = todasAtrasadas.filter(r=>
+    (fVendedor==='all' || r.vendedorId===fVendedor) &&
+    (!fCliente || r.cliente.toLowerCase().includes(fCliente)) &&
+    (fFaixa==='all' || faixaAtraso(diasAtraso(r, ref))===fFaixa)
+  );
   const shown = STATE.expandAtrasadas ? atrasadas : atrasadas.slice(0,5);
+  const sel = STATE.atrasadasSelecionadas || {};
+  const qtdSelecionadas = Object.values(sel).filter(Boolean).length;
+  const vendedoresNaLista = [...new Map(todasAtrasadas.map(r=>[r.vendedorId, r.vendedorNome])).entries()];
   return `
   <section class="block atraso-block">
-    <div class="block-head"><h3>⚠️ Recorrências atrasadas (${atrasadas.length})</h3><span class="hint">sem quitar há mais de ${DIAS_TOLERANCIA_ATRASO} dias, considerando a situação em ${fmtDate(ref)}${STATE.periodFilter.granularity!=='all'?' (fim do período selecionado)':' (hoje)'}</span></div>
-    <table><thead><tr><th>Cliente</th><th>Serviço</th><th>Vendedor</th><th>Parcelas</th><th>Dias em atraso</th><th>Pendente</th><th></th></tr></thead>
+    <div class="block-head"><h3>⚠️ Recorrências atrasadas (${todasAtrasadas.length})</h3><span class="hint">sem quitar há mais de ${DIAS_TOLERANCIA_ATRASO} dias, considerando a situação em ${fmtDate(ref)}${STATE.periodFilter.granularity!=='all'?' (fim do período selecionado)':' (hoje)'}</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface-2);">
+      <select id="atrasadasFiltroVendedor" style="max-width:180px;">
+        <option value="all" ${fVendedor==='all'?'selected':''}>Todos os vendedores</option>
+        ${vendedoresNaLista.map(([id,nome])=>`<option value="${id}" ${fVendedor===id?'selected':''}>${nome||'—'}</option>`).join('')}
+      </select>
+      <input type="text" id="atrasadasFiltroCliente" placeholder="Buscar cliente…" value="${(STATE.atrasadasFiltroCliente||'').replace(/"/g,'&quot;')}" style="max-width:200px;">
+      <select id="atrasadasFiltroFaixa" style="max-width:160px;">
+        <option value="all" ${fFaixa==='all'?'selected':''}>Qualquer atraso</option>
+        <option value="30-60" ${fFaixa==='30-60'?'selected':''}>30–60 dias</option>
+        <option value="60-90" ${fFaixa==='60-90'?'selected':''}>60–90 dias</option>
+        <option value="90+" ${fFaixa==='90+'?'selected':''}>90+ dias</option>
+      </select>
+      ${qtdSelecionadas>0 ? `<button class="btn gold sm" id="btnMarcarSelecionadasPagas" style="margin-left:auto;">Registrar próxima parcela pendente de ${qtdSelecionadas} selecionada(s)</button>` : ''}
+    </div>
+    <table><thead><tr><th><input type="checkbox" id="atrasadasSelecionarTodas" ${shown.length && shown.every(r=>sel[r.id])?'checked':''}></th><th>Cliente</th><th>Serviço</th><th>Vendedor</th><th>Parcelas</th><th>Dias em atraso</th><th>Pendente</th><th></th></tr></thead>
     <tbody>${shown.map(r=>{
       const st = recStatus(r);
-      return `<tr><td><strong>${r.cliente}</strong></td><td>${r.servico||'—'}</td><td>${r.vendedorNome||'—'}</td><td>${st.pagas}/${st.total} pagas</td><td><span class="chip bad">${diasAtraso(r, ref)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
-    }).join('')}</tbody></table>
+      return `<tr><td><input type="checkbox" data-atrasada-check="${r.id}" ${sel[r.id]?'checked':''}></td><td><strong>${r.cliente}</strong></td><td>${r.servico||'—'}</td><td>${r.vendedorNome||'—'}</td><td>${st.pagas}/${st.total} pagas</td><td><span class="chip bad">${diasAtraso(r, ref)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
+    }).join('') || `<tr><td colspan="8"><div class="empty">Nenhuma recorrência atrasada com esses filtros.</div></td></tr>`}</tbody></table>
     ${atrasadas.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandAtrasadas">${STATE.expandAtrasadas ? 'Ver menos' : `••• Ver mais (${atrasadas.length-5})`}</button></div>` : ''}
   </section>`;
 }
@@ -2186,6 +2216,17 @@ function abrirPagamentoModal(recId, parcelaNumero){
     }
     await persistRecorrencia(rec); showSuccessToast('Pagamento registado com sucesso!'); closeModal(); renderAll();
   };
+}
+/* Marca a parcela pendente mais antiga de uma recorrência como paga,
+   com o valor padrão dela e a data de hoje — usada pela ação em lote
+   do alerta de recorrências atrasadas, pra não precisar abrir um
+   modal pra cada uma quando se quer só bater o registro rápido. */
+async function marcarProximaParcelaComoPaga(rec){
+  const st = recStatus(rec);
+  const p = rec.parcelas.find(x=>!x.pago);
+  if(!p) return;
+  p.pago = true; p.valor = st.valorParcela; p.data = todayISO();
+  await persistRecorrencia(rec);
 }
 function abrirPagamentoRecorrenciaModal(recId){
   const rec = STATE.recurrences.find(r=>r.id===recId);
@@ -2441,10 +2482,10 @@ function renderOverview(){
     <button class="btn ghost" id="btnQuickRec">+ Adicionar recorrência</button>
   </div>
   <div class="cards">
-    <div class="card accent"><div class="lbl">Valor vendido (${periodLabelText(STATE.periodFilter)})</div><div class="val good" data-detalhe-card="vendido" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorVendido)}</div><div class="sub">Meta do mês: ${fmtEUR(STATE.meta.valorMeta)} · faltam ${fmtEUR(g.metaRestante)}</div></div>
-    <div class="card"><div class="lbl">Faturamento recebido (caixa)</div><div class="val good" data-detalhe-card="faturado" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorFaturado)}</div><div class="sub">dinheiro que já entrou, no período</div></div>
-    <div class="card"><div class="lbl">Pendências (a receber)</div><div class="val bad" data-detalhe-card="pendente" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorPendente)}</div><div class="sub">Vendas e recorrências originadas no período</div></div>
-    <div class="card"><div class="lbl">Recorrência em andamento</div><div class="val" data-detalhe-card="recorrencia" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.recorrenciaAtivaValor)}</div><div class="sub">${g.nRecsAbertas} contrato(s) com parcela pendente</div></div>
+    <div class="card accent"><div class="lbl">Valor vendido (${periodLabelText(STATE.periodFilter)})</div><div class="val good" data-detalhe-card="vendido" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorVendido)}</div><div class="sub">Meta do mês: ${fmtEUR(STATE.meta.valorMeta)} · faltam ${fmtEUR(g.metaRestante)} — negócios fechados no período, pago ou não</div></div>
+    <div class="card"><div class="lbl">Faturamento recebido (caixa)</div><div class="val good" data-detalhe-card="faturado" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorFaturado)}</div><div class="sub">dinheiro que entrou no período — pode incluir parcelas de vendas de outros meses, por isso pode superar o "vendido"</div></div>
+    <div class="card"><div class="lbl">Pendências (a receber)</div><div class="val bad" data-detalhe-card="pendente" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorPendente)}</div><div class="sub">tudo que falta receber (vendas + recorrências) de negócios originados no período</div></div>
+    <div class="card"><div class="lbl">Recorrência em andamento</div><div class="val" data-detalhe-card="recorrencia" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.recorrenciaAtivaValor)}</div><div class="sub">${g.nRecsAbertas} contrato(s) com parcela pendente — só a parte das pendências que vem de recorrências (pode bater com o card ao lado quando não há venda integral pendente)</div></div>
     <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${g.taxaConversao!==null ? fmtPct(g.taxaConversao) : '—'}</div><div class="sub">${g.taxaConversao!==null ? g.fechamentos+' fechamentos no período / '+g.conversas+' conversas totais' : 'informe conversas iniciadas por vendedor'}</div></div>
   </div>
   ${renderVendasSubcards(STATE.periodFilter, null)}
@@ -2498,13 +2539,39 @@ function detalheCardLinhas(tipo, filter, sellerId){
       return {data:r.dataVenda, cliente:r.cliente, vendedor:r.vendedorNome, tipo:`${st.pagas}/${st.total} parcelas pagas`, valor:st.valorPendente};
     });
   }
+  if(tipo==='custosFixos' || tipo==='custosVariaveis'){
+    const tipoAlvo = tipo==='custosFixos' ? 'Custo fixo' : 'Custo variável';
+    return linhasFinanceiras(filter).filter(l=>l.tipo===tipoAlvo).map(l=>({
+      data:l.data, cliente:l.cliente, vendedor:'—', tipo:l.tipo, valor:l.valor
+    }));
+  }
+  if(tipo==='impostos'){
+    return buildEvents().filter(e=>inPeriodOrAll(e.date, filter) && ((e.ivaValor||0)>0 || (e.txAdmValor||0)>0)).map(e=>({
+      data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:`IVA ${fmtEUR(e.ivaValor||0)} + tx.adm. ${fmtEUR(e.txAdmValor||0)}`, valor:(e.ivaValor||0)+(e.txAdmValor||0)
+    }));
+  }
+  if(tipo==='lucro'){
+    const events = buildEvents().filter(e=>inPeriodOrAll(e.date, filter));
+    const recebido = events.reduce((a,e)=>a+e.valor,0);
+    const taxLucro = computeTaxes(filter).total;
+    const custosLucro = computeCosts(filter).total;
+    return [
+      { data: filter.granularity==='all' ? '' : (filter.anchor||''), cliente:'Recebido no período (caixa)', vendedor:'—', tipo:'+ soma', valor:recebido },
+      { data: filter.granularity==='all' ? '' : (filter.anchor||''), cliente:'Impostos devidos', vendedor:'—', tipo:'− soma', valor:-taxLucro },
+      { data: filter.granularity==='all' ? '' : (filter.anchor||''), cliente:'Custos pagos (fixos + variáveis)', vendedor:'—', tipo:'− soma', valor:-custosLucro },
+    ];
+  }
   return [];
 }
 const DETALHE_CARD_TITULOS = {
   vendido: 'Valor vendido — de onde vem esse número',
   faturado: 'Faturamento recebido (caixa) — de onde vem esse número',
   pendente: 'Pendências (a receber) — de onde vem esse número',
-  recorrencia: 'Recorrências em andamento — de onde vem esse número'
+  recorrencia: 'Recorrências em andamento — de onde vem esse número',
+  custosFixos: 'Custos fixos pagos — de onde vem esse número',
+  custosVariaveis: 'Custos variáveis pagos — de onde vem esse número',
+  impostos: 'Impostos devidos — de onde vem esse número',
+  lucro: 'Lucro líquido estimado — como é calculado'
 };
 function abrirDetalheCard(tipo, filter, sellerId){
   const linhas = detalheCardLinhas(tipo, filter, sellerId).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
@@ -4031,10 +4098,10 @@ function renderFinanceiro(){
   ${renderGenericFilterBar('financeiroFilter', ['all','month','week','day'], months)}
   <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado) — só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte. Os cards abaixo mostram só o que já foi <strong>efetivamente pago</strong> no período (mesmo critério do Resumo, Extrato e Registro) — as abas "Custos fixos"/"Custos variáveis" mostram todo o lançamento, pago ou ainda pendente.</div>
   <div class="cards">
-    <div class="card"><div class="lbl">Custos fixos pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val">${fmtEUR(costs.totalFixos)}</div></div>
-    <div class="card"><div class="lbl">Custos variáveis pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val">${fmtEUR(costs.totalVariaveis)}</div></div>
-    <div class="card"><div class="lbl">Impostos devidos (sobre valor recebido)</div><div class="val bad">${fmtEUR(tax.total)}</div><div class="sub">IVA ${fmtEUR(tax.ivaDevido)} · Taxa adm. ${fmtEUR(tax.txAdmDevido)}</div></div>
-    <div class="card accent"><div class="lbl">Lucro líquido estimado</div><div class="val ${lucro>=0?'good':'bad'}">${fmtEUR(lucro)}</div><div class="sub">recebido − impostos − custos pagos, no período</div></div>
+    <div class="card"><div class="lbl">Custos fixos pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val" data-detalhe-card="custosFixos" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(costs.totalFixos)}</div></div>
+    <div class="card"><div class="lbl">Custos variáveis pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val" data-detalhe-card="custosVariaveis" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(costs.totalVariaveis)}</div></div>
+    <div class="card"><div class="lbl">Impostos devidos (sobre valor recebido)</div><div class="val bad" data-detalhe-card="impostos" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(tax.total)}</div><div class="sub">IVA ${fmtEUR(tax.ivaDevido)} · Taxa adm. ${fmtEUR(tax.txAdmDevido)}</div></div>
+    <div class="card accent"><div class="lbl">Lucro líquido estimado</div><div class="val ${lucro>=0?'good':'bad'}" data-detalhe-card="lucro" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver a fórmula">${fmtEUR(lucro)}</div><div class="sub">recebido − impostos − custos pagos, no período</div></div>
   </div>
   <div class="subtabs">
     <button data-ftab="resumo" class="${tab==='resumo'?'active':''}">📊 Resumo</button>
@@ -5198,13 +5265,49 @@ function wireViewportEvents(){
   vp.querySelectorAll('[data-pagar-rec]').forEach(btn=>{
     btn.addEventListener('click', ()=> abrirPagamentoRecorrenciaModal(btn.dataset.pagarRec));
   });
+  const atrasadasFiltroVendedor = document.getElementById('atrasadasFiltroVendedor');
+  if(atrasadasFiltroVendedor) atrasadasFiltroVendedor.addEventListener('change', ()=>{ STATE.atrasadasFiltroVendedor = atrasadasFiltroVendedor.value; renderAll(); });
+  const atrasadasFiltroCliente = document.getElementById('atrasadasFiltroCliente');
+  if(atrasadasFiltroCliente) atrasadasFiltroCliente.addEventListener('input', ()=>{ STATE.atrasadasFiltroCliente = atrasadasFiltroCliente.value; renderAll(); });
+  const atrasadasFiltroFaixa = document.getElementById('atrasadasFiltroFaixa');
+  if(atrasadasFiltroFaixa) atrasadasFiltroFaixa.addEventListener('change', ()=>{ STATE.atrasadasFiltroFaixa = atrasadasFiltroFaixa.value; renderAll(); });
+  vp.querySelectorAll('[data-atrasada-check]').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      if(!STATE.atrasadasSelecionadas) STATE.atrasadasSelecionadas = {};
+      STATE.atrasadasSelecionadas[chk.dataset.atrasadaCheck] = chk.checked;
+      renderAll();
+    });
+  });
+  const atrasadasSelecionarTodas = document.getElementById('atrasadasSelecionarTodas');
+  if(atrasadasSelecionarTodas) atrasadasSelecionarTodas.addEventListener('change', ()=>{
+    if(!STATE.atrasadasSelecionadas) STATE.atrasadasSelecionadas = {};
+    vp.querySelectorAll('[data-atrasada-check]').forEach(chk=>{ STATE.atrasadasSelecionadas[chk.dataset.atrasadaCheck] = atrasadasSelecionarTodas.checked; });
+    renderAll();
+  });
+  const btnMarcarSelecionadasPagas = document.getElementById('btnMarcarSelecionadasPagas');
+  if(btnMarcarSelecionadasPagas) btnMarcarSelecionadasPagas.addEventListener('click', async ()=>{
+    const ids = Object.entries(STATE.atrasadasSelecionadas||{}).filter(([,v])=>v).map(([id])=>id);
+    openConfirmModal({
+      title:'Registrar pagamentos em lote', confirmLabel:'Registrar',
+      message:`Isso vai marcar a parcela pendente mais antiga de <strong>${ids.length} recorrência(s)</strong> como paga hoje, pelo valor padrão de cada uma. Tem certeza?`,
+      onConfirm: async ()=>{
+        for(const id of ids){
+          const rec = STATE.recurrences.find(r=>r.id===id);
+          if(rec) await marcarProximaParcelaComoPaga(rec);
+        }
+        STATE.atrasadasSelecionadas = {};
+        showSuccessToast(`${ids.length} pagamento(s) registado(s)!`);
+        renderAll();
+      }
+    });
+  });
 
   vp.querySelectorAll('[data-comissao-seller]').forEach(el=>{
     el.addEventListener('click', ()=> abrirComissaoDetalhe(el.dataset.comissaoSeller, STATE.periodFilter));
   });
 
   vp.querySelectorAll('[data-detalhe-card]').forEach(el=>{
-    el.addEventListener('click', ()=> abrirDetalheCard(el.dataset.detalheCard, STATE.periodFilter, el.dataset.detalheSeller || null));
+    el.addEventListener('click', ()=> abrirDetalheCard(el.dataset.detalheCard, el.dataset.detalheFiltro==='financeiro' ? STATE.financeiroFilter : STATE.periodFilter, el.dataset.detalheSeller || null));
   });
 
   vp.querySelectorAll('[data-detalhe-origem]').forEach(el=>{
@@ -5353,7 +5456,11 @@ function wireViewportEvents(){
       ficouPago = !estavaPago;
     } else {
       c.pago = !c.pago;
-      c.dataPagamento = c.pago ? todayISO() : null;
+      // Mesma correção do caso projetado: usa o vencimento do próprio
+      // custo como data do pagamento, não a data de hoje — senão, marcar
+      // um custo antigo (de um mês passado) como pago hoje faz esse valor
+      // contar como despesa do mês corrente, em vez do mês a que pertence.
+      c.dataPagamento = c.pago ? (c.vencimento || todayISO()) : null;
       ficouPago = c.pago;
     }
     await persist('costs');
@@ -5370,7 +5477,7 @@ function wireViewportEvents(){
       c.pagoPorMes[mes] = {pago:true, data:projetarVencimentoNoMes(c.vencimento, mes)};
     } else {
       c.pago = true;
-      c.dataPagamento = todayISO();
+      c.dataPagamento = c.vencimento || todayISO();
     }
     await persist('costs'); renderAll();
   }));
