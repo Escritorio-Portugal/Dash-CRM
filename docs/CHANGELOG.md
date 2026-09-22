@@ -1,5 +1,11 @@
 # Changelog
 
+## v5.4: Auditoria da Visão Geral, bug real encontrado em "Parcelas pagas"
+- Confirmado com dados reais, ao vivo: "Parcelas pagas" contava parcelas de recorrências que **começaram** no período selecionado, não parcelas **pagas de fato** nesse período. Resultado: pagar hoje uma parcela de um contrato antigo nunca aparecia em lugar nenhum.
+- Conferi direto no banco: em setembro, 10 parcelas foram realmente pagas (vindas de contratos de agosto/2025, maio, julho e agosto/2026), mas nenhuma pertence a um contrato que começou em setembro, então o card antigo mostraria 0.
+- Corrigido: "Parcelas pagas" agora conta pela data real do pagamento, de qualquer contrato do vendedor. "Parcelas em aberto" passou a ser a situação atual (todas as pendentes agora), já que uma parcela sem pagar não tem data pra filtrar por período.
+- Os outros cards da mesma área (Pendências, Recorrência em andamento, Taxa de conversão) usam a mesma lógica entre si ("negócios originados no período") e não tinham esse problema, conferido no código.
+
 ## v5.3: Auditoria completa do Financeiro (dados reais) + travessões removidos de todo o sistema
 - Auditoria feita direto em produção: recalculei de forma independente, direto no banco, os valores de Valor Vendido, Faturamento Recebido, Custos Fixos Pagos e Custos Variáveis Pagos, comparando com o que a tela mostrava.
 - Valor Vendido, Faturamento Recebido e Custos Variáveis bateram exatamente com o cálculo independente, sem nenhum erro.
