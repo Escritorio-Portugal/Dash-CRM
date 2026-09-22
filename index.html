@@ -1299,24 +1299,23 @@ function buildEvents(){
   STATE.recurrences.forEach(r=>{
     const st = recStatus(r);
     const rate = taxaComissao();
-    const iva = taxaIva();
     if((r.valorEntrada||0) > 0 && r.dataVenda){
-      const ivaValorEnt = r.valorEntrada*iva;
+      const ivaValorEnt = ivaProporcionalRecorrencia(r, r.valorEntrada);
       const liquidoEnt = Math.max(0, r.valorEntrada - ivaValorEnt);
       events.push({ date:r.dataVenda, valor:r.valorEntrada, comissao: liquidoEnt*rate, ivaValor:ivaValorEnt, txAdmValor:0, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Entrada', cliente:r.cliente });
     }
     const txAdmPorParcela = (r.isentoTaxaAdm || st.total<=0) ? 0 : (r.txAdm||0)/st.total;
     r.parcelas.forEach(p=>{
       if(p.pago && p.data){ // sem data confirmada, não entra em nenhum mês, ver "Sem data de pagamento"
-        const valorReal = (p.valor!=null ? p.valor : st.valorParcela);
-        const ivaValorParc = valorReal*iva;
+        const valorReal = valorEfetivoParcela(p, st);
+        const ivaValorParc = ivaProporcionalRecorrencia(r, valorReal);
         const liquido = valorReal - ivaValorParc - txAdmPorParcela;
         events.push({ date: p.data, valor: valorReal, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:txAdmPorParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
       if(!ex.data) return; // idem: sem data, não conta em nenhum mês
-      const ivaValorEx = (ex.valor||0)*iva;
+      const ivaValorEx = ivaProporcionalRecorrencia(r, ex.valor||0);
       const liquido = (ex.valor||0) - ivaValorEx; // pagamento personalizado não desconta taxa administrativa
       events.push({ date: ex.data, valor: ex.valor||0, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorEx, txAdmValor:0, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Pagamento personalizado', cliente:r.cliente });
     });
@@ -1362,7 +1361,7 @@ function recStatus(rec){
   const valorParcela = total>0 ? restante/total : 0; // valor "padrão", só para pré-preencher o pagamento
   const parcelasInfo = rec.parcelas.map(p=>({
     numero: p.numero, pago: !!p.pago, data: p.data,
-    valor: (p.pago && p.valor!=null) ? p.valor : valorParcela
+    valor: p.pago ? valorEfetivoParcela(p, {valorParcela}) : valorParcela
   }));
   const pagas = rec.parcelas.filter(p=>p.pago).length;
   const valorPagoParcelas = parcelasInfo.filter(p=>p.pago).reduce((a,p)=>a+p.valor,0);
@@ -1408,7 +1407,36 @@ function saleStatus(sale){
   return { valorPendente, quitada: sale.pagamentoIntegral || valorPendente<=0.005 };
 }
 function taxaComissao(){ return STATE.meta.taxaComissao!=null ? STATE.meta.taxaComissao : 0.10; }
-function taxaIva(){ return STATE.meta.taxaIvaPadrao!=null ? STATE.meta.taxaIvaPadrao : 0.23; }
+
+// Parcelas antigas importadas podem estar marcadas como pagas com valor 0.
+// Zero não é um recebimento válido; nesse caso usamos o valor contratual
+// padrão, exatamente como já fazemos quando o valor está ausente (null).
+function valorEfetivoParcela(parcela, statusRecorrencia){
+  const valorInformado = Number(parcela && parcela.valor);
+  return valorInformado > 0 ? valorInformado : statusRecorrencia.valorParcela;
+}
+
+// O IVA guardado na recorrência é o IVA total do serviço. Cada recebimento
+// reconhece somente a fração correspondente desse valor.
+function ivaProporcionalRecorrencia(rec, valorRecebido){
+  const valorContrato = Number(rec.valorContrato)||0;
+  if(valorContrato<=0 || valorRecebido<=0) return 0;
+  return (Number(rec.iva)||0) * (valorRecebido/valorContrato);
+}
+
+function componentesServicoParaTotal(servico, valorTotal){
+  if(!servico) return { honorarioBase:valorTotal, iva:0, txAdm:0 };
+  const baseOriginal = Number(servico.honorarioBase)||0;
+  const ivaOriginal = Number(servico.iva)||0;
+  const txAdm = Math.min(Number(servico.txAdm)||0, valorTotal);
+  const subtotalOriginal = baseOriginal + ivaOriginal;
+  const fator = subtotalOriginal>0 ? Math.max(0, valorTotal-txAdm)/subtotalOriginal : 0;
+  return { honorarioBase:baseOriginal*fator, iva:ivaOriginal*fator, txAdm };
+}
+
+function componentesFinanceirosConferem(valorTotal, honorarioBase, iva, txAdm){
+  return Math.abs(valorTotal - (honorarioBase + iva + txAdm)) <= 0.02;
+}
 
 /* ---------------------------------------------------------------
    COMISSÃO, regra de negócio (revisada):
@@ -1439,23 +1467,22 @@ function comissaoSale(sale){
 function comissaoRecorrencia(rec){
   const st = recStatus(rec);
   const rate = taxaComissao();
-  const iva = taxaIva();
   let total = 0;
   if(rec.valorEntrada > 0){
-    const ivaReal = rec.valorEntrada*iva;
+    const ivaReal = ivaProporcionalRecorrencia(rec, rec.valorEntrada);
     total += Math.max(0, rec.valorEntrada - ivaReal) * rate;
   }
   const txAdmPorParcela = (rec.isentoTaxaAdm || st.total<=0) ? 0 : (rec.txAdm||0) / st.total;
   rec.parcelas.forEach(p=>{
     if(p.pago){
-      const valorReal = (p.valor!=null ? p.valor : st.valorParcela);
-      const ivaReal = valorReal*iva;
+      const valorReal = valorEfetivoParcela(p, st);
+      const ivaReal = ivaProporcionalRecorrencia(rec, valorReal);
       const liquido = valorReal - ivaReal - txAdmPorParcela;
       total += Math.max(0, liquido) * rate;
     }
   });
   (rec.pagamentosExtras||[]).forEach(ex=>{
-    const ivaReal = (ex.valor||0)*iva;
+    const ivaReal = ivaProporcionalRecorrencia(rec, ex.valor||0);
     total += Math.max(0, (ex.valor||0) - ivaReal) * rate;
   });
   return total;
@@ -1680,7 +1707,6 @@ function renderVendasSubcards(filter, sellerId){
    aqui pra mostrar exatamente quanto foi descontado de cada recebimento. */
 function comissaoBreakdownEvents(sellerId, filter){
   const rate = taxaComissao();
-  const iva = taxaIva();
   const linhas = [];
   STATE.sales.filter(s=>s.vendedorId===sellerId && !s.jaContabilizadoViaRecorrencia && (s.valorPago||0)>0 && s.data && inPeriodOrAll(s.data, filter)).forEach(s=>{
     const frac = s.valorTotal>0 ? s.valorPago/s.valorTotal : 0;
@@ -1697,22 +1723,22 @@ function comissaoBreakdownEvents(sellerId, filter){
   STATE.recurrences.filter(r=>r.vendedorId===sellerId).forEach(r=>{
     const st = recStatus(r);
     if((r.valorEntrada||0)>0 && r.dataVenda && inPeriodOrAll(r.dataVenda, filter)){
-      const ivaDesc = r.valorEntrada*iva;
+      const ivaDesc = ivaProporcionalRecorrencia(r, r.valorEntrada);
       const liquido = Math.max(0, r.valorEntrada - ivaDesc);
       linhas.push({ date:r.dataVenda, cliente:r.cliente, tipo:'Entrada', recebido:r.valorEntrada, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
     }
     const txAdmPorParcela = (r.isentoTaxaAdm || st.total<=0) ? 0 : (r.txAdm||0)/st.total;
     r.parcelas.forEach(p=>{
       if(p.pago && p.data && inPeriodOrAll(p.data, filter)){
-        const valorReal = (p.valor!=null ? p.valor : st.valorParcela);
-        const ivaDesc = valorReal*iva;
+        const valorReal = valorEfetivoParcela(p, st);
+        const ivaDesc = ivaProporcionalRecorrencia(r, valorReal);
         const liquido = Math.max(0, valorReal - ivaDesc - txAdmPorParcela);
         linhas.push({ date: p.data, cliente:r.cliente, tipo:'Parcela '+p.numero+(r.isentoTaxaAdm?' (isento tx. adm.)':''), recebido: valorReal, ivaDesc, txAdmDesc:txAdmPorParcela, liquido, comissao: liquido*rate });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
       if(!ex.data || !inPeriodOrAll(ex.data, filter)) return;
-      const ivaDesc = (ex.valor||0)*iva;
+      const ivaDesc = ivaProporcionalRecorrencia(r, ex.valor||0);
       const liquido = Math.max(0, (ex.valor||0) - ivaDesc);
       linhas.push({ date: ex.data, cliente:r.cliente, tipo:'Pagamento personalizado', recebido: ex.valor||0, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
     });
@@ -2364,7 +2390,7 @@ function renderChartsPanel(){
     const st = recStatus(r);
     if((r.valorEntrada||0)>0 && inPeriodOrAll(r.dataVenda, STATE.periodFilter)) soma(r.formaPagamento, r.valorEntrada);
     r.parcelas.forEach(p=>{
-      if(p.pago && p.data && inPeriodOrAll(p.data, STATE.periodFilter)) soma(r.formaPagamento, p.valor!=null ? p.valor : st.valorParcela);
+      if(p.pago && p.data && inPeriodOrAll(p.data, STATE.periodFilter)) soma(r.formaPagamento, valorEfetivoParcela(p, st));
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
       if(ex.data && inPeriodOrAll(ex.data, STATE.periodFilter)) soma(r.formaPagamento, ex.valor||0);
@@ -2658,7 +2684,7 @@ function parcelasSemData(){
   STATE.recurrences.forEach(r=>{
     const st = recStatus(r);
     r.parcelas.forEach(p=>{
-      if(p.pago && !p.data) out.push({ recId:r.id, cliente:r.cliente, vendedorNome:r.vendedorNome, dataVenda:r.dataVenda, numero:p.numero, valor: p.valor!=null ? p.valor : st.valorParcela });
+      if(p.pago && !p.data) out.push({ recId:r.id, cliente:r.cliente, vendedorNome:r.vendedorNome, dataVenda:r.dataVenda, numero:p.numero, valor: valorEfetivoParcela(p, st) });
     });
   });
   return out.sort((a,b)=> (a.dataVenda||'').localeCompare(b.dataVenda||''));
@@ -2696,7 +2722,7 @@ function pagamentosRecentesHoje(){
     r.parcelas.forEach(p=>{
       if(p.pago && p.data===hoje){
         const st = recStatus(r);
-        linhas.push({ ref:{tipo:'parcela', recId:r.id, numero:p.numero}, cliente:r.cliente, tipo:'Parcela '+p.numero, valor: p.valor!=null?p.valor:st.valorParcela });
+        linhas.push({ ref:{tipo:'parcela', recId:r.id, numero:p.numero}, cliente:r.cliente, tipo:'Parcela '+p.numero, valor: valorEfetivoParcela(p, st) });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
@@ -3110,7 +3136,7 @@ function buscarClienteCompleto(query, filter){
     const st = recStatus(r);
     if((r.valorEntrada||0)>0) pagamentos.push({ data:r.dataVenda, tipo:'Entrada de recorrência', valor:r.valorEntrada, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
     r.parcelas.forEach(p=>{
-      if(p.pago) pagamentos.push({ data:p.data, tipo:'Parcela '+p.numero, valor: p.valor!=null?p.valor:st.valorParcela, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
+      if(p.pago) pagamentos.push({ data:p.data, tipo:'Parcela '+p.numero, valor: valorEfetivoParcela(p, st), forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
       pagamentos.push({ data:ex.data, tipo:'Pagamento personalizado', valor:ex.valor, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
@@ -4160,7 +4186,7 @@ function linhasFinanceiras(filter){
     }
     r.parcelas.forEach(p=>{
       if(p.pago && p.data && inPeriodOrAll(p.data, filter)){
-        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'-', valor: p.valor!=null ? p.valor : st.valorParcela, sinal:1, _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
+        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'-', valor: valorEfetivoParcela(p, st), sinal:1, _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
@@ -4543,12 +4569,13 @@ function openQuickAddModal(initialTipo, forColaborador){
         const valorPago = Number(document.getElementById('qValorPago').value)||0;
         if(!valorPago){ alert('Informe o valor pago.'); return; }
         const formaPagamento = document.getElementById('qFormaPagamento').value;
+        const componentes = componentesServicoParaTotal(matchedService, valorPago);
         const novaVenda = {
           id:'vda-'+Date.now(), data, cliente, vendedorId, vendedorNome: vendedor?vendedor.nome:'-',
           origem, servico, valorTotal: valorPago, valorPago, pagamentoIntegral:true, nParcelas:null,
           formaPagamento, registro:null, obs:null,
-          honorarioBase: matchedService?matchedService.honorarioBase:valorPago,
-          iva: matchedService?matchedService.iva:0, txAdm: matchedService?matchedService.txAdm:0
+          honorarioBase: componentes.honorarioBase,
+          iva: componentes.iva, txAdm: componentes.txAdm
         };
         STATE.sales.push(novaVenda);
         await persistVenda(novaVenda); showSuccessToast('Venda registada com sucesso!'); closeModal(); renderAll();
@@ -4559,11 +4586,12 @@ function openQuickAddModal(initialTipo, forColaborador){
         const formaPagamento = document.getElementById('qFormaPagamentoRec').value;
         if(!valorContrato){ alert('Informe o valor do contrato.'); return; }
         if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
+        const componentes = componentesServicoParaTotal(matchedService, valorContrato);
         const parcelas = Array.from({length:nParcelas}, (_,i)=>({numero:i+1, data:null, pago:false}));
         const novaRec = {
           id:'rec-'+Date.now(), dataVenda:data, cliente, servico, nParcelas, valorEntrada, formaPagamento, origem,
-          honorarioBase: matchedService?matchedService.honorarioBase:valorContrato,
-          iva: matchedService?matchedService.iva:0, txAdm: matchedService?matchedService.txAdm:0,
+          honorarioBase: componentes.honorarioBase,
+          iva: componentes.iva, txAdm: componentes.txAdm,
           valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'-', parcelas, origemSheet:'manual'
         };
         STATE.recurrences.push(novaRec);
@@ -4728,6 +4756,9 @@ function openEditSaleModal(saleId){
     const txAdm = Number(document.getElementById('esTx').value)||0;
     if(!cliente || !data){ alert('Preencha ao menos cliente e data.'); return; }
     if(valorPago > valorTotal){ alert('O valor recebido não pode ser maior que o valor total.'); return; }
+    if(!componentesFinanceirosConferem(valorTotal, honorarioBase, iva, txAdm)){
+      alert('Honorário base + IVA + taxa administrativa devem ser iguais ao valor total.'); return;
+    }
     const vendedor = sellerById(vendedorId);
     Object.assign(sale, {
       cliente, servico, data, vendedorId, vendedorNome: vendedor?vendedor.nome:sale.vendedorNome,
@@ -4811,6 +4842,9 @@ function openEditRecModal(recId){
     const nParcelasNovo = Number(document.getElementById('erParcelas').value)||1;
     if(!cliente || !valorContrato){ alert('Preencha ao menos cliente e valor do contrato.'); return; }
     if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
+    if(!componentesFinanceirosConferem(valorContrato, honorarioBase, iva, txAdm)){
+      alert('Honorário base + IVA + taxa administrativa devem ser iguais ao valor do contrato.'); return;
+    }
     const vendedor = sellerById(vendedorId);
 
     let parcelas = rec.parcelas.slice();
@@ -4886,14 +4920,15 @@ function openAddRecModal(forColaborador){
     const origem = document.getElementById('rOrigem').value;
     if(!cliente || !valorContrato){ alert('Preencha ao menos cliente e valor do contrato.'); return; }
     if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
+    const componentes = componentesServicoParaTotal(matchedService, valorContrato);
     const vendedor = sellerById(vendedorId);
     const parcelas = Array.from({length:nParcelas}, (_,i)=>({numero:i+1, data:null, pago:false}));
     const novaRec2 = {
       id:'rec-'+Date.now(), dataVenda:data||todayISO(), cliente, servico,
       nParcelas, valorEntrada, formaPagamento, origem,
-      honorarioBase: matchedService?matchedService.honorarioBase:valorContrato,
-      iva: matchedService?matchedService.iva:0,
-      txAdm: matchedService?matchedService.txAdm:0,
+      honorarioBase: componentes.honorarioBase,
+      iva: componentes.iva,
+      txAdm: componentes.txAdm,
       valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'-', parcelas, origemSheet:'manual'
     };
     STATE.recurrences.push(novaRec2);

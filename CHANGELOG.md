@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.16 — Auditoria de dados, métricas de recorrência e segurança do Supabase
+- Corrigidas 47 parcelas históricas marcadas como pagas com valor zero. Elas passam a usar o valor contratual padrão, recuperando € 16.473,89 que não entravam corretamente nas métricas de caixa, comissão, impostos e pendências.
+- O IVA de entradas, parcelas e pagamentos personalizados de recorrências agora usa o IVA real guardado no serviço, proporcional ao valor recebido. O cálculo antigo aplicava 23% diretamente sobre o recebimento e podia inflar imposto e reduzir comissão/lucro.
+- Novos lançamentos com preço diferente do catálogo passam a recalcular honorário e IVA sem deixar a composição financeira divergente. A edição manual agora impede salvar quando honorário + IVA + taxa administrativa não fecham com o total.
+- Corrigidos cinco registros históricos com preço descontado, mas composição de honorário/IVA ainda baseada no preço cheio.
+- Segurança endurecida no Supabase: acesso anônimo removido das seis tabelas do CRM, políticas limitadas a sessões autenticadas, funções `security definer` protegidas e novas regras de integridade para valores financeiros.
+- Auditoria confirmou ausência de duplicidades de negócio, parcelas órfãs e referências a vendedores inexistentes no conjunto relacional ativo.
+
 ## v3.15 — Corrigido: isenção de taxa administrativa não reduzia o pendente + botões reorganizados
 - **Bug real encontrado e corrigido**: marcar um contrato como "isento de taxa administrativa" só afetava o cálculo de comissão — o valor pendente (o que falta o cliente pagar) continuava contando a taxa administrativa como se ainda fosse cobrada. Agora, isentar reduz de verdade o valor total devido daquele contrato, e o pendente reflete isso corretamente. Testei o cenário completo: contrato de €2.112,60 com €612 de taxa administrativa, isentando depois de uma parcela paga — o pendente cai exatamente pelo valor da taxa isentada, sem ficar negativo mesmo em contratos já totalmente pagos.
 - **Botões reorganizados** pra não empilhar: a célula de parcelas de uma recorrência (que podia ficar com entrada + várias bolinhas + pagamentos personalizados + botão, tudo espremido) agora quebra linha de forma organizada em vez de bagunçar. O mesmo ajuste nas colunas de ação (Editar/Excluir) de Vendas, Recorrências e Custos, e nas sub-abas do Financeiro (que podiam cortar em telas mais estreitas).
