@@ -1,5 +1,10 @@
 # Changelog
 
+## v5.0 — Visão Geral: alertas agora respeitam de verdade o período selecionado
+- **Confirmado ao vivo, com você**: os alertas "⚠️ Recorrências atrasadas" e "⚠️ Custos fixos vencidos" sempre mostravam a situação de **hoje**, não a do período selecionado na tela — escolher setembro ainda misturava atrasos que vinham de maio, sem deixar claro que aquilo não era "de setembro".
+- **Corrigido pra valer** (não só o aviso): esses dois alertas agora calculam "quantos dias em atraso" tomando como referência o **último dia do período selecionado** (ou hoje, se esse dia ainda não chegou) — não mais sempre hoje. Escolher maio agora mostra a situação **como ela estava no fim de maio**; escolher setembro mostra a situação de hoje. Testei com o caso real visto ao vivo (Cristóvão Fernão, criado em 04/05): olhando por setembro, aparece com 141 dias de atraso (bate com o que você viu na tela); olhando por maio, ainda não tinha completado a tolerância de 30 dias e não aparece atrasada; olhando por junho, já aparece.
+- Cada um dos dois blocos agora também mostra explicitamente a data de referência usada ("considerando a situação em [data] — fim do período selecionado").
+
 ## v4.9 — Bug crítico encontrado AO VIVO em produção: datas erradas em custos fixos projetados
 - **Auditoria feita direto no sistema em produção** (login como gestor, Chrome): confirmei visualmente que "Custos fixos pagos" de Agosto mostrava **€0,00** mesmo com CPAS, ChatGPT, Estacionamento, Seg Social, Limpeza e Contabilista todos marcados "pago" na tabela — e Setembro, o mês corrente, mostrava **€53.100,00**, quando a soma manual das linhas realmente pagas dava €3.252,00 (16x menor).
 - **Causa raiz**: ao marcar um mês *projetado* (repetido) de um custo fixo como pago, o sistema gravava a data de **hoje** como data do pagamento, em vez da data de vencimento daquele mês específico. Resultado: marcar o aluguel de agosto como pago *hoje, em setembro*, fazia esse valor contar como despesa de setembro, não de agosto — inflando o mês corrente e zerando o mês antigo, todas as vezes que alguém acertava as contas atrasadas.
