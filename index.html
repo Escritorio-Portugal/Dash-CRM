@@ -1480,25 +1480,6 @@ function computeSellerStats(sellerId, filter){
   };
 }
 
-function computeGlobal(){
-  let valorFaturado=0, valorPendente=0, recorrenciaAtivaValor=0, conversas=0, fechamentos=0;
-  STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia).forEach(s=>{ valorFaturado+=s.valorPago||0; valorPendente+=saleStatus(s).valorPendente; });
-  STATE.recurrences.forEach(r=>{
-    const st = recStatus(r);
-    valorFaturado+=st.valorPago; valorPendente+=st.valorPendente;
-    if(!st.quitada) recorrenciaAtivaValor += st.valorPendente;
-  });
-  activeSellers().forEach(s=>{ conversas += s.conversasIniciadas||0; });
-  fechamentos = STATE.sales.length + STATE.recurrences.length;
-  const taxaConversao = conversas>0 ? fechamentos/conversas : null;
-  const meta = STATE.meta.valorMeta || 0;
-  return {
-    valorFaturado, valorPendente, recorrenciaAtivaValor, taxaConversao, fechamentos, conversas,
-    metaPct: meta>0 ? valorFaturado/meta : 0,
-    metaRestante: Math.max(0, meta - valorFaturado)
-  };
-}
-
 /* Mesmas 4 métricas do topo, mas escopadas a um período (mês/semana/dia) —
    usa a data de origem da venda/recorrência para decidir o que entra. */
 function computeGlobalForPeriod(filter){
@@ -1862,11 +1843,32 @@ function renderLoginScreen(mode, extra){
     document.getElementById('btnVoltarLogin3').onclick = ()=> renderLoginScreen('signin');
   }
 }
+/* Corrige um bug real: marcar um mês PROJETADO de um custo fixo como pago
+   gravava a data de HOJE em vez da data daquela mês específico — fazendo
+   o valor "sumir" do mês certo e inflar o mês em que o clique aconteceu.
+   Esta migração recalcula a data certa (vencimento projetado daquele mês)
+   pra cada registro já gravado em pagoPorMes, uma vez só. */
+async function applyCorrecaoDatasCustosProjetados(){
+  if(STATE.meta.corrigiuDatasCustosProjetadosEm) return;
+  let mudou = false;
+  STATE.costs.forEach(c=>{
+    if(c.categoria!=='FIXO' || !c.pagoPorMes || !c.vencimento) return;
+    Object.entries(c.pagoPorMes).forEach(([mesKey, reg])=>{
+      if(!reg || typeof reg!=='object' || !reg.pago) return;
+      const dataCerta = projetarVencimentoNoMes(c.vencimento, mesKey);
+      if(reg.data !== dataCerta){ reg.data = dataCerta; mudou = true; }
+    });
+  });
+  if(mudou){ await persist('costs'); }
+  STATE.meta.corrigiuDatasCustosProjetadosEm = todayISO();
+  await persist('meta');
+}
 /* Roda as migracoes de dados uma vez so - so o gestor tem permissao de
    escrita ampla o suficiente pra elas; um colaborador simplesmente pula
    esta parte e vai direto para os proprios dados. */
 async function runGestorMigrationsIfNeeded(){
   if(STATE.role!=='gestor') return;
+  await applyCorrecaoDatasCustosProjetados();
   await applyHistoricalImport();
   await applyDedupSalesVsRecurrences();
   await applyJulhoUpdate();
@@ -2092,10 +2094,10 @@ function renderRecorrenciasAtrasadasBox(){
   return `
   <section class="block atraso-block">
     <div class="block-head"><h3>⚠️ Recorrências atrasadas (${atrasadas.length})</h3><span class="hint">sem quitar há mais de ${DIAS_TOLERANCIA_ATRASO} dias</span></div>
-    <table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Dias em atraso</th><th>Pendente</th><th></th></tr></thead>
+    <table><thead><tr><th>Cliente</th><th>Serviço</th><th>Vendedor</th><th>Parcelas</th><th>Dias em atraso</th><th>Pendente</th><th></th></tr></thead>
     <tbody>${shown.map(r=>{
       const st = recStatus(r);
-      return `<tr><td><strong>${r.cliente}</strong></td><td>${r.vendedorNome||'—'}</td><td><span class="chip bad">${diasAtraso(r)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
+      return `<tr><td><strong>${r.cliente}</strong></td><td>${r.servico||'—'}</td><td>${r.vendedorNome||'—'}</td><td>${st.pagas}/${st.total} pagas</td><td><span class="chip bad">${diasAtraso(r)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
     }).join('')}</tbody></table>
     ${atrasadas.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandAtrasadas">${STATE.expandAtrasadas ? 'Ver menos' : `••• Ver mais (${atrasadas.length-5})`}</button></div>` : ''}
   </section>`;
@@ -2109,7 +2111,7 @@ function renderCustosAtrasadosBox(){
   const shown = STATE.expandCustosAtrasados ? atrasados : atrasados.slice(0,5);
   return `
   <section class="block atraso-block">
-    <div class="block-head"><h3>⚠️ Custos fixos vencidos (${atrasados.length})</h3><span class="hint">ainda não pagos, com vencimento no passado</span></div>
+    <div class="block-head"><h3>⚠️ Custos fixos vencidos (${atrasados.length})</h3><span class="hint">Situação atual (hoje, ${fmtDate(todayISO())}) — independente do período selecionado acima</span></div>
     <table><thead><tr><th>Custo</th><th>Valor</th><th>Vencimento</th><th>Dias em atraso</th><th></th></tr></thead>
     <tbody>${shown.map(c=>`<tr><td><strong>${c.nome}</strong></td><td class="tnum">${fmtEUR(c.valor)}</td><td>${fmtDate(c.vencimento)}</td><td><span class="chip bad">${diasAtrasoCusto(c)} dias</span></td><td><button class="btn gold sm" data-pagar-custo="${c.id}" data-custo-month="${c.vencimento.slice(0,7)}">Pagar</button></td></tr>`).join('')}</tbody></table>
     ${atrasados.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandCustosAtrasados">${STATE.expandCustosAtrasados ? 'Ver menos' : `••• Ver mais (${atrasados.length-5})`}</button></div>` : ''}
@@ -4073,8 +4075,14 @@ function linhasFinanceiras(filter){
     });
   });
   STATE.costs.filter(c=>c.categoria==='FIXO').forEach(c=>{
-    if(c.pago && c.dataPagamento && inPeriodOrAll(c.dataPagamento, filter)){
-      linhas.push({ data:c.dataPagamento, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoExato', custoId:c.id} });
+    // Custos históricos foram importados com "pago:true" mas sem
+    // dataPagamento (esse campo não existia na planilha original) — sem
+    // esse fallback pro vencimento, eles contam como "pago" na tabela de
+    // gestão mas somem inteiros do total de despesas, dando €0,00 mesmo
+    // com dezenas de custos marcados como pagos.
+    const dataEfetiva = c.dataPagamento || c.vencimento;
+    if(c.pago && dataEfetiva && inPeriodOrAll(dataEfetiva, filter)){
+      linhas.push({ data:dataEfetiva, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoExato', custoId:c.id} });
     }
     if(c.pagoPorMes){
       Object.entries(c.pagoPorMes).forEach(([mesKey,reg])=>{
@@ -5319,7 +5327,11 @@ function wireViewportEvents(){
     if(c.categoria==='FIXO' && mes && mes!==mesOrigem){
       if(!c.pagoPorMes) c.pagoPorMes = {};
       const estavaPago = costPagoNoMes(c, mes);
-      c.pagoPorMes[mes] = estavaPago ? {pago:false} : {pago:true, data:todayISO()};
+      // A data do pagamento tem que ser a data de vencimento DAQUELE mês
+      // projetado, não a data de hoje — senão, marcar um mês antigo como
+      // pago (ex.: acertar o aluguel de junho, hoje em setembro) faz esse
+      // valor contar como despesa de setembro, inflando o mês corrente.
+      c.pagoPorMes[mes] = estavaPago ? {pago:false} : {pago:true, data:projetarVencimentoNoMes(c.vencimento, mes)};
       ficouPago = !estavaPago;
     } else {
       c.pago = !c.pago;
@@ -5337,7 +5349,7 @@ function wireViewportEvents(){
     const mesOrigem = c.vencimento ? c.vencimento.slice(0,7) : null;
     if(mes && mes!==mesOrigem){
       if(!c.pagoPorMes) c.pagoPorMes = {};
-      c.pagoPorMes[mes] = {pago:true, data:todayISO()};
+      c.pagoPorMes[mes] = {pago:true, data:projetarVencimentoNoMes(c.vencimento, mes)};
     } else {
       c.pago = true;
       c.dataPagamento = todayISO();
