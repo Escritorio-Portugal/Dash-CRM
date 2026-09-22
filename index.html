@@ -1650,8 +1650,18 @@ function computeVendasBreakdown(filter, sellerId){
   const integrais = salesIn.filter(s=>s.pagamentoIntegral);
   const valorIntegrais = integrais.reduce((a,s)=>a+(s.valorTotal||0),0);
   const valorRecorrencias = recsIn.reduce((a,r)=>a+(r.valorContrato||0),0);
+  /* "Parcelas pagas no período" tem que olhar a DATA DO PAGAMENTO de
+     cada parcela, de QUALQUER recorrência do vendedor, não só das que
+     começaram nesse período — senão, pagar hoje a parcela de um
+     contrato antigo nunca aparecia em lugar nenhum. "Parcelas em
+     aberto" já é a situação atual (sem período, porque uma parcela
+     pendente não tem data pra filtrar por). */
+  const todasRecsDoVendedor = STATE.recurrences.filter(r=> !sellerId || r.vendedorId===sellerId);
   let parcelasPagas=0, parcelasAbertas=0;
-  recsIn.forEach(r=>{ r.parcelas.forEach(p=>{ p.pago ? parcelasPagas++ : parcelasAbertas++; }); });
+  todasRecsDoVendedor.forEach(r=>{ r.parcelas.forEach(p=>{
+    if(p.pago){ if(inPeriodOrAll(p.data, filter)) parcelasPagas++; }
+    else parcelasAbertas++;
+  }); });
   return { nIntegrais: integrais.length, valorIntegrais, nRecorrencias: recsIn.length, valorRecorrencias, parcelasPagas, parcelasAbertas };
 }
 function renderVendasSubcards(filter, sellerId){
@@ -1660,8 +1670,8 @@ function renderVendasSubcards(filter, sellerId){
   <div class="cards" style="margin-top:-10px;">
     <div class="card"><div class="lbl">Vendas integrais (pagas à vista)</div><div class="val">${fmtEUR(b.valorIntegrais)}</div><div class="sub">${b.nIntegrais} venda(s)</div></div>
     <div class="card"><div class="lbl">Vendas recorrentes (contratado)</div><div class="val">${fmtEUR(b.valorRecorrencias)}</div><div class="sub">${b.nRecorrencias} contrato(s)</div></div>
-    <div class="card"><div class="lbl">Parcelas pagas</div><div class="val good">${b.parcelasPagas}</div><div class="sub">de recorrências no período</div></div>
-    <div class="card"><div class="lbl">Parcelas em aberto</div><div class="val bad">${b.parcelasAbertas}</div><div class="sub">ainda não pagas</div></div>
+    <div class="card"><div class="lbl">Parcelas pagas</div><div class="val good">${b.parcelasPagas}</div><div class="sub">pagas no período, de qualquer contrato</div></div>
+    <div class="card"><div class="lbl">Parcelas em aberto</div><div class="val bad">${b.parcelasAbertas}</div><div class="sub">situação atual, ainda não pagas</div></div>
   </div>`;
 }
 
