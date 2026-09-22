@@ -1,5 +1,17 @@
 # Changelog
 
+## v5.2 — Prioridade média: indicadores mais claros, detalhamento e filtros
+- **Item 6 — indicadores mais claros**: os 4 cards principais da Visão Geral ganharam explicações mais diretas no rodapé de cada um, deixando explícito quando "Pendências" e "Recorrência em andamento" podem bater (quando não há venda integral pendente) e por que "Faturamento recebido" pode superar "Valor vendido" (parcelas de meses anteriores entrando agora).
+- **Item 7 — composição dos totais**: os 4 cards do topo do Financeiro (Custos fixos pagos, Custos variáveis pagos, Impostos devidos, Lucro líquido) agora abrem um detalhamento ao clicar, igual já funcionava na Visão Geral — o de Lucro mostra a fórmula com os 3 componentes (recebido, impostos, custos), não só o resultado final.
+- **Item 8 — alertas operacionais**: o alerta de Recorrências atrasadas ganhou filtro por vendedor, busca por cliente, filtro por faixa de atraso (30-60/60-90/90+), e uma ação em lote — selecionar várias e registrar a parcela pendente mais antiga de cada uma de uma vez, com um único clique de confirmação. Ordenação por maior atraso e o botão de ação rápida já existiam.
+- **Item 9 — lucro mais confiável**: coberto pelo detalhamento do item 7 (mostra a fórmula com os componentes). Não identifiquei diferença de arredondamento entre os cálculos ao auditar — os valores já batem exatamente entre os cards.
+- Itens 10, 11 e 12 (reduzir o tamanho da página, responsividade, melhorias nos gráficos) ainda não foram feitos — são mudanças de interface mais amplas, ficam para a próxima entrega.
+
+## v5.1 — Corrigido o bug irmão (código), em mais dois lugares
+- O mesmo bug corrigido nos dados ao vivo (v4.9) tinha **duas outras ocorrências no código** que eu não tinha visto: o botão de marcar um custo fixo como pago diretamente (não projetado), e o botão "Pagar" do alerta de custos vencidos — os dois gravavam a data de **hoje**, não a data de vencimento do custo. Agora os três lugares usam a mesma regra: a data do pagamento é a data de vencimento do próprio lançamento.
+- Testado com o cenário exato que causou o problema em produção (custo do Pablo de janeiro, marcado pago em setembro): confirmado que agora conta como despesa de janeiro, não mais de setembro.
+- Reforça o item 5 da lista de prioridade alta ("custo do mês seguinte não deve herdar status pago") — a causa raiz completa (dados + código, nos 3 lugares) está corrigida.
+
 ## v5.0 — Visão Geral: alertas agora respeitam de verdade o período selecionado
 - **Confirmado ao vivo, com você**: os alertas "⚠️ Recorrências atrasadas" e "⚠️ Custos fixos vencidos" sempre mostravam a situação de **hoje**, não a do período selecionado na tela — escolher setembro ainda misturava atrasos que vinham de maio, sem deixar claro que aquilo não era "de setembro".
 - **Corrigido pra valer** (não só o aviso): esses dois alertas agora calculam "quantos dias em atraso" tomando como referência o **último dia do período selecionado** (ou hoje, se esse dia ainda não chegou) — não mais sempre hoje. Escolher maio agora mostra a situação **como ela estava no fim de maio**; escolher setembro mostra a situação de hoje. Testei com o caso real visto ao vivo (Cristóvão Fernão, criado em 04/05): olhando por setembro, aparece com 141 dias de atraso (bate com o que você viu na tela); olhando por maio, ainda não tinha completado a tolerância de 30 dias e não aparece atrasada; olhando por junho, já aparece.
