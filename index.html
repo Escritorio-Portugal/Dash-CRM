@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel de Controlo — CRM Jurídico</title>
+<title>Painel de Controlo, CRM Jurídico</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2714%27%20fill%3D%27%23520225%27%2F%3E%3Crect%20x%3D%272%27%20y%3D%272%27%20width%3D%2760%27%20height%3D%2760%27%20rx%3D%2712%27%20fill%3D%27none%27%20stroke%3D%27%23BB8E1D%27%20stroke-width%3D%271.5%27%20opacity%3D%270.55%27%2F%3E%3Ctext%20x%3D%2732%27%20y%3D%2746%27%20font-family%3D%27Georgia%2C%20serif%27%20font-size%3D%2738%27%20font-weight%3D%27700%27%20fill%3D%27%23BB8E1D%27%20text-anchor%3D%27middle%27%3EP%3C%2Ftext%3E%3C%2Fsvg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -63,7 +63,7 @@ input,select{font-family:inherit;}
 /* Grupos recolhíveis da barra lateral. Cada grupo tem uma cor própria
    (dourado pra Operacional, azul-petróleo pra Financeiro) que aparece
    como uma linha vertical à esquerda envolvendo o cabeçalho E os itens
-   de dentro — assim fica óbvio, visualmente, o que pertence a qual
+   de dentro, assim fica óbvio, visualmente, o que pertence a qual
    setor, mesmo com vários itens abertos ao mesmo tempo. */
 .nav-group{
   margin-bottom:8px; border-radius:10px; position:relative; padding-left:10px;
@@ -85,7 +85,7 @@ input,select{font-family:inherit;}
 .nav-group-chevron{display:inline-block;font-size:9px;color:var(--nav-rail-lit);transition:transform .3s cubic-bezier(.34,1.56,.64,1);}
 .nav-group-header.aberto .nav-group-chevron{transform:rotate(90deg);}
 /* A bolinha fica sempre presente (fraca) do lado esquerdo de cada
-   cabeçalho de grupo, igual já acontece em cada item individual — só
+   cabeçalho de grupo, igual já acontece em cada item individual, só
    acende (dourado/azul, com brilho pulsante) quando a tela atual está
    dentro daquele grupo. */
 .nav-group-dot-ativo{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.35;flex-shrink:0;transition:.2s;}
@@ -257,7 +257,7 @@ tr:hover td{background:#FBFBFA;}
 .cc-select, .cc-input{width:100%;min-width:120px;border:1px solid var(--line);border-radius:6px;padding:5px 6px;font-size:12px;background:var(--surface);}
 .cc-select:focus, .cc-input:focus{outline:2px solid var(--gold-soft);border-color:var(--gold);}
 .linechart-wrap{cursor:crosshair;}
-/* Notificação "gamificada" de sucesso — desce do topo com um pop
+/* Notificação "gamificada" de sucesso, desce do topo com um pop
    elástico, mostra o check, e depois de um tempo se retrai sozinha
    de volta pra cima, com fade. Fica em cima de tudo (inclusive
    modais), pra sempre ser vista. */
@@ -382,13 +382,13 @@ tr:hover td{background:#FBFBFA;}
 
 <script>
 /* =========================================================
-   DIAGNÓSTICO DE ERROS — mostra qualquer erro em tela (em vez de
+   DIAGNÓSTICO DE ERROS, mostra qualquer erro em tela (em vez de
    falhar silenciosamente), para conseguirmos identificar a causa exata
    ========================================================= */
 /* Toca um "ding" curto e agradável (dois tons subindo) sem precisar de
-   nenhum arquivo de áudio — gerado na hora pelo próprio navegador. Se
+   nenhum arquivo de áudio, gerado na hora pelo próprio navegador. Se
    o navegador bloquear áudio (política de autoplay), simplesmente
-   ignora — o toast visual continua funcionando normalmente. */
+   ignora, o toast visual continua funcionando normalmente. */
 function tocarSomSucesso(){
   try{
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -405,12 +405,12 @@ function tocarSomSucesso(){
     };
     tocarTom(740, 0, 0.11);
     tocarTom(1108, 0.09, 0.16);
-  }catch(e){ /* sem audio, sem problema — o toast visual ja basta */ }
+  }catch(e){ /* sem audio, sem problema, o toast visual ja basta */ }
 }
-/* Notificação gamificada de confirmação — usada depois de qualquer
+/* Notificação gamificada de confirmação, usada depois de qualquer
    ação que "fecha o ciclo" pro usuário: adicionar venda/recorrência,
    registar um pagamento, excluir/estornar algo. Pop vindo de cima,
-   some sozinha, com som. Nunca usar isso pra erros — erros continuam
+   some sozinha, com som. Nunca usar isso pra erros, erros continuam
    indo pro showErrorToast (vermelho, embaixo, fica até o usuário ver). */
 function showSuccessToast(msg){
   const el = document.getElementById('successToast');
@@ -427,7 +427,7 @@ function showSuccessToast(msg){
 }
 function showErrorToast(msg){
   const el = document.getElementById('errorToast');
-  el.textContent = 'Erro: ' + msg + ' (tire um print e mande — isso ajuda a corrigir rápido)';
+  el.textContent = 'Erro: ' + msg + ' (tire um print e mande, isso ajuda a corrigir rápido)';
   el.style.display = 'block';
   clearTimeout(window.__toastTimer);
   window.__toastTimer = setTimeout(()=>{ el.style.display='none'; }, 9000);
@@ -436,7 +436,7 @@ window.addEventListener('error', e=>{ showErrorToast(e.message || 'erro desconhe
 window.addEventListener('unhandledrejection', e=>{ showErrorToast((e.reason && e.reason.message) || String(e.reason)); });
 
 /* =========================================================
-   IMPORTAÇÃO HISTÓRICA — vendas e custos de Maio/Junho 2026
+   IMPORTAÇÃO HISTÓRICA, vendas e custos de Maio/Junho 2026
    extraídos das planilhas complementares enviadas depois do
    lançamento do painel. Aplicada uma única vez (ver
    applyHistoricalImport) para não duplicar dados já existentes
@@ -459,19 +459,19 @@ const SEED_DATA = {"sellers": [{"id": "karoline", "nome": "Karoline Neto", "ativ
 /* =========================================================
    PERSISTÊNCIA E AUTENTICAÇÃO
    business data = Supabase (partilhada entre todos que abrem o painel)
-   autenticação = Supabase Auth (login real, verificado no servidor —
+   autenticação = Supabase Auth (login real, verificado no servidor ,
    NÃO é mais uma senha comparada aqui no navegador). Sem sessão válida,
    o Supabase recusa qualquer leitura/escrita (ver RLS no schema).
    ========================================================= */
 const SUPABASE_URL = "https://wtanyagjmgjedszivsfu.supabase.co";
 /* Planilha pública de leads (Google Sheets), alimentada pelo gestor de
-   anúncios — a aba "Métricas" busca isso ao vivo, direto do navegador de
+   anúncios, a aba "Métricas" busca isso ao vivo, direto do navegador de
    quem abrir o painel, toda vez que a aba é aberta. */
 const LEADS_SHEET_ID = "1T40nJ5B0v8gS11K5WhcnROXsk28EAqjD1mLu1WQCkY0";
 const LEADS_SHEET_NOME_ABA = "Consolidada";
 const SUPABASE_KEY = "sb_publishable_DKWzJQhSx7qoKtOdY1x7cg_-kxwVnWh";
 
-// Cliente oficial do Supabase — depois do login, ele próprio anexa o
+// Cliente oficial do Supabase, depois do login, ele próprio anexa o
 // token da sessão autenticada a cada pedido (não é mais só a anon key).
 const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -486,19 +486,19 @@ async function sbSet(key, value){
 }
 
 /* ============================================================
-   Camada de dados — tabelas relacionais (vendas/recorrências)
+   Camada de dados, tabelas relacionais (vendas/recorrências)
    ============================================================
    Migração v5/v6: vendas e recorrências deixaram de viver dentro de um
    blob JSON por vendedor (crm:sales:<id>/crm:recurrences:<id>) e agora
    moram em tabelas de verdade (vendas/recorrencias/parcelas/
-   pagamentos_extras) — cada gravação vira um UPDATE/INSERT de uma
+   pagamentos_extras), cada gravação vira um UPDATE/INSERT de uma
    linha só, não mais a reescrita do array inteiro do vendedor.
 
    O resto do sistema NÃO percebe essa mudança: STATE.sales e
    STATE.recurrences continuam com exatamente o mesmo formato de
    sempre (mesmos nomes de campo em camelCase, parcelas e
    pagamentosExtras aninhados dentro de cada recorrência). Essas
-   funções abaixo são a ÚNICA ponte entre os dois formatos — todo o
+   funções abaixo são a ÚNICA ponte entre os dois formatos, todo o
    resto do código (recStatus, buildEvents, todas as telas) continua
    igual, sem saber que a persistência mudou por baixo. */
 function vendaToRow(s){
@@ -547,7 +547,7 @@ function rowToRec(row, parcelasRows, extrasRows){
     }))
   };
 }
-/* Busca vendas e recorrências direto das tabelas relacionais — gestor
+/* Busca vendas e recorrências direto das tabelas relacionais, gestor
    vê tudo, colaborador só as suas (a própria query já filtra, e a RLS
    garante isso de novo do lado do servidor, então é seguro mesmo que
    um bug aqui esqueça o filtro). */
@@ -601,11 +601,11 @@ const DB = {
   }
 };
 
-/* Sessão de autenticação — quem está logado agora, e qual o papel dele
+/* Sessão de autenticação, quem está logado agora, e qual o papel dele
    (gestor/colaborador) e, se for colaborador, a qual vendedor pertence.
    Vem da tabela "profiles" (RLS: cada um só lê o próprio perfil), nunca
    de uma senha guardada no código ou nos dados. */
-/* Parser de CSV simples mas robusto — lida com campos entre aspas contendo
+/* Parser de CSV simples mas robusto, lida com campos entre aspas contendo
    vírgulas e quebras de linha (comum em observações de texto livre). */
 function parseCSV(text){
   const rows = [];
@@ -629,9 +629,9 @@ function parseCSV(text){
 }
 /* Busca ao vivo a planilha pública de leads (Google Sheets → exportação
    CSV da aba "Consolidada") direto do navegador de quem tiver a aba
-   Métricas aberta — sem precisar de nenhuma chave/autenticação, porque a
+   Métricas aberta, sem precisar de nenhuma chave/autenticação, porque a
    planilha está partilhada como "qualquer pessoa com o link". */
-/* Nomes por extenso das plataformas/canais — a planilha usa abreviações
+/* Nomes por extenso das plataformas/canais, a planilha usa abreviações
    internas (ig, fb, meta_ads...) que não dizem nada pra quem só olha o
    painel. */
 const PLATAFORMA_NOME_COMPLETO = {
@@ -646,7 +646,7 @@ function nomeCompleto(valor, mapa){
   if(!t) return 'Não informado';
   return mapa[t.toLowerCase()] || t;
 }
-/* Opções dos 4 campos que o vendedor pode preencher/corrigir pelo painel —
+/* Opções dos 4 campos que o vendedor pode preencher/corrigir pelo painel ,
    tiradas dos valores reais já usados na aba "Consolidada" da planilha,
    mais "Outro" pra não travar num caso novo que ainda não apareceu lá. */
 const STATUS_LEAD_OPCOES = ['Contatado','Reunião agendada','Em negociação','Follow UP','Não Retornou','WhatsApp Inválido','Não aprovou orçamento','Cliente fechado','Lead Perdido','Outro'];
@@ -691,7 +691,7 @@ async function fetchLeadsSheet(){
       qualificado: normStatus(r[iQual], 'Sem avaliação'),
       consultoria: (r[iConsult]||'').trim() || '',
       servicoFechado: (r[iServFechado]||'').trim() || '',
-      atendente: (r[iAtend]||'').trim() || '—'
+      atendente: (r[iAtend]||'').trim() || '-'
     };
   }).filter(l=>l.data);
 }
@@ -707,7 +707,7 @@ async function resolveProfile(){
 }
 
 
-// Preferências pequenas de UI, por navegador (NÃO é autenticação — isso agora
+// Preferências pequenas de UI, por navegador (NÃO é autenticação, isso agora
 // é só o Supabase Auth). Usa o window.storage do próprio painel.
 const SessionDB = {
   async get(key, fallback){
@@ -766,7 +766,7 @@ function origensLeadList(){
   return (STATE.meta.origensLead && STATE.meta.origensLead.length) ? STATE.meta.origensLead : ['INSTAGRAM','FACEBOOK','TRÁFEGO','INDICAÇÃO','SITE/GOOGLE','TIKTOK','WHATSAPP','OUTRO'];
 }
 
-/* Carrega os dados de negócio DEPOIS de já sabermos o papel (STATE.role) —
+/* Carrega os dados de negócio DEPOIS de já sabermos o papel (STATE.role) ,
    o Supabase (RLS) recusa qualquer pedido sem sessão autenticada válida, então
    isto só pode ser chamado depois de um login bem sucedido. Um colaborador só
    consegue mesmo ler as suas próprias vendas/recorrências/funil (o servidor
@@ -820,7 +820,7 @@ async function applyHistoricalImport(){
 }
 
 /* Remove, uma única vez, vendas avulsas que na verdade já são a "entrada" de
-   uma recorrência existente (mesmo cliente + mesma data) — isso vinha
+   uma recorrência existente (mesmo cliente + mesma data), isso vinha
    contando o mesmo dinheiro duas vezes no faturamento e na comissão.
    Protegido por meta.dedupVendasRecorrencias2026 para nunca repetir. */
 async function applyDedupSalesVsRecurrences(){
@@ -835,7 +835,7 @@ async function applyDedupSalesVsRecurrences(){
   STATE.sales = STATE.sales.filter(s=>{
     if(s.pagamentoIntegral) return true; // venda de fato avulsa, mantém
     const k = normC(s.cliente)+'|'+s.data;
-    if(recFp[k] > 0){ recFp[k] -= 1; return false; } // já representada por uma recorrência — remove
+    if(recFp[k] > 0){ recFp[k] -= 1; return false; } // já representada por uma recorrência, remove
     return true;
   });
   if(STATE.sales.length !== before){ await persist('sales'); }
@@ -864,12 +864,12 @@ async function applyJulhoUpdate(){
 }
 
 /* A planilha individual de cada vendedor ("Registro de Vendas" dentro da aba
-   dela) é mais completa e assertiva que a aba mestra "REGISTRO DE VENDAS" —
+   dela) é mais completa e assertiva que a aba mestra "REGISTRO DE VENDAS" ,
    por isso as vendas de julho da Larissa são substituídas inteiramente pelas
    23 registadas na aba individual dela (bate exatamente com o "Valor total
    de vendas" e "Caixa Gerado" que já estavam calculados lá). Karoline e
    Bernardo não têm nada preenchido na aba individual deles em julho, e a
-   Fernanda não usa esse formato — para eles, a fonte continua sendo a
+   Fernanda não usa esse formato, para eles, a fonte continua sendo a
    REGISTRO DE VENDAS mestra. Roda uma única vez. */
 async function applyLarissaIndividualJuly(){
   if(STATE.meta.larissaIndividualJulho2026) return;
@@ -892,15 +892,15 @@ async function applyLarissaIndividualJuly(){
 
 /* Reconciliação de Maio e Junho contra as planilhas REGISTRO DE VENDAS mestras
    reenviadas pelo utilizador (linha a linha, por cliente+data+valor). Estavam
-   faltando 31 vendas de maio e 15 de junho — todas elas são o "Valor Vendido"
+   faltando 31 vendas de maio e 15 de junho, todas elas são o "Valor Vendido"
    (Honorário Final) de contratos que já existem como recorrência no sistema,
    então entram marcadas com jaContabilizadoViaRecorrencia:true (o caixa já é
    contado pela recorrência; aqui só corrige o "Valor Vendido" do período).
-   Depois de somar: Maio bate 28.948,55 e Junho bate 21.905,38 — os mesmos
+   Depois de somar: Maio bate 28.948,55 e Junho bate 21.905,38, os mesmos
    valores de "VALOR ALCANÇADO" no DASH INICIAL de cada planilha.
    Corrige também a venda da RAVENA GABRIELE DA SILVA: estava datada de
    15/05, mas esse registro só existe na aba REGISTRO DE VENDAS de julho
-   (não existe em nenhuma aba de maio) — por isso conta para o "Valor
+   (não existe em nenhuma aba de maio), por isso conta para o "Valor
    Vendido" de julho, não de maio (é o que fecha a conta da Fernanda em
    julho: 3.620,00). Roda uma única vez. */
 async function applyReconciliacaoMaioJunho2026(){
@@ -910,7 +910,7 @@ async function applyReconciliacaoMaioJunho2026(){
   const ravena = STATE.sales.find(s=>s.id==='vda-vendido-002');
   if(ravena){
     ravena.data = '2026-07-31';
-    ravena.obs = 'Venda de 15/05, registada apenas na aba REGISTRO DE VENDAS de julho — contada em julho para bater com o Valor Vendido da Fernanda naquele mês.';
+    ravena.obs = 'Venda de 15/05, registada apenas na aba REGISTRO DE VENDAS de julho, contada em julho para bater com o Valor Vendido da Fernanda naquele mês.';
   }
   STATE.meta.reconciliacaoMaioJunho2026 = true;
   await persist('sales');
@@ -919,7 +919,7 @@ async function applyReconciliacaoMaioJunho2026(){
 
 /* Remove custos duplicados de importações anteriores: mesmo nome (ignorando
    sufixo "(MAIO)"/"(JUNHO)"/"(JULHO)"), categoria, vencimento e valor batendo
-   exatamente — ficavam contados duas vezes no Financeiro sempre que a visão
+   exatamente, ficavam contados duas vezes no Financeiro sempre que a visão
    "Total histórico" somava tudo junto. Mantém uma cópia, com o nome sem
    sufixo de mês (o sistema agora repete o custo fixo sozinho, mês a mês).
    Roda uma única vez. */
@@ -931,7 +931,7 @@ async function applyDedupCustos2026(){
   STATE.costs.forEach(c=>{
     const nomeLimpo = limparNome(c.nome);
     const k = nomeLimpo+'|'+c.categoria+'|'+c.vencimento+'|'+Math.round((c.valor||0)*100);
-    if(seen.has(k)) return; // duplicata exata — descarta
+    if(seen.has(k)) return; // duplicata exata, descarta
     seen.add(k);
     c.nome = nomeLimpo;
     kept.push(c);
@@ -943,19 +943,19 @@ async function applyDedupCustos2026(){
 }
 
 /* Reconciliação v2 de julho, a partir da planilha reenviada (já com o
-   REGISTRO DE VENDAS mestre 100% atualizado, inclusive para a Larissa —
+   REGISTRO DE VENDAS mestre 100% atualizado, inclusive para a Larissa ,
    por isso a aba individual dela deixa de ser usada a partir daqui).
    Reconstrói do zero as vendas e recorrências de julho (remove tudo que
    estava lá antes, incluindo os 23 lançamentos antigos vindos da aba
    individual da Larissa, que duplicavam o que já está no registro geral)
    e insere as 49 vendas + 12 recorrências direto do registro mestre e da
    aba RECORRÊNCIA (que traz o status real de cada parcela).
-   Também remove "rec-002" (RAVENA GABRIELE DA SILVA, 15/05) — uma
+   Também remove "rec-002" (RAVENA GABRIELE DA SILVA, 15/05), uma
    recorrência órfã de uma reconciliação anterior, já substituída pela
    recorrência correta dela em julho (é a mesma venda, só que agora com
    os valores certos: entrada de €500, não os €0 que tinha antes).
    E atualiza o status de pagamento das parcelas de maio/junho com base
-   na aba RECORRÊNCIA GERAL — 26 recorrências passam a quitadas.
+   na aba RECORRÊNCIA GERAL, 26 recorrências passam a quitadas.
    Roda uma única vez. */
 async function applyReconciliacaoJulho2026v2(){
   if(STATE.meta.reconciliacaoJulho2026v2) return;
@@ -975,12 +975,12 @@ async function applyReconciliacaoJulho2026v2(){
 }
 
 /* Reconciliação v3: atualiza parcelas de maio/junho que foram pagas AGORA,
-   em julho (dados reenviados, conferidos na aba RECORRÊNCIA GERAL) —
+   em julho (dados reenviados, conferidos na aba RECORRÊNCIA GERAL) ,
    8 mudanças: 6 parcelas novas marcadas como pagas em julho (datas
    plausíveis, depois da venda), 1 parcela que tinha uma data de
    agendamento futura e foi limpa (segue pendente), e 1 parcela da/o
    NIK MOHAMMAD HAIDARYAR marcada como paga mas com data (22/04) anterior
-   à própria venda (01/06) — mantive "pago" mas limpei a data implausível,
+   à própria venda (01/06), mantive "pago" mas limpei a data implausível,
    mesma regra usada na rodada anterior. Roda uma única vez. */
 async function applyReconciliacaoJulho2026v3(){
   if(STATE.meta.reconciliacaoJulho2026v3) return;
@@ -997,10 +997,10 @@ async function applyReconciliacaoJulho2026v3(){
 
 /* Corrige as recorrências existentes: o "valor do contrato" tinha sido
    gravado, na importação, como o valor da ENTRADA (não o honorário final
-   real do serviço), e o campo de entrada ficou zerado em todas — por isso
+   real do serviço), e o campo de entrada ficou zerado em todas, por isso
    a comissão sobre a entrada de toda recorrência, de todos os vendedores,
    nunca estava sendo contada (só parcelas já marcadas pagas entravam).
-   Usa a venda correspondente (mesmo cliente + mesma data — o mesmo
+   Usa a venda correspondente (mesmo cliente + mesma data, o mesmo
    cruzamento já usado pra marcar jaContabilizadoViaRecorrencia) como fonte
    do valor certo: valorContrato, honorário base, IVA e taxa administrativa
    vêm da venda; valorEntrada passa a ser o que já foi efetivamente pago.
@@ -1024,7 +1024,7 @@ async function applyCorrigeEntradaRecorrencias2026(){
       r.valorEntrada = Number(match.valorPago)||0;
       r.honorarioBase = Number(match.honorarioBase)||0;
       r.iva = Number(match.iva)||0;
-      r.txAdm = Number(match.txAdm)||0; // algumas vendas trazem texto ("EM REGRA NÃO APLICÁVEL") em vez de número — vira 0
+      r.txAdm = Number(match.txAdm)||0; // algumas vendas trazem texto ("EM REGRA NÃO APLICÁVEL") em vez de número, vira 0
       corrigidas++;
     }
   });
@@ -1035,7 +1035,7 @@ async function applyCorrigeEntradaRecorrencias2026(){
 }
 
 /* Preenche a forma de pagamento das recorrências existentes, usando a venda
-   correspondente (mesmo cliente + mesma data) como referência — necessário
+   correspondente (mesmo cliente + mesma data) como referência, necessário
    pro gráfico "Forma de pagamento mais utilizada" da Visão Geral também
    refletir o caixa das recorrências, não só das vendas avulsas. Roda uma
    única vez. */
@@ -1055,7 +1055,7 @@ async function applyFormaPagamentoRecorrencias2026(){
 }
 
 /* A recorrência "LEANDRO MARIANO SILVA" (criada na primeiríssima importação)
-   não existe mais em nenhuma aba de recorrência da planilha atual — ele só
+   não existe mais em nenhuma aba de recorrência da planilha atual, ele só
    aparece no REGISTRO DE VENDAS e na aba individual da Larissa, ambos
    concordando: venda avulsa de €350, paga integralmente em 16/07. A
    recorrência era um registo desatualizado de uma versão antiga da planilha
@@ -1071,17 +1071,17 @@ async function applyRemoveStaleLeandroRecorrencia(){
 }
 
 
-/* Cada "parte" agora sabe sozinha em quais linhas gravar — nenhum dos
+/* Cada "parte" agora sabe sozinha em quais linhas gravar, nenhum dos
    30+ pontos do código que já chamam persist('sales')/persist('recurrences')
    precisou mudar. Um colaborador só tenta gravar a PRÓPRIA linha (é tudo
    que ele teria em STATE.sales/recurrences mesmo, já que loadState só
    carregou isso); o gestor grava a de todos os vendedores. */
-/* Gravação pontual — usada por toda interação normal do dia a dia
+/* Gravação pontual, usada por toda interação normal do dia a dia
    (salvar uma venda, pagar uma parcela, editar). Toca só o registro
    que mudou: 1 upsert de venda, ou upsert da recorrência + upsert das
    parcelas dela + limpeza só das parcelas/pagamentos órfãos DELA
    (nunca de todas as outras recorrências do sistema). Isso é o que
-   torna a gravação rápida — antes, persist('recurrences') reprocessava
+   torna a gravação rápida, antes, persist('recurrences') reprocessava
    TODAS as recorrências a cada clique em Salvar, o que ficava lento
    (e às vezes travava a tela) na medida em que a base crescia. */
 async function persistVenda(sale){
@@ -1126,7 +1126,7 @@ async function persist(part, sellerId){
   if(part==='sales'){
     const escopo = STATE.role==='gestor' ? STATE.sales : STATE.sales.filter(s=>s.vendedorId===STATE.myOwnSellerId);
     if(STATE.role==='colaborador' && STATE.sales.some(s=>s.vendedorId!==STATE.myOwnSellerId)){
-      showErrorToast('Uma venda ficou associada a outro vendedor e não pôde ser gravada por aqui — peça ao gestor pra corrigir o vendedor dela.');
+      showErrorToast('Uma venda ficou associada a outro vendedor e não pôde ser gravada por aqui, peça ao gestor pra corrigir o vendedor dela.');
     }
     if(escopo.length){
       const { error } = await supa.from('vendas').upsert(escopo.map(vendaToRow));
@@ -1137,7 +1137,7 @@ async function persist(part, sellerId){
   if(part==='recurrences'){
     const escopo = STATE.role==='gestor' ? STATE.recurrences : STATE.recurrences.filter(r=>r.vendedorId===STATE.myOwnSellerId);
     if(STATE.role==='colaborador' && STATE.recurrences.some(r=>r.vendedorId!==STATE.myOwnSellerId)){
-      showErrorToast('Uma recorrência ficou associada a outro vendedor e não pôde ser gravada por aqui — peça ao gestor pra corrigir o vendedor dela.');
+      showErrorToast('Uma recorrência ficou associada a outro vendedor e não pôde ser gravada por aqui, peça ao gestor pra corrigir o vendedor dela.');
     }
     if(escopo.length){
       const { error: eRec } = await supa.from('recorrencias').upsert(escopo.map(recToRow));
@@ -1151,7 +1151,7 @@ async function persist(part, sellerId){
         const { error: eP } = await supa.from('parcelas').upsert(parcelaRows);
         if(eP) throw eP;
       }
-      // limpa parcelas "orfãs" — sobram quando uma edição reduz o nº de parcelas
+      // limpa parcelas "orfãs", sobram quando uma edição reduz o nº de parcelas
       for(const r of escopo){
         const { error: eDelP } = await supa.from('parcelas').delete().eq('recorrencia_id', r.id).gt('numero', r.nParcelas||1);
         if(eDelP) throw eDelP;
@@ -1194,12 +1194,12 @@ async function persist(part, sellerId){
    ========================================================= */
 const fmtEUR = n => (Number(n)||0).toLocaleString('pt-PT',{style:'currency',currency:'EUR'});
 const fmtPct = n => (Number(n)||0).toLocaleString('pt-PT',{style:'percent',maximumFractionDigits:1});
-const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT') : '—';
+const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT') : '-';
 function initials(name){ return (name||'?').split(' ').filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join(''); }
 function sellerById(id){ return STATE.sellers.find(s=>s.id===id); }
 
 /* =========================================================
-   PERÍODO — mês / semana / dia
+   PERÍODO, mês / semana / dia
    ========================================================= */
 const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DIAS_SEMANA_PT = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
@@ -1217,7 +1217,7 @@ const FUNIL_DIARIO_COLS = [
   ['consultaRealizada','Consultas realizadas'],
   ['vendaForaConsulta','Vendas Fora de Consulta'],
 ];
-/* Soma as colunas do funil diário de um vendedor dentro do período informado —
+/* Soma as colunas do funil diário de um vendedor dentro do período informado ,
    é isso que faz o preenchimento dia a dia "alimentar" as estatísticas gerais. */
 function sumFunilDiario(seller, filter){
   const dias = seller.funilDiario || {};
@@ -1231,18 +1231,18 @@ function sumFunilDiario(seller, filter){
 }
 
 /* Formata uma data como YYYY-MM-DD usando os componentes LOCAIS (ano/mês/
-   dia) — nunca usar .toISOString() pra isso: ele converte pra UTC antes de
+   dia), nunca usar .toISOString() pra isso: ele converte pra UTC antes de
    extrair a data, e em fusos à frente de UTC (como Portugal no horário de
    verão) isso troca o dia sozinho, além de qualquer soma/subtração que já
-   estivesse sendo feita — foi exatamente esse o bug dos filtros de dia. */
+   estivesse sendo feita, foi exatamente esse o bug dos filtros de dia. */
 function toLocalISODate(d){
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
 function todayISO(){ return toLocalISODate(new Date()); }
 function addDays(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return toLocalISODate(d); }
-function monthLabel(key){ if(!key) return '—'; const [y,m] = key.split('-'); return `${MESES_PT[parseInt(m,10)-1]} de ${y}`; }
-function fmtDateShort(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'}) : '—'; }
+function monthLabel(key){ if(!key) return '-'; const [y,m] = key.split('-'); return `${MESES_PT[parseInt(m,10)-1]} de ${y}`; }
+function fmtDateShort(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'}) : '-'; }
 
 function periodRange(filter){
   if(filter.granularity==='month'){
@@ -1284,7 +1284,7 @@ function shiftPeriod(filter, dir){
 }
 
 /* Lista "achatada" de todo recebimento (vendas + entradas + parcelas pagas),
-   cada um com a sua própria data — é o que permite filtrar por período. */
+   cada um com a sua própria data, é o que permite filtrar por período. */
 function buildEvents(){
   const events = [];
   STATE.sales.forEach(s=>{
@@ -1307,7 +1307,7 @@ function buildEvents(){
     }
     const txAdmPorParcela = (r.isentoTaxaAdm || st.total<=0) ? 0 : (r.txAdm||0)/st.total;
     r.parcelas.forEach(p=>{
-      if(p.pago && p.data){ // sem data confirmada, não entra em nenhum mês — ver "Sem data de pagamento"
+      if(p.pago && p.data){ // sem data confirmada, não entra em nenhum mês, ver "Sem data de pagamento"
         const valorReal = (p.valor!=null ? p.valor : st.valorParcela);
         const ivaValorParc = valorReal*iva;
         const liquido = valorReal - ivaValorParc - txAdmPorParcela;
@@ -1346,14 +1346,14 @@ function serviceByName(nome){
 }
 
 /* O "valor de cada parcela" é só um valor PADRÃO, usado pra pré-preencher
-   o pagamento — cada parcela paga pode ter sido por um valor diferente
+   o pagamento, cada parcela paga pode ter sido por um valor diferente
    (pagamento personalizado), guardado em p.valor. Pagamentos que não se
    encaixam em nenhuma parcela específica ficam em rec.pagamentosExtras. */
 function recStatus(rec){
   const total = rec.nParcelas || rec.parcelas.length || 1;
   const entrada = rec.valorEntrada||0;
   // Se o contrato está isento de taxa administrativa, o cliente não deve
-  // mais essa fatia — o valor "devido de verdade" (usado pra calcular o
+  // mais essa fatia, o valor "devido de verdade" (usado pra calcular o
   // que falta pagar) é o contrato menos a taxa administrativa isentada,
   // não o valor total original (que só serve como registro histórico de
   // quanto foi vendido).
@@ -1377,7 +1377,7 @@ function recStatus(rec){
    estimativa razoável (não uma data de vencimento contratual exata).
    O "hoje" usado nesse cálculo passa a ser o ÚLTIMO DIA do período
    selecionado na tela (ou hoje de verdade, se esse dia ainda não chegou)
-   — assim, escolher um mês passado mostra a situação REAL daquele mês,
+  , assim, escolher um mês passado mostra a situação REAL daquele mês,
    em vez de sempre misturar com o que está em aberto agora. */
 const DIAS_TOLERANCIA_ATRASO = 30;
 function referenceDateForFilter(filter){
@@ -1411,8 +1411,8 @@ function taxaComissao(){ return STATE.meta.taxaComissao!=null ? STATE.meta.taxaC
 function taxaIva(){ return STATE.meta.taxaIvaPadrao!=null ? STATE.meta.taxaIvaPadrao : 0.23; }
 
 /* ---------------------------------------------------------------
-   COMISSÃO — regra de negócio (revisada):
-   O IVA descontado NUNCA é um percentual fixo sobre o valor recebido —
+   COMISSÃO, regra de negócio (revisada):
+   O IVA descontado NUNCA é um percentual fixo sobre o valor recebido ,
    vem do valor de IVA já configurado para aquele serviço específico no
    Catálogo de Serviços (Configurações), guardado em cada venda/recorrência
    no momento da venda, e é descontado proporcionalmente ao quanto foi
@@ -1420,7 +1420,7 @@ function taxaIva(){ return STATE.meta.taxaIvaPadrao!=null ? STATE.meta.taxaIvaPa
    1) Venda integral (avulsa, sem recorrência): retira-se o IVA do
       serviço (proporcional ao pago), e a comissão é a taxa de comissão
       sobre o que sobra.
-   2) Entrada de uma recorrência: mesma regra da venda integral —
+   2) Entrada de uma recorrência: mesma regra da venda integral ,
       só desconta o IVA do serviço (proporcional à entrada), comissão
       sobre o líquido.
    3) Parcelas de uma recorrência (marcadas manualmente como pagas):
@@ -1471,7 +1471,7 @@ function computeSellerStats(sellerId, filter){
   const recs = STATE.recurrences.filter(r=>r.vendedorId===sellerId && inPeriodOrAll(r.dataVenda, filter));
   let valorPendente=0, deals=0;
   // idem: vendas já contabilizadas via recorrência não somam pendente nem
-  // contam como negócio à parte — é a mesma recorrência, já contada abaixo.
+  // contam como negócio à parte, é a mesma recorrência, já contada abaixo.
   sales.filter(s=>!s.jaContabilizadoViaRecorrencia).forEach(s=>{ valorPendente+=saleStatus(s).valorPendente; deals++; });
   recs.forEach(r=>{ valorPendente+=recStatus(r).valorPendente; deals++; });
   // "Valor vendido" = tudo que o vendedor gerou no período, recorrência ou não:
@@ -1496,14 +1496,14 @@ function computeSellerStats(sellerId, filter){
   };
 }
 
-/* Mesmas 4 métricas do topo, mas escopadas a um período (mês/semana/dia) —
+/* Mesmas 4 métricas do topo, mas escopadas a um período (mês/semana/dia) ,
    usa a data de origem da venda/recorrência para decidir o que entra. */
 function computeGlobalForPeriod(filter){
   const salesIn = STATE.sales.filter(s=>inPeriodOrAll(s.data, filter));
   const recsIn = STATE.recurrences.filter(r=>inPeriodOrAll(r.dataVenda, filter));
   let valorPendente=0, recorrenciaAtivaValor=0;
   // vendas marcadas jaContabilizadoViaRecorrencia são o MESMO negócio de uma
-  // recorrência (a entrada dela) — contar o pendente das duas ao mesmo tempo
+  // recorrência (a entrada dela), contar o pendente das duas ao mesmo tempo
   // duplicava o valor. Só a recorrência entra no pendente nesses casos.
   salesIn.filter(s=>!s.jaContabilizadoViaRecorrencia).forEach(s=>{ valorPendente += saleStatus(s).valorPendente; });
   recsIn.forEach(r=>{
@@ -1546,9 +1546,9 @@ function computeTaxes(filter){
 function normNomeCusto(s){ return (s||'').trim().toUpperCase(); }
 
 /* Projeta um custo fixo pro mês informado, usando o vencimento mais recente
-   conhecido — é isso que faz um custo fixo "repetir" todo mês sem precisar
+   conhecido, é isso que faz um custo fixo "repetir" todo mês sem precisar
    ser relançado. Se já existir um lançamento com vencimento EXATO nesse mês
-   (nome igual), esse lançamento manda — permite ajustar o valor de um mês
+   (nome igual), esse lançamento manda, permite ajustar o valor de um mês
    específico sem mexer nos demais. Custos variáveis nunca repetem: só contam
    no mês exato do vencimento (por isso "zeram" a cada mês novo). */
 function custosFixosDoMes(monthKey){
@@ -1590,9 +1590,9 @@ function costPagoNoMes(cost, monthKey){
 function custoDataPagamentoNoMes(cost, monthKey){
   const registo = cost.pagoPorMes && cost.pagoPorMes[monthKey];
   if(registo && typeof registo==='object' && registo.data) return registo.data;
-  return projetarVencimentoNoMes(cost.vencimento, monthKey); // pago antigo sem data registada — usa o vencimento como aproximação
+  return projetarVencimentoNoMes(cost.vencimento, monthKey); // pago antigo sem data registada, usa o vencimento como aproximação
 }
-/* Custos fixos do mês atual, vencidos e ainda pendentes — mostrados como
+/* Custos fixos do mês atual, vencidos e ainda pendentes, mostrados como
    aviso na Visão Geral, com botão de pagar ali mesmo. */
 function custosFixosAtrasados(filter){
   const ref = referenceDateForFilter(filter);
@@ -1615,11 +1615,11 @@ function computeCosts(filter){
   const fixos = list.filter(c=>c.categoria==='FIXO');
   const variaveis = list.filter(c=>c.categoria==='VARIÁVEL');
   /* "fixos"/"variaveis"/"list" continuam com TODOS os lançamentos do
-     período (pagos e pendentes, por data de vencimento) — é o que a
+     período (pagos e pendentes, por data de vencimento), é o que a
      tela de gestão de Custos Fixos/Variáveis precisa pra mostrar e
      deixar editar mesmo o que ainda não foi pago.
      Já os TOTAIS dos cards seguem o mesmo regime de caixa (data real
-     de pagamento) que Resumo, Extrato e Registro já usam — assim os
+     de pagamento) que Resumo, Extrato e Registro já usam, assim os
      mesmos números aparecem em qualquer canto do Financeiro, sem
      depender de vencimento vs. pagamento de fato. */
   const despesasPagas = linhasFinanceiras(filter).filter(l=>l.categoria==='Despesa');
@@ -1642,7 +1642,7 @@ function ranking(filter){
 
 /* Detalhamento do "Valor Vendido": quanto veio de vendas pagas à vista
    (integrais) x quanto veio de recorrências (contratado), e quantas
-   parcelas de recorrência já foram pagas x quantas ainda estão em aberto —
+   parcelas de recorrência já foram pagas x quantas ainda estão em aberto ,
    sellerId null = todos os vendedores. */
 function computeVendasBreakdown(filter, sellerId){
   const salesIn = STATE.sales.filter(s=> (!sellerId || s.vendedorId===sellerId) && inPeriodOrAll(s.data, filter));
@@ -1665,7 +1665,7 @@ function renderVendasSubcards(filter, sellerId){
   </div>`;
 }
 
-/* Linha a linha de tudo que compõe a comissão de um vendedor no período —
+/* Linha a linha de tudo que compõe a comissão de um vendedor no período ,
    mesma matemática de comissaoSale/comissaoRecorrencia, calculada de novo
    aqui pra mostrar exatamente quanto foi descontado de cada recebimento. */
 function comissaoBreakdownEvents(sellerId, filter){
@@ -1679,7 +1679,7 @@ function comissaoBreakdownEvents(sellerId, filter){
     linhas.push({ date:s.data, cliente:s.cliente, tipo:'Venda', recebido:s.valorPago, ivaDesc, txAdmDesc:0, liquido, comissao: liquido*rate });
   });
   // Importante: cada evento (entrada/parcela/pagamento personalizado) é
-  // filtrado pela PRÓPRIA data dele contra o período — não pela data da
+  // filtrado pela PRÓPRIA data dele contra o período, não pela data da
   // venda original da recorrência. Uma parcela paga vários meses depois
   // de uma recorrência antiga tem que aparecer no mês em que foi PAGA,
   // exatamente como já acontece no cálculo oficial (buildEvents). Filtrar
@@ -1716,11 +1716,11 @@ function abrirComissaoDetalhe(sellerId, filter){
   const totalComissao = linhas.reduce((a,l)=>a+l.comissao,0);
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:860px;">
-    <div class="modal-head"><h3>Como a comissão de ${seller?seller.nome:'—'} foi calculada</h3><button id="mClose">&times;</button></div>
+    <div class="modal-head"><h3>Como a comissão de ${seller?seller.nome:'-'} foi calculada</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       <div class="field-hint" style="margin-bottom:14px;">
-        <strong>Venda integral (avulsa, paga de uma vez):</strong> desconta-se o IVA real daquele serviço (Configurações → Catálogo de serviços) do valor recebido — a comissão é ${fmtPct(taxaComissao())} sobre o que sobra.<br>
-        <strong>Entrada ou parcela de recorrência:</strong> desconta-se ${fmtPct(taxaIva())} <em>sobre o valor pago naquele momento</em> (cada pagamento paga o seu próprio IVA, não é uma fatia do IVA total do contrato). Nas parcelas, desconta-se também a fatia da taxa administrativa do contrato (dividida pelo nº de parcelas) — a menos que o contrato esteja marcado como isento. A comissão é ${fmtPct(taxaComissao())} sobre o que sobra.
+        <strong>Venda integral (avulsa, paga de uma vez):</strong> desconta-se o IVA real daquele serviço (Configurações → Catálogo de serviços) do valor recebido, a comissão é ${fmtPct(taxaComissao())} sobre o que sobra.<br>
+        <strong>Entrada ou parcela de recorrência:</strong> desconta-se ${fmtPct(taxaIva())} <em>sobre o valor pago naquele momento</em> (cada pagamento paga o seu próprio IVA, não é uma fatia do IVA total do contrato). Nas parcelas, desconta-se também a fatia da taxa administrativa do contrato (dividida pelo nº de parcelas), a menos que o contrato esteja marcado como isento. A comissão é ${fmtPct(taxaComissao())} sobre o que sobra.
       </div>
       ${linhas.length ? `<div style="max-height:50vh;overflow:auto;"><table><thead><tr><th>Data</th><th>Cliente</th><th>Tipo</th><th>Recebido</th><th>IVA descontado</th><th>Tx adm. descontada</th><th>Líquido</th><th>Comissão</th></tr></thead>
       <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${l.cliente}</td><td><span class="chip neutral">${l.tipo}</span></td><td class="tnum">${fmtEUR(l.recebido)}</td><td class="tnum">${fmtEUR(l.ivaDesc)}</td><td class="tnum">${fmtEUR(l.txAdmDesc)}</td><td class="tnum">${fmtEUR(l.liquido)}</td><td class="tnum"><strong>${fmtEUR(l.comissao)}</strong></td></tr>`).join('')}</tbody></table></div>
@@ -1772,7 +1772,7 @@ function renderLoginScreen(mode, extra){
       }
       const profile = await resolveProfile();
       if(!profile){
-        errBox.textContent = 'Login válido, mas sem perfil configurado — peça ao gestor para o adicionar em "profiles".';
+        errBox.textContent = 'Login válido, mas sem perfil configurado, peça ao gestor para o adicionar em "profiles".';
         errBox.style.display = 'block';
         btnLogin.disabled = false; btnLogin.textContent = 'Entrar';
         await supa.auth.signOut();
@@ -1793,7 +1793,7 @@ function renderLoginScreen(mode, extra){
   } else if(mode==='signup'){
     card.innerHTML = `
       <h2>Pedir acesso</h2>
-      <p class="sub">Preencha os seus dados. Sua conta fica <strong>pendente</strong> até o gestor aprovar — você só consegue entrar depois disso.</p>
+      <p class="sub">Preencha os seus dados. Sua conta fica <strong>pendente</strong> até o gestor aprovar, você só consegue entrar depois disso.</p>
       <div class="field"><label>Nome</label><input type="text" id="suNome" placeholder="O seu nome"></div>
       <div class="field"><label>E-mail</label><input type="email" id="suEmail" placeholder="voce@exemplo.com" autocomplete="username"></div>
       <div class="field"><label>Senha</label><input type="password" id="suSenha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
@@ -1823,9 +1823,9 @@ function renderLoginScreen(mode, extra){
         return;
       }
       if(!data.session){
-        // Projeto exige confirmação por e-mail — o pedido não pode ficar
+        // Projeto exige confirmação por e-mail, o pedido não pode ficar
         // pendente do lado do gestor até essa confirmação acontecer.
-        errBox.textContent = 'Conta criada, mas este projeto exige confirmar o e-mail antes de continuar — confirme e depois tente entrar normalmente. Se você é o gestor, desligue "Confirm email" em Authentication → Providers no Supabase pra evitar isso no futuro.';
+        errBox.textContent = 'Conta criada, mas este projeto exige confirmar o e-mail antes de continuar, confirme e depois tente entrar normalmente. Se você é o gestor, desligue "Confirm email" em Authentication → Providers no Supabase pra evitar isso no futuro.';
         errBox.style.display = 'block';
         btn.disabled = false; btn.textContent = 'Pedir acesso';
         return;
@@ -1833,7 +1833,7 @@ function renderLoginScreen(mode, extra){
       const { error: profErr } = await supa.from('profiles').insert({ id: data.user.id, nome, email, status:'pending' });
       await supa.auth.signOut();
       if(profErr){
-        errBox.textContent = 'A conta foi criada, mas não consegui registar o pedido — avise o gestor: ' + profErr.message;
+        errBox.textContent = 'A conta foi criada, mas não consegui registar o pedido, avise o gestor: ' + profErr.message;
         errBox.style.display = 'block';
         btn.disabled = false; btn.textContent = 'Pedir acesso';
         return;
@@ -1860,7 +1860,7 @@ function renderLoginScreen(mode, extra){
   }
 }
 /* Corrige um bug real: marcar um mês PROJETADO de um custo fixo como pago
-   gravava a data de HOJE em vez da data daquela mês específico — fazendo
+   gravava a data de HOJE em vez da data daquela mês específico, fazendo
    o valor "sumir" do mês certo e inflar o mês em que o clique aconteceu.
    Esta migração recalcula a data certa (vencimento projetado daquele mês)
    pra cada registro já gravado em pagoPorMes, uma vez só. */
@@ -1914,7 +1914,7 @@ async function bootAfterLogin(){
 /* Mantém o sistema "vivo": se a aba ficar aberta e a data virar (meia-noite,
    troca de mês), os filtros que estavam acompanhando "hoje"/"este mês"
    avançam sozinhos, sem precisar recarregar a página. Só avança um filtro
-   se ele ainda estava no dia/mês antigo — se o utilizador tiver navegado
+   se ele ainda estava no dia/mês antigo, se o utilizador tiver navegado
    manualmente para outro período, isso não é mexido. */
 let _liveWatcherStarted = false;
 function startLiveDateWatcher(){
@@ -2084,7 +2084,7 @@ function renderPeriodActivity(){
       <div class="card"><div class="lbl">Comissão gerada</div><div class="val">${fmtEUR(comissaoTotal)}</div></div>
     </div>
     ${filtered.length ? `<table style="margin-top:16px;"><thead><tr><th>Data</th><th>Cliente</th><th>Tipo</th><th>Vendedor</th><th>Valor</th></tr></thead>
-    <tbody>${shown.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${e.cliente}</td><td><span class="chip neutral">${e.tipo}</span></td><td>${e.vendedorNome||'—'}</td><td class="tnum">${fmtEUR(e.valor)}</td></tr>`).join('')}</tbody></table>
+    <tbody>${shown.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${e.cliente}</td><td><span class="chip neutral">${e.tipo}</span></td><td>${e.vendedorNome||'-'}</td><td class="tnum">${fmtEUR(e.valor)}</td></tr>`).join('')}</tbody></table>
     ${filtered.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandAtividade">${STATE.expandAtividade ? 'Ver menos' : `••• Ver mais (${filtered.length-5})`}</button></div>` : ''}`
     : `<div class="empty">Nenhum recebimento neste período.</div>`}
   </section>`;
@@ -2099,7 +2099,7 @@ function renderAlertaAtraso(){
   if(STATE.alertaDispensadoHoje) return '';
   return `
   <div class="alert-banner" id="alertaAtrasoBanner">
-    <span>⚠️ <strong>${atrasadas.length}</strong> cliente(s) com recorrência em atraso (mais de ${DIAS_TOLERANCIA_ATRASO} dias sem quitar) — regularize os pagamentos.</span>
+    <span>⚠️ <strong>${atrasadas.length}</strong> cliente(s) com recorrência em atraso (mais de ${DIAS_TOLERANCIA_ATRASO} dias sem quitar), regularize os pagamentos.</span>
     <button id="btnFecharAlerta" title="Fechar por hoje">×</button>
   </div>`;
 }
@@ -2130,7 +2130,7 @@ function renderRecorrenciasAtrasadasBox(){
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface-2);">
       <select id="atrasadasFiltroVendedor" style="max-width:180px;">
         <option value="all" ${fVendedor==='all'?'selected':''}>Todos os vendedores</option>
-        ${vendedoresNaLista.map(([id,nome])=>`<option value="${id}" ${fVendedor===id?'selected':''}>${nome||'—'}</option>`).join('')}
+        ${vendedoresNaLista.map(([id,nome])=>`<option value="${id}" ${fVendedor===id?'selected':''}>${nome||'-'}</option>`).join('')}
       </select>
       <input type="text" id="atrasadasFiltroCliente" placeholder="Buscar cliente…" value="${(STATE.atrasadasFiltroCliente||'').replace(/"/g,'&quot;')}" style="max-width:200px;">
       <select id="atrasadasFiltroFaixa" style="max-width:160px;">
@@ -2144,12 +2144,12 @@ function renderRecorrenciasAtrasadasBox(){
     <table><thead><tr><th><input type="checkbox" id="atrasadasSelecionarTodas" ${shown.length && shown.every(r=>sel[r.id])?'checked':''}></th><th>Cliente</th><th>Serviço</th><th>Vendedor</th><th>Parcelas</th><th>Dias em atraso</th><th>Pendente</th><th></th></tr></thead>
     <tbody>${shown.map(r=>{
       const st = recStatus(r);
-      return `<tr><td><input type="checkbox" data-atrasada-check="${r.id}" ${sel[r.id]?'checked':''}></td><td><strong>${r.cliente}</strong></td><td>${r.servico||'—'}</td><td>${r.vendedorNome||'—'}</td><td>${st.pagas}/${st.total} pagas</td><td><span class="chip bad">${diasAtraso(r, ref)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
+      return `<tr><td><input type="checkbox" data-atrasada-check="${r.id}" ${sel[r.id]?'checked':''}></td><td><strong>${r.cliente}</strong></td><td>${r.servico||'-'}</td><td>${r.vendedorNome||'-'}</td><td>${st.pagas}/${st.total} pagas</td><td><span class="chip bad">${diasAtraso(r, ref)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
     }).join('') || `<tr><td colspan="8"><div class="empty">Nenhuma recorrência atrasada com esses filtros.</div></td></tr>`}</tbody></table>
     ${atrasadas.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandAtrasadas">${STATE.expandAtrasadas ? 'Ver menos' : `••• Ver mais (${atrasadas.length-5})`}</button></div>` : ''}
   </section>`;
 }
-/* Aviso de custos fixos vencidos e ainda não pagos (aluguel, salários, etc.) —
+/* Aviso de custos fixos vencidos e ainda não pagos (aluguel, salários, etc.) ,
    botão "Pagar" já registra a data de hoje como data real do pagamento, e o
    valor aparece automaticamente no Extrato do dia de hoje como saída. */
 function renderCustosAtrasadosBox(){
@@ -2167,11 +2167,11 @@ function renderCustosAtrasadosBox(){
 }
 /* Efetuar pagamento de uma recorrência direto da Visão Geral, sem precisar
    ir até Recorrências achar o cliente. Marca a(s) parcela(s) escolhida(s)
-   como pagas, com a data informada — como é o MESMO campo `parcelas` que
+   como pagas, com a data informada, como é o MESMO campo `parcelas` que
    alimenta Financeiro (impostos), comissão e faturamento em todo o resto do
    sistema, não precisa de nenhuma conexão extra: o lançamento já aparece em
    tudo automaticamente assim que salva. */
-/* Modal único de lançamento de pagamento — usado tanto pra pagar uma
+/* Modal único de lançamento de pagamento, usado tanto pra pagar uma
    parcela específica (valor já vem preenchido, só confirma ou edita)
    quanto pro "Pagamento personalizado" (valor em branco, o gestor decide
    quanto). Os dois caminhos terminam no mesmo lugar: o valor entra no
@@ -2185,7 +2185,7 @@ function abrirPagamentoModal(recId, parcelaNumero){
   const hoje = todayISO();
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
-    <div class="modal-head"><h3>${personalizado ? 'Pagamento personalizado' : 'Efetuar pagamento — Parcela '+parcelaNumero} — ${rec.cliente}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-head"><h3>${personalizado ? 'Pagamento personalizado' : 'Efetuar pagamento, Parcela '+parcelaNumero}, ${rec.cliente}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       <div class="field-hint" style="margin-bottom:14px;">Pendente total do contrato: <strong>${fmtEUR(st.valorPendente)}</strong>${!personalizado?` · valor padrão desta parcela: <strong>${fmtEUR(st.valorParcela)}</strong>`:''}</div>
       <div class="field"><label>Valor pago (€)</label><input type="number" id="pgValor" min="0.01" step="0.01" value="${valorSugerido}" placeholder="${personalizado?'Quanto o cliente pagou':''}"></div>
@@ -2203,7 +2203,7 @@ function abrirPagamentoModal(recId, parcelaNumero){
     const aviso = document.getElementById('pgAviso');
     if(valor<=0){ aviso.textContent = 'Informe um valor maior que zero.'; aviso.style.display='block'; return; }
     if(valor > st.valorPendente + 0.01){
-      aviso.textContent = `Esse valor é maior que o pendente do contrato (${fmtEUR(st.valorPendente)}) — confirme se está certo antes de continuar, ou ajuste o valor.`;
+      aviso.textContent = `Esse valor é maior que o pendente do contrato (${fmtEUR(st.valorPendente)}), confirme se está certo antes de continuar, ou ajuste o valor.`;
       aviso.style.display='block';
     }
     if(personalizado){
@@ -2218,7 +2218,7 @@ function abrirPagamentoModal(recId, parcelaNumero){
   };
 }
 /* Marca a parcela pendente mais antiga de uma recorrência como paga,
-   com o valor padrão dela e a data de hoje — usada pela ação em lote
+   com o valor padrão dela e a data de hoje, usada pela ação em lote
    do alerta de recorrências atrasadas, pra não precisar abrir um
    modal pra cada uma quando se quer só bater o registro rápido. */
 async function marcarProximaParcelaComoPaga(rec){
@@ -2236,18 +2236,18 @@ function abrirPagamentoRecorrenciaModal(recId){
   const hoje = todayISO();
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
-    <div class="modal-head"><h3>Efetuar pagamento — ${rec.cliente}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-head"><h3>Efetuar pagamento, ${rec.cliente}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:14px;">Pendente total: <strong>${fmtEUR(st.valorPendente)}</strong> · valor de cada parcela: <strong>${fmtEUR(st.valorParcela)}</strong> · vendedor: <strong>${rec.vendedorNome||'—'}</strong></div>
+      <div class="field-hint" style="margin-bottom:14px;">Pendente total: <strong>${fmtEUR(st.valorPendente)}</strong> · valor de cada parcela: <strong>${fmtEUR(st.valorParcela)}</strong> · vendedor: <strong>${rec.vendedorNome||'-'}</strong></div>
       ${pendentes.length ? `
       <div class="field"><label>Parcela(s) a marcar como paga(s)</label>
         ${pendentes.map(p=>`
           <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <input type="checkbox" class="pgParcelaChk" value="${p.numero}" ${p.numero===pendentes[0].numero?'checked':''}> Parcela ${p.numero} — ${fmtEUR(st.valorParcela)}
+            <input type="checkbox" class="pgParcelaChk" value="${p.numero}" ${p.numero===pendentes[0].numero?'checked':''}> Parcela ${p.numero}, ${fmtEUR(st.valorParcela)}
           </label>`).join('')}
       </div>
       <div class="field"><label>Data do pagamento</label><input type="date" id="pgData" value="${hoje}"></div>
-      ` : `<div class="empty">Sem parcelas pendentes — este contrato já está quitado.</div>`}
+      ` : `<div class="empty">Sem parcelas pendentes, este contrato já está quitado.</div>`}
     </div>
     <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave" ${!pendentes.length?'disabled':''}>Confirmar pagamento</button></div>
   </div></div>`;
@@ -2266,7 +2266,7 @@ function abrirPagamentoRecorrenciaModal(recId){
   };
 }
 
-/* Gráfico de linhas simples em SVG puro, sem biblioteca — usado tanto na
+/* Gráfico de linhas simples em SVG puro, sem biblioteca, usado tanto na
    evolução de entradas x saídas quanto no percentual de vendas por
    vendedor ao longo do tempo. */
 let _chartIdSeq = 0;
@@ -2341,7 +2341,7 @@ function evolucaoPercentualVendedores(){
 const PALETA_GRAFICO = ['#520225','#BB8E1D','#2E7D5B','#B0503B','#3B6EA5','#8B5CF6','#67203F','#5B6570'];
 
 function renderChartsPanel(){
-  // Forma de pagamento mais utilizada, no período selecionado — inclui vendas
+  // Forma de pagamento mais utilizada, no período selecionado, inclui vendas
   // avulsas (exceto as já contabilizadas via recorrência, pra não duplicar) E
   // o caixa das recorrências (entrada + parcelas pagas), pela forma de
   // pagamento gravada no contrato.
@@ -2363,7 +2363,7 @@ function renderChartsPanel(){
   const formasOrdenadas = Object.entries(porForma).sort((a,b)=>b[1]-a[1]);
   const maxForma = formasOrdenadas.length ? formasOrdenadas[0][1] : 1;
 
-  // Faturamento por mês (todos os meses com dados — comparação natural entre meses)
+  // Faturamento por mês (todos os meses com dados, comparação natural entre meses)
   const events = buildEvents();
   const porMes = {};
   events.forEach(e=>{ if(!e.date) return; const mk = e.date.slice(0,7); porMes[mk] = (porMes[mk]||0) + e.valor; });
@@ -2401,7 +2401,7 @@ function renderChartsPanel(){
   ${STATE.role==='gestor' ? renderPercentualVendedoresCharts() : ''}`;
 }
 /* 💰 Saldo mensal (entradas − saídas de custos) e 🟢🔴 evolução entradas x
-   saídas nos últimos 12 meses — usa o mesmo registo de movimentações do
+   saídas nos últimos 12 meses, usa o mesmo registo de movimentações do
    Extrato/Registro, então está sempre sincronizado com o que é lançado. */
 function renderSaldoEEvolucaoCharts(){
   const todas = linhasFinanceiras({granularity:'all'});
@@ -2439,7 +2439,7 @@ function renderSaldoEEvolucaoCharts(){
     </div>
   </section>`;
 }
-/* % de vendas por vendedor — só o gestor vê. Coluna = participação no mês
+/* % de vendas por vendedor, só o gestor vê. Coluna = participação no mês
    atual; linhas = como essa participação evoluiu mês a mês. */
 function renderPercentualVendedoresCharts(){
   const { meses, sellers, pct } = evolucaoPercentualVendedores();
@@ -2482,11 +2482,11 @@ function renderOverview(){
     <button class="btn ghost" id="btnQuickRec">+ Adicionar recorrência</button>
   </div>
   <div class="cards">
-    <div class="card accent"><div class="lbl">Valor vendido (${periodLabelText(STATE.periodFilter)})</div><div class="val good" data-detalhe-card="vendido" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorVendido)}</div><div class="sub">Meta do mês: ${fmtEUR(STATE.meta.valorMeta)} · faltam ${fmtEUR(g.metaRestante)} — negócios fechados no período, pago ou não</div></div>
-    <div class="card"><div class="lbl">Faturamento recebido (caixa)</div><div class="val good" data-detalhe-card="faturado" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorFaturado)}</div><div class="sub">dinheiro que entrou no período — pode incluir parcelas de vendas de outros meses, por isso pode superar o "vendido"</div></div>
+    <div class="card accent"><div class="lbl">Valor vendido (${periodLabelText(STATE.periodFilter)})</div><div class="val good" data-detalhe-card="vendido" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorVendido)}</div><div class="sub">Meta do mês: ${fmtEUR(STATE.meta.valorMeta)} · faltam ${fmtEUR(g.metaRestante)}, negócios fechados no período, pago ou não</div></div>
+    <div class="card"><div class="lbl">Faturamento recebido (caixa)</div><div class="val good" data-detalhe-card="faturado" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorFaturado)}</div><div class="sub">dinheiro que entrou no período, pode incluir parcelas de vendas de outros meses, por isso pode superar o "vendido"</div></div>
     <div class="card"><div class="lbl">Pendências (a receber)</div><div class="val bad" data-detalhe-card="pendente" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorPendente)}</div><div class="sub">tudo que falta receber (vendas + recorrências) de negócios originados no período</div></div>
-    <div class="card"><div class="lbl">Recorrência em andamento</div><div class="val" data-detalhe-card="recorrencia" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.recorrenciaAtivaValor)}</div><div class="sub">${g.nRecsAbertas} contrato(s) com parcela pendente — só a parte das pendências que vem de recorrências (pode bater com o card ao lado quando não há venda integral pendente)</div></div>
-    <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${g.taxaConversao!==null ? fmtPct(g.taxaConversao) : '—'}</div><div class="sub">${g.taxaConversao!==null ? g.fechamentos+' fechamentos no período / '+g.conversas+' conversas totais' : 'informe conversas iniciadas por vendedor'}</div></div>
+    <div class="card"><div class="lbl">Recorrência em andamento</div><div class="val" data-detalhe-card="recorrencia" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.recorrenciaAtivaValor)}</div><div class="sub">${g.nRecsAbertas} contrato(s) com parcela pendente, só a parte das pendências que vem de recorrências (pode bater com o card ao lado quando não há venda integral pendente)</div></div>
+    <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${g.taxaConversao!==null ? fmtPct(g.taxaConversao) : '-'}</div><div class="sub">${g.taxaConversao!==null ? g.fechamentos+' fechamentos no período / '+g.conversas+' conversas totais' : 'informe conversas iniciadas por vendedor'}</div></div>
   </div>
   ${renderVendasSubcards(STATE.periodFilter, null)}
   ${renderChartsPanel()}
@@ -2503,7 +2503,7 @@ function renderOverview(){
   </section>`;
 }
 /* Detalhamento "de onde vem esse número" para os cards principais (Valor
-   vendido, Faturado, Pendente, Recorrência em andamento) — tanto na Visão
+   vendido, Faturado, Pendente, Recorrência em andamento), tanto na Visão
    Geral (sellerId null, todo mundo) quanto no perfil de um vendedor
    específico (sellerId preenchido). */
 function detalheCardLinhas(tipo, filter, sellerId){
@@ -2542,7 +2542,7 @@ function detalheCardLinhas(tipo, filter, sellerId){
   if(tipo==='custosFixos' || tipo==='custosVariaveis'){
     const tipoAlvo = tipo==='custosFixos' ? 'Custo fixo' : 'Custo variável';
     return linhasFinanceiras(filter).filter(l=>l.tipo===tipoAlvo).map(l=>({
-      data:l.data, cliente:l.cliente, vendedor:'—', tipo:l.tipo, valor:l.valor
+      data:l.data, cliente:l.cliente, vendedor:'-', tipo:l.tipo, valor:l.valor
     }));
   }
   if(tipo==='impostos'){
@@ -2556,22 +2556,22 @@ function detalheCardLinhas(tipo, filter, sellerId){
     const taxLucro = computeTaxes(filter).total;
     const custosLucro = computeCosts(filter).total;
     return [
-      { data: filter.granularity==='all' ? '' : (filter.anchor||''), cliente:'Recebido no período (caixa)', vendedor:'—', tipo:'+ soma', valor:recebido },
-      { data: filter.granularity==='all' ? '' : (filter.anchor||''), cliente:'Impostos devidos', vendedor:'—', tipo:'− soma', valor:-taxLucro },
-      { data: filter.granularity==='all' ? '' : (filter.anchor||''), cliente:'Custos pagos (fixos + variáveis)', vendedor:'—', tipo:'− soma', valor:-custosLucro },
+      { data: filter.granularity==='all' ? '' : (filter.anchor||''), cliente:'Recebido no período (caixa)', vendedor:'-', tipo:'+ soma', valor:recebido },
+      { data: filter.granularity==='all' ? '' : (filter.anchor||''), cliente:'Impostos devidos', vendedor:'-', tipo:'− soma', valor:-taxLucro },
+      { data: filter.granularity==='all' ? '' : (filter.anchor||''), cliente:'Custos pagos (fixos + variáveis)', vendedor:'-', tipo:'− soma', valor:-custosLucro },
     ];
   }
   return [];
 }
 const DETALHE_CARD_TITULOS = {
-  vendido: 'Valor vendido — de onde vem esse número',
-  faturado: 'Faturamento recebido (caixa) — de onde vem esse número',
-  pendente: 'Pendências (a receber) — de onde vem esse número',
-  recorrencia: 'Recorrências em andamento — de onde vem esse número',
-  custosFixos: 'Custos fixos pagos — de onde vem esse número',
-  custosVariaveis: 'Custos variáveis pagos — de onde vem esse número',
-  impostos: 'Impostos devidos — de onde vem esse número',
-  lucro: 'Lucro líquido estimado — como é calculado'
+  vendido: 'Valor vendido, de onde vem esse número',
+  faturado: 'Faturamento recebido (caixa), de onde vem esse número',
+  pendente: 'Pendências (a receber), de onde vem esse número',
+  recorrencia: 'Recorrências em andamento, de onde vem esse número',
+  custosFixos: 'Custos fixos pagos, de onde vem esse número',
+  custosVariaveis: 'Custos variáveis pagos, de onde vem esse número',
+  impostos: 'Impostos devidos, de onde vem esse número',
+  lucro: 'Lucro líquido estimado, como é calculado'
 };
 function abrirDetalheCard(tipo, filter, sellerId){
   const linhas = detalheCardLinhas(tipo, filter, sellerId).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
@@ -2581,7 +2581,7 @@ function abrirDetalheCard(tipo, filter, sellerId){
     <div class="modal-head"><h3>${DETALHE_CARD_TITULOS[tipo]||''}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       ${linhas.length ? `<div style="max-height:55vh;overflow:auto;"><table><thead><tr><th>Data</th><th>Cliente</th>${sellerId?'':'<th>Vendedor</th>'}<th>Detalhe</th><th>Valor</th></tr></thead>
-      <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.data)}</td><td>${l.cliente}</td>${sellerId?'':'<td>'+(l.vendedor||'—')+'</td>'}<td><span class="chip neutral">${l.tipo}</span></td><td class="tnum">${fmtEUR(l.valor)}</td></tr>`).join('')}</tbody></table></div>
+      <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.data)}</td><td>${l.cliente}</td>${sellerId?'':'<td>'+(l.vendedor||'-')+'</td>'}<td><span class="chip neutral">${l.tipo}</span></td><td class="tnum">${fmtEUR(l.valor)}</td></tr>`).join('')}</tbody></table></div>
       <div class="block-head" style="border-top:1px solid var(--line);margin-top:2px;background:var(--surface-2);"><span>Total (${linhas.length} lançamento${linhas.length===1?'':'s'})</span><span><strong>${fmtEUR(total)}</strong></span></div>`
       : `<div class="empty">Nada nesse período.</div>`}
     </div>
@@ -2613,14 +2613,14 @@ function recurrenceTable(list, opts){
         return `<tr data-rec="${r.id}">
           <td><strong>${r.cliente}</strong><div class="sub" style="color:var(--ink-soft);font-size:11px;">${fmtDate(r.dataVenda)}</div>${(r.txAdm>0 && podeGerir) ? `<button class="chip ${r.isentoTaxaAdm?'gold':'neutral'} sm" data-toggle-isento="${r.id}" style="margin-top:4px;border:none;cursor:pointer;" title="Clique pra ${r.isentoTaxaAdm?'voltar a cobrar':'isentar'} a taxa administrativa nas parcelas">${r.isentoTaxaAdm?'✓ isento de tx. adm.':'isento de tx. adm.'}</button>` : (r.isentoTaxaAdm ? `<span class="chip gold" style="margin-top:4px;">✓ isento de tx. adm.</span>` : '')}</td>
           <td>${r.servico}</td>
-          ${opts.hideVendedor?'':`<td>${r.vendedorNome||'—'}</td>`}
+          ${opts.hideVendedor?'':`<td>${r.vendedorNome||'-'}</td>`}
           <td class="tnum">${fmtEUR(r.valorContrato)}</td>
           ${opts.paidView
             ? `<td style="max-width:320px;">Entrou em <strong>${fmtDate(r.dataVenda)}</strong>, ${r.nParcelas} parcela${r.nParcelas>1?'s':''}${r.valorEntrada>0?' + entrada':''}, finalizada em <strong>${monthLabel(finalizacaoMes(r))}</strong>.</td>`
             : `<td><div class="btn-group">${r.valorEntrada>0?`<span class="chip gold">Entrada ${fmtEUR(r.valorEntrada)}</span>`:''}${r.parcelas.map(p=>
                 podeGerir
-                  ? `<span class="parcela-dot ${p.pago?'pago':''}" ${p.pago?`data-rec="${r.id}" data-parcela="${p.numero}"`:`data-parcela-pagar="${r.id}" data-parcela-pagar-num="${p.numero}"`} title="Parcela ${p.numero}${p.pago?' — paga, clique pra desfazer':' — clique para lançar o pagamento'}">${p.pago?'✓':p.numero}</span>`
-                  : `<span class="parcela-dot ${p.pago?'pago':''}" style="cursor:default;" title="Parcela ${p.numero}${p.pago?' — paga':' — pendente'}">${p.pago?'✓':p.numero}</span>`
+                  ? `<span class="parcela-dot ${p.pago?'pago':''}" ${p.pago?`data-rec="${r.id}" data-parcela="${p.numero}"`:`data-parcela-pagar="${r.id}" data-parcela-pagar-num="${p.numero}"`} title="Parcela ${p.numero}${p.pago?', paga, clique pra desfazer':', clique para lançar o pagamento'}">${p.pago?'✓':p.numero}</span>`
+                  : `<span class="parcela-dot ${p.pago?'pago':''}" style="cursor:default;" title="Parcela ${p.numero}${p.pago?', paga':', pendente'}">${p.pago?'✓':p.numero}</span>`
               ).join('')}${(r.pagamentosExtras||[]).map(ex=>`<span class="chip neutral" title="Pagamento personalizado em ${fmtDate(ex.data)}">💠 ${fmtEUR(ex.valor)}</span>`).join('')}${(podeGerir && st.valorPendente>0.005)?`<button class="btn ghost sm" data-pagamento-personalizado="${r.id}">Pagamento personalizado</button>`:''}</div></td>`}
           ${opts.paidView?'':`<td class="tnum">${st.valorPendente>0.005 ? fmtEUR(st.valorPendente) : '<span class="chip good">quitado</span>'}</td>`}
           ${podeGerir?`<td><div class="btn-group btn-group-actions"><button class="btn ghost sm" data-edit-rec="${r.id}">Editar</button><button class="btn danger sm" data-del-rec="${r.id}">Excluir</button></div></td>`:''}
@@ -2630,7 +2630,7 @@ function recurrenceTable(list, opts){
   </table>`;
 }
 /* Barra de busca por nome, reutilizada em Recorrências, Recorrências pagas,
-   Vendas, Clientes e Financeiro — cada uma guarda seu próprio texto em
+   Vendas, Clientes e Financeiro, cada uma guarda seu próprio texto em
    STATE[stateKey], filtrando ao vivo enquanto digita. */
 function renderSearchBar(stateKey, placeholder){
   return `<div style="margin-bottom:14px;"><input type="text" class="search-input" data-search-key="${stateKey}" placeholder="${placeholder}" value="${(STATE[stateKey]||'').replace(/"/g,'&quot;')}" style="width:100%;max-width:340px;"></div>`;
@@ -2640,7 +2640,7 @@ function matchesSearch(text, query){
   return (text||'').toString().toUpperCase().includes(query.trim().toUpperCase());
 }
 
-/* Lista achatada de parcelas marcadas como pagas mas sem data confirmada —
+/* Lista achatada de parcelas marcadas como pagas mas sem data confirmada ,
    esse dinheiro está fora de qualquer cálculo de Faturamento/comissão por
    mês até alguém preencher a data real aqui. */
 function parcelasSemData(){
@@ -2657,13 +2657,13 @@ function renderRecurrencesNoDate(){
   const lista = parcelasSemData().filter(l=>matchesSearch(l.cliente, STATE.searchRecorrencias));
   return `
   ${renderSearchBar('searchRecorrencias','Buscar por nome do cliente…')}
-  <div class="field-hint" style="margin-bottom:14px;">Essas parcelas já foram marcadas como pagas, mas a data real do pagamento não é conhecida — por isso não entram em nenhum mês de Faturamento, comissão ou gráficos até você preencher a data aqui. Preencha e clique em Salvar pra que o valor passe a contar no mês certo.</div>
+  <div class="field-hint" style="margin-bottom:14px;">Essas parcelas já foram marcadas como pagas, mas a data real do pagamento não é conhecida, por isso não entram em nenhum mês de Faturamento, comissão ou gráficos até você preencher a data aqui. Preencha e clique em Salvar pra que o valor passe a contar no mês certo.</div>
   <section class="block">
     <div class="block-head"><h3>Parcelas pagas sem data (${lista.length})</h3></div>
     ${lista.length ? `<table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Venda original</th><th>Parcela</th><th>Valor</th><th>Data do pagamento</th><th></th></tr></thead>
     <tbody>${lista.map(l=>`<tr>
         <td><strong>${l.cliente}</strong></td>
-        <td>${l.vendedorNome||'—'}</td>
+        <td>${l.vendedorNome||'-'}</td>
         <td>${fmtDate(l.dataVenda)}</td>
         <td>${l.numero}</td>
         <td class="tnum">${fmtEUR(l.valor)}</td>
@@ -2674,7 +2674,7 @@ function renderRecurrencesNoDate(){
 }
 
 /* Junta toda parcela, entrada e pagamento personalizado marcado como
-   pago HOJE, de qualquer recorrência — pra quem clicou errado
+   pago HOJE, de qualquer recorrência, pra quem clicou errado
    conseguir desfazer na hora, sem precisar ir procurar no Extrato. */
 function pagamentosRecentesHoje(){
   const hoje = todayISO();
@@ -2739,7 +2739,7 @@ function renderRecurrencesPaid(){
    BARRA DE FILTRO GENÉRICA (reutilizada em Vendas e Financeiro)
    ========================================================= */
 /* Mini barra de período (Mês/Semana/Dia) que segue o mesmo STATE.periodFilter
-   global usado na Visão Geral — usada em Ranking, perfil do vendedor e painel
+   global usado na Visão Geral, usada em Ranking, perfil do vendedor e painel
    do colaborador, para que os números batam entre as telas. */
 function renderPeriodMiniBar(){
   const f = STATE.periodFilter;
@@ -2792,14 +2792,14 @@ function renderGenericFilterBar(filterKey, granularities, monthsAvailable){
    VENDAS
    ========================================================= */
 /* Líquido recebido só das recorrências (entrada + parcelas pagas) de um
-   vendedor num período — usa os mesmos eventos de buildEvents(), excluindo
+   vendedor num período, usa os mesmos eventos de buildEvents(), excluindo
    os que vêm de vendas avulsas (tipo:'Venda'). */
 function recorrenciaCashSeller(sellerId, filter){
   return buildEvents().filter(e=>e.vendedorId===sellerId && e.tipo!=='Venda' && inPeriodOrAll(e.date, filter)).reduce((a,e)=>a+e.valor,0);
 }
 
 function renderSales(){
-  // "Vendas" precisa mostrar TUDO que foi vendido no período — venda
+  // "Vendas" precisa mostrar TUDO que foi vendido no período, venda
   // integral (STATE.sales, sem contar a "venda-sombra" de uma recorrência
   // duas vezes) e recorrências (que não têm registo nenhum em STATE.sales
   // quando cadastradas direto no painel). Cada linha carrega o tipo.
@@ -2858,7 +2858,7 @@ function renderSales(){
         return `<tr>
           <td>${fmtDate(s.data)}</td>
           <td style="white-space:nowrap;"><span class="chip ${s.tipo==='recorrente'?'gold':'neutral'}" style="font-size:10px;padding:3px 8px;">${s.tipo==='recorrente'?'🔁 Recorrente':'💳 Integral'}</span></td>
-          <td><strong>${s.cliente}</strong></td><td>${s.vendedorNome||'—'}</td><td>${s.origem||'—'}</td><td>${s.servico||'—'}</td>
+          <td><strong>${s.cliente}</strong></td><td>${s.vendedorNome||'-'}</td><td>${s.origem||'-'}</td><td>${s.servico||'-'}</td>
           <td class="tnum">${fmtEUR(s.valorTotal)}</td><td class="tnum">${fmtEUR(s.valorPago)}</td>
           <td>${s.quitada?'<span class="chip good">pago</span>':'<span class="chip bad">'+fmtEUR(s.valorPendente)+' pendente</span>'}</td>
           <td><div class="btn-group btn-group-actions">${s.tipo==='recorrente'
@@ -2882,18 +2882,18 @@ function renderRanking(){
     <div class="rank-list">${rk.length ? rk.map((r,i)=>rankRow(r,i,STATE.periodFilter)).join('') : `<div class="empty">Sem dados nesse período.</div>`}</div></section>
   <section class="block"><div class="block-head"><h3>Comparativo</h3><span class="hint">"Valor vendido" = total contratado nas vendas do período, pago ou não · "Faturado" = o que já entrou em caixa</span></div>
     <table><thead><tr><th>Vendedor</th><th>Valor vendido</th><th>Faturado (caixa)</th><th>Pendente</th><th>Ticket médio</th><th>Comissão</th><th>Fechamentos</th><th>Conversão</th></tr></thead>
-    <tbody>${rk.map(r=>`<tr><td><strong>${r.seller.nome}</strong></td><td class="tnum">${fmtEUR(r.stats.valorVendido)}</td><td class="tnum">${fmtEUR(r.stats.valorFaturado)}</td><td class="tnum">${fmtEUR(r.stats.valorPendente)}</td><td class="tnum">${fmtEUR(r.stats.ticketMedio)}</td><td class="tnum">${fmtEUR(r.stats.comissao)}</td><td>${r.stats.deals}</td><td>${r.stats.taxaConversao!==null?fmtPct(r.stats.taxaConversao):'—'}</td></tr>`).join('')}</tbody>
+    <tbody>${rk.map(r=>`<tr><td><strong>${r.seller.nome}</strong></td><td class="tnum">${fmtEUR(r.stats.valorVendido)}</td><td class="tnum">${fmtEUR(r.stats.valorFaturado)}</td><td class="tnum">${fmtEUR(r.stats.valorPendente)}</td><td class="tnum">${fmtEUR(r.stats.ticketMedio)}</td><td class="tnum">${fmtEUR(r.stats.comissao)}</td><td>${r.stats.deals}</td><td>${r.stats.taxaConversao!==null?fmtPct(r.stats.taxaConversao):'-'}</td></tr>`).join('')}</tbody>
     </table></section>`;
 }
 
 /* =========================================================
-   CLIENTES / ANÁLISE (gestor) — ranking de clientes, fluxo de
+   CLIENTES / ANÁLISE (gestor), ranking de clientes, fluxo de
    clientes novos x recorrentes, funil agregado de todos os
    vendedores e composição do pipeline por origem.
    ========================================================= */
 function normCliente(s){ return (s||'').trim().toUpperCase().replace(/\s+/g,' '); }
 
-/* Um "fechamento" por linha — venda avulsa OU recorrência, sem duplicar o
+/* Um "fechamento" por linha, venda avulsa OU recorrência, sem duplicar o
    mesmo negócio (vendas com jaContabilizadoViaRecorrencia já são a mesma
    recorrência, então saem daqui pra não contar duas vezes). */
 function todosFechamentos(){
@@ -2906,7 +2906,7 @@ function todosFechamentos(){
   return [...deSales, ...deRecs].filter(f=>f.cliente && f.data);
 }
 
-/* Ranking de clientes por nº de fechamentos — histórico completo, porque
+/* Ranking de clientes por nº de fechamentos, histórico completo, porque
    "fidelidade" não faz sentido restrita a um único mês. */
 function rankingClientes(){
   const map = new Map();
@@ -2916,7 +2916,7 @@ function rankingClientes(){
     const c = map.get(k);
     c.fechamentos++;
     c.valorTotal += f.valor;
-    c.vendedores.add(f.vendedorNome||'—');
+    c.vendedores.add(f.vendedorNome||'-');
     if(f.data < c.primeira) c.primeira = f.data;
     if(f.data > c.ultima) c.ultima = f.data;
   });
@@ -2938,7 +2938,7 @@ function fluxoClientes(filter){
   return { novos, recorrentes, total: clientesNoPeriodo.size };
 }
 
-/* Funil agregado — soma o funil diário (preenchido por vendedor) de todos
+/* Funil agregado, soma o funil diário (preenchido por vendedor) de todos
    os vendedores ativos no período, na mesma estrutura da planilha. */
 function funilAgregado(filter){
   const out = { conversas:0, respondeu:0, consultaMarcada:0, leadsQualificados:0, vendasConsultaMarcada:0, reagendado:0, noShow:0, consultaRealizada:0, vendaForaConsulta:0 };
@@ -2950,13 +2950,13 @@ function funilAgregado(filter){
   return out;
 }
 
-/* Composição do "Valor Vendido" por origem do lead, no período — de onde
+/* Composição do "Valor Vendido" por origem do lead, no período, de onde
    vieram as vendas, por valor. Conta TODAS as vendas (mesmo as que também
    têm uma recorrência associada) porque "Valor Vendido" sempre conta assim
-   em todo o resto do sistema — jaContabilizadoViaRecorrencia só existe pra
+   em todo o resto do sistema, jaContabilizadoViaRecorrencia só existe pra
    não duplicar CAIXA/comissão, não afeta valor vendido. Recorrências
    criadas direto no sistema (que não têm venda-sombra nenhuma) agora têm
-   a própria origem, e entram aqui também, sem duplicar as antigas — essas
+   a própria origem, e entram aqui também, sem duplicar as antigas, essas
    só têm o campo "origem" preenchido se cadastradas depois dessa função
    existir, então nunca coincidem com uma venda-sombra já contada acima. */
 function composicaoPorOrigem(filter){
@@ -2986,7 +2986,7 @@ function composicaoPorServico(filter){
     map[srv].count++; map[srv].valor += s.valorTotal||0; map[srv].clientes.add(normCliente(s.cliente));
   });
   // recorrências criadas direto no sistema (sem venda-sombra) também contam
-  // pro desempenho de cada serviço — mesma lógica já aplicada em origem.
+  // pro desempenho de cada serviço, mesma lógica já aplicada em origem.
   STATE.recurrences.filter(r=>inPeriodOrAll(r.dataVenda, filter)).forEach(r=>{
     const srv = r.servico || 'NÃO INFORMADO';
     if(!map[srv]) map[srv] = {count:0, valor:0, clientes:new Set()};
@@ -2995,7 +2995,7 @@ function composicaoPorServico(filter){
   return Object.entries(map).map(([servico,v])=>({servico, count:v.count, valor:v.valor, nClientes:v.clientes.size})).sort((a,b)=>b.nClientes-a.nClientes);
 }
 /* Detalhamento clicável: quem exatamente compõe uma barra de "origem" ou
-   de "serviço" no pipeline — data, cliente, vendedor, valores e pendente. */
+   de "serviço" no pipeline, data, cliente, vendedor, valores e pendente. */
 function abrirDetalhePipeline(tipo, chave, filter){
   const linhas = STATE.sales.filter(s=>inPeriodOrAll(s.data, filter) && (tipo==='origem' ? (s.origem||'NÃO INFORMADO')===chave : (s.servico||'NÃO INFORMADO')===chave))
     .map(s=>{
@@ -3021,7 +3021,7 @@ function abrirDetalhePipeline(tipo, chave, filter){
     <div class="modal-head"><h3>${titulo}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       ${linhas.length ? `<div style="max-height:55vh;overflow:auto;"><table><thead><tr><th>Data</th><th>Cliente</th><th>Vendedor</th><th>${tipo==='origem'?'Serviço':'Origem'}</th><th>Total</th><th>Pago</th><th>Pendente</th></tr></thead>
-      <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.data)}</td><td><strong>${l.cliente}</strong></td><td>${l.vendedor||'—'}</td><td>${tipo==='origem'?(l.servico||'—'):(l.origem||'—')}</td><td class="tnum">${fmtEUR(l.valorTotal)}</td><td class="tnum">${fmtEUR(l.valorPago)}</td><td class="tnum ${l.pendente>0.005?'bad':''}">${l.pendente>0.005?fmtEUR(l.pendente):'quitado'}</td></tr>`).join('')}</tbody></table></div>
+      <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.data)}</td><td><strong>${l.cliente}</strong></td><td>${l.vendedor||'-'}</td><td>${tipo==='origem'?(l.servico||'-'):(l.origem||'-')}</td><td class="tnum">${fmtEUR(l.valorTotal)}</td><td class="tnum">${fmtEUR(l.valorPago)}</td><td class="tnum ${l.pendente>0.005?'bad':''}">${l.pendente>0.005?fmtEUR(l.pendente):'quitado'}</td></tr>`).join('')}</tbody></table></div>
       <div class="block-head" style="border-top:1px solid var(--line);margin-top:2px;background:var(--surface-2);"><span>${linhas.length} venda(s)</span><span><strong>${fmtEUR(totalValor)}</strong></span></div>`
       : `<div class="empty">Nada nesse período.</div>`}
     </div>
@@ -3032,7 +3032,7 @@ function abrirDetalhePipeline(tipo, chave, filter){
   document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
 }
 
-/* Busca (ou rebusca) a planilha de leads e re-renderiza quando chega —
+/* Busca (ou rebusca) a planilha de leads e re-renderiza quando chega ,
    chamada de dentro do próprio renderMetricas() na primeira vez que a aba
    é aberta, e pelo botão "Atualizar agora". */
 async function loadLeadsData(){
@@ -3050,12 +3050,12 @@ async function loadLeadsData(){
   renderAll();
 }
 /* Aplica por cima do lead original as edições feitas pelo painel (status,
-   qualidade, tipo de consultoria, serviço fechado) — a planilha em si
+   qualidade, tipo de consultoria, serviço fechado), a planilha em si
    nunca é alterada, só a "camada" guardada no Supabase. */
-/* Gera uma cor fria (verde-azulado até roxo — nunca vermelho/laranja/
+/* Gera uma cor fria (verde-azulado até roxo, nunca vermelho/laranja/
    amarelo) automaticamente a partir do texto, sempre com contraste
    garantido: como a cor de fundo é sempre escura o bastante, a letra
-   fica sempre branca — nunca uma combinação ilegível. O mesmo texto
+   fica sempre branca, nunca uma combinação ilegível. O mesmo texto
    sempre gera a mesma cor, então cada status/qualidade/consultoria fica
    visualmente consistente em toda a tabela. */
 function corFriaParaTexto(texto){
@@ -3063,9 +3063,9 @@ function corFriaParaTexto(texto){
   if(!t) return { bg:'var(--surface-2)', fg:'var(--ink-soft)' };
   let hash = 0;
   for(let i=0;i<t.length;i++){ hash = t.charCodeAt(i) + ((hash<<5)-hash); hash |= 0; }
-  const hue = 165 + (Math.abs(hash) % 145);       // 165°–310°: verde-água, azul, índigo, roxo — nunca quente
+  const hue = 165 + (Math.abs(hash) % 145);       // 165°–310°: verde-água, azul, índigo, roxo, nunca quente
   const sat = 45 + (Math.abs(hash>>8) % 25);       // 45%–70%
-  const light = 30 + (Math.abs(hash>>4) % 14);     // 30%–44% — escuro o bastante pra letra branca sempre ler bem
+  const light = 30 + (Math.abs(hash>>4) % 14);     // 30%–44%, escuro o bastante pra letra branca sempre ler bem
   return { bg:`hsl(${hue},${sat}%,${light}%)`, fg:'#fff' };
 }
 function leadComEdicoes(lead){
@@ -3083,7 +3083,7 @@ function leadComEdicoes(lead){
 }
 /* Busca tudo que existe no sistema sobre um cliente: vendas integrais,
    recorrências (entrada + cada parcela + pagamentos personalizados),
-   formas de pagamento usadas, totais e pendências — juntando os dois
+   formas de pagamento usadas, totais e pendências, juntando os dois
    tipos de negócio numa linha do tempo só. */
 function buscarClienteCompleto(query, filter){
   const q = query.trim().toUpperCase();
@@ -3116,7 +3116,7 @@ function buscarClienteCompleto(query, filter){
 
   return { clientesDistintos, vendas, recs, pagamentos, totalVendido, totalPago, totalPendente, formasPagamento, qtdNegocios: vendas.length+recs.length };
 }
-/* ===== Controle de Leads — leads orgânicos, cadastrados na mão ===== */
+/* ===== Controle de Leads, leads orgânicos, cadastrados na mão ===== */
 function abrirNovoLeadManualModal(leadId){
   const editando = leadId ? STATE.controleLeads.find(l=>l.id===leadId) : null;
   const vendedoresAtivos = activeSellers();
@@ -3131,15 +3131,15 @@ function abrirNovoLeadManualModal(leadId){
         <div class="field"><label>Serviço</label><input list="clServicoList" id="clServico" value="${editando?editando.servico||'':''}"><datalist id="clServicoList">${servicoOpts}</datalist></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Status do lead</label><select id="clStatus"><option value="">—</option>${STATUS_LEAD_OPCOES.map(o=>`<option ${editando&&editando.status===o?'selected':''}>${o}</option>`).join('')}</select></div>
-        <div class="field"><label>Qualidade</label><select id="clQualidade"><option value="">—</option>${QUALIDADE_LEAD_OPCOES.map(o=>`<option ${editando&&editando.qualidade===o?'selected':''}>${o}</option>`).join('')}</select></div>
+        <div class="field"><label>Status do lead</label><select id="clStatus"><option value="">-</option>${STATUS_LEAD_OPCOES.map(o=>`<option ${editando&&editando.status===o?'selected':''}>${o}</option>`).join('')}</select></div>
+        <div class="field"><label>Qualidade</label><select id="clQualidade"><option value="">-</option>${QUALIDADE_LEAD_OPCOES.map(o=>`<option ${editando&&editando.qualidade===o?'selected':''}>${o}</option>`).join('')}</select></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Tipo de consultoria</label><select id="clConsultoria"><option value="">—</option>${CONSULTORIA_OPCOES.map(o=>`<option ${editando&&editando.consultoria===o?'selected':''}>${o}</option>`).join('')}</select></div>
+        <div class="field"><label>Tipo de consultoria</label><select id="clConsultoria"><option value="">-</option>${CONSULTORIA_OPCOES.map(o=>`<option ${editando&&editando.consultoria===o?'selected':''}>${o}</option>`).join('')}</select></div>
         <div class="field"><label>Valor pago no dia (€)</label><input type="number" min="0" step="0.01" id="clValorPago" value="${editando?editando.valorPagoDia||0:0}"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Responsável</label><select id="clResponsavel"><option value="">—</option>${vendedoresAtivos.map(s=>`<option ${editando&&editando.responsavel===s.nome?'selected':''}>${s.nome}</option>`).join('')}</select></div>
+        <div class="field"><label>Responsável</label><select id="clResponsavel"><option value="">-</option>${vendedoresAtivos.map(s=>`<option ${editando&&editando.responsavel===s.nome?'selected':''}>${s.nome}</option>`).join('')}</select></div>
         <div class="field"><label>Follow-up?</label><select id="clFollowUp"><option value="nao" ${editando&&!editando.followUp?'selected':''}>Não</option><option value="sim" ${editando&&editando.followUp?'selected':''}>Sim</option></select></div>
       </div>
     </div>
@@ -3176,7 +3176,7 @@ function renderControleLeads(){
     .filter(l=> responsavelFiltro==='all' || l.responsavel===responsavelFiltro)
     .sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   return `
-  <div class="field-hint" style="margin-bottom:12px;">📋 Leads que chegaram de forma orgânica (indicação, boca a boca, etc.) — cadastrados na mão, não vêm de planilha nenhuma.</div>
+  <div class="field-hint" style="margin-bottom:12px;">📋 Leads que chegaram de forma orgânica (indicação, boca a boca, etc.), cadastrados na mão, não vêm de planilha nenhuma.</div>
   ${renderGenericFilterBar('controleLeadsFilter', ['all','month','week','day'], meses)}
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0;">
     <span style="font-size:12.5px;font-weight:600;color:var(--ink-soft);">Responsável:</span>
@@ -3195,13 +3195,13 @@ function renderControleLeads(){
       <tbody>${lista.length ? lista.map(l=>`<tr>
           <td><strong>${l.nome}</strong></td>
           <td>${fmtDate(l.data)}</td>
-          <td>${l.servico||'—'}</td>
-          <td>${l.status?`<span class="chip" style="background:${corFriaParaTexto(l.status).bg};color:${corFriaParaTexto(l.status).fg};">${l.status}</span>`:'—'}</td>
-          <td>${l.consultoria||'—'}</td>
-          <td>${l.qualidade?`<span class="chip" style="background:${corFriaParaTexto(l.qualidade).bg};color:${corFriaParaTexto(l.qualidade).fg};">${l.qualidade}</span>`:'—'}</td>
+          <td>${l.servico||'-'}</td>
+          <td>${l.status?`<span class="chip" style="background:${corFriaParaTexto(l.status).bg};color:${corFriaParaTexto(l.status).fg};">${l.status}</span>`:'-'}</td>
+          <td>${l.consultoria||'-'}</td>
+          <td>${l.qualidade?`<span class="chip" style="background:${corFriaParaTexto(l.qualidade).bg};color:${corFriaParaTexto(l.qualidade).fg};">${l.qualidade}</span>`:'-'}</td>
           <td class="tnum">${fmtEUR(l.valorPagoDia||0)}</td>
           <td>${l.followUp?'<span class="chip gold">Sim</span>':'<span class="chip neutral">Não</span>'}</td>
-          <td>${l.responsavel||'—'}</td>
+          <td>${l.responsavel||'-'}</td>
           <td><div class="btn-group btn-group-actions"><button class="btn ghost sm" data-edit-lead-manual="${l.id}">Editar</button><button class="btn danger sm" data-del-lead-manual="${l.id}">Excluir</button></div></td>
         </tr>`).join('') : `<tr><td colspan="10"><div class="empty">Nenhum lead cadastrado nesse período.</div></td></tr>`}
       </tbody>
@@ -3210,7 +3210,7 @@ function renderControleLeads(){
   </section>`;
 }
 
-/* ===== Follow-up — ficha por lead, com histórico de contatos ===== */
+/* ===== Follow-up, ficha por lead, com histórico de contatos ===== */
 const RESPOSTA_FOLLOWUP_OPCOES = ['Positiva','Negativa','Sem resposta','Respondeu mas sem interesse','Cancelou a proposta','Perdeu o interesse'];
 function abrirNovoFollowUpModal(){
   const vendedoresAtivos = activeSellers();
@@ -3226,7 +3226,7 @@ function abrirNovoFollowUpModal(){
       </div>
       <div class="field-row">
         <div class="field"><label>Valor da proposta (€)</label><input type="number" min="0" step="0.01" id="fuValor" value="0"></div>
-        <div class="field"><label>Responsável</label><select id="fuResponsavel"><option value="">—</option>${vendedoresAtivos.map(s=>`<option>${s.nome}</option>`).join('')}</select></div>
+        <div class="field"><label>Responsável</label><select id="fuResponsavel"><option value="">-</option>${vendedoresAtivos.map(s=>`<option>${s.nome}</option>`).join('')}</select></div>
       </div>
     </div>
     <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Criar ficha</button></div>
@@ -3252,10 +3252,10 @@ function abrirRegistroContatoModal(followUpId){
   if(!ficha) return;
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
-    <div class="modal-head"><h3>Registrar contato — ${ficha.nome}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-head"><h3>Registrar contato, ${ficha.nome}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       <div class="field"><label>Data do contato</label><input type="date" id="rcData" value="${todayISO()}"></div>
-      <div class="field"><label>Resposta do lead</label><select id="rcResposta"><option value="">—</option>${RESPOSTA_FOLLOWUP_OPCOES.map(o=>`<option>${o}</option>`).join('')}</select></div>
+      <div class="field"><label>Resposta do lead</label><select id="rcResposta"><option value="">-</option>${RESPOSTA_FOLLOWUP_OPCOES.map(o=>`<option>${o}</option>`).join('')}</select></div>
       <div class="field"><label>Observação (opcional)</label><input type="text" id="rcObs" placeholder="Algum detalhe da conversa…"></div>
     </div>
     <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Registrar</button></div>
@@ -3280,7 +3280,7 @@ function abrirDetalheFollowUpModal(followUpId){
   <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:640px;">
     <div class="modal-head"><h3>${ficha.nome}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:14px;">Primeiro contato em <strong>${fmtDate(ficha.dataPrimeiroContato)}</strong> · Serviço: <strong>${ficha.servico||'—'}</strong> · Proposta: <strong>${fmtEUR(ficha.valorProposta)}</strong> · Responsável: <strong>${ficha.responsavel||'—'}</strong></div>
+      <div class="field-hint" style="margin-bottom:14px;">Primeiro contato em <strong>${fmtDate(ficha.dataPrimeiroContato)}</strong> · Serviço: <strong>${ficha.servico||'-'}</strong> · Proposta: <strong>${fmtEUR(ficha.valorProposta)}</strong> · Responsável: <strong>${ficha.responsavel||'-'}</strong></div>
       <div class="block-head" style="padding:0 0 10px;border:none;"><h3 style="font-size:13px;">Histórico de contatos (${registrosOrdenados.length})</h3><button class="btn gold sm" id="btnAddRegistroContato">+ Adicionar registro de contato</button></div>
       ${registrosOrdenados.length ? registrosOrdenados.map(r=>`
         <div class="extrato-item">
@@ -3305,7 +3305,7 @@ function renderFollowUp(){
     .filter(f=>inPeriodOrAll(f.dataPrimeiroContato, filter) && matchesSearch(f.nome, STATE.searchFollowUps))
     .sort((a,b)=>(b.dataPrimeiroContato||'').localeCompare(a.dataPrimeiroContato||''));
   return `
-  <div class="field-hint" style="margin-bottom:12px;">📞 Uma ficha por lead em acompanhamento — cada ficha guarda o histórico completo de contatos feitos com ele.</div>
+  <div class="field-hint" style="margin-bottom:12px;">📞 Uma ficha por lead em acompanhamento, cada ficha guarda o histórico completo de contatos feitos com ele.</div>
   ${renderGenericFilterBar('followUpsFilter', ['all','month','week','day'], meses)}
   ${renderSearchBar('searchFollowUps','Buscar por nome do lead…')}
   <section class="block" style="margin-top:14px;">
@@ -3315,14 +3315,14 @@ function renderFollowUp(){
       return `<div class="card" style="cursor:pointer;" data-ver-followup="${f.id}">
         <div class="lbl">${f.nome}</div>
         <div class="val" style="font-size:18px;">${fmtEUR(f.valorProposta)}</div>
-        <div class="sub">${f.servico||'—'} · desde ${fmtDate(f.dataPrimeiroContato)}</div>
+        <div class="sub">${f.servico||'-'} · desde ${fmtDate(f.dataPrimeiroContato)}</div>
         <div class="sub" style="margin-top:6px;">${f.registros.length} contato(s)${ultimo?` · último: <span class="chip" style="background:${corFriaParaTexto(ultimo.resposta).bg};color:${corFriaParaTexto(ultimo.resposta).fg};font-size:9px;">${ultimo.resposta}</span>`:''}</div>
       </div>`;
     }).join('')}</div>` : `<div class="empty">Nenhuma ficha de follow-up ainda.</div>`}
   </section>`;
 }
 
-/* ===== Vendedores — visão macro do gestor (funil + campanhas por pessoa) ===== */
+/* ===== Vendedores, visão macro do gestor (funil + campanhas por pessoa) ===== */
 function renderVendedoresOverview(){
   if(!STATE.leads.length && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData();
   const filter = STATE.vendedoresFilter || {granularity:'month', anchor: todayISO().slice(0,7)};
@@ -3370,7 +3370,7 @@ function renderIndice(){
   return `
   <div style="max-width:640px;margin:10px auto 24px;text-align:center;">
     <h2 style="font-family:'Source Serif 4',serif;font-weight:600;color:var(--wine);margin-bottom:6px;">🔎 Índice geral</h2>
-    <p style="color:var(--ink-soft);font-size:13px;margin-bottom:18px;">Busque o nome de um cliente ou de um serviço pra ver tudo que existe no sistema sobre ele — vendas, recorrências, pagamentos, formas de pagamento.</p>
+    <p style="color:var(--ink-soft);font-size:13px;margin-bottom:18px;">Busque o nome de um cliente ou de um serviço pra ver tudo que existe no sistema sobre ele, vendas, recorrências, pagamentos, formas de pagamento.</p>
     <div style="display:flex;gap:8px;justify-content:center;">
       <input type="text" id="indiceQueryInput" value="${STATE.indiceQuery.replace(/"/g,'&quot;')}" placeholder="Nome do cliente ou do serviço…" style="flex:1;max-width:420px;padding:12px 16px;border:1px solid var(--line);border-radius:9px;font-size:14px;">
       <button class="btn gold" id="btnBuscarIndice">Buscar</button>
@@ -3381,25 +3381,25 @@ function renderIndice(){
   ${query && !resultadoCliente && !resultadoServicos.length ? `<div class="empty" style="max-width:420px;margin:0 auto;">Nada encontrado pra "${query}" nesse período. Tente outro nome ou mude o filtro pra "Todos".</div>` : ''}
   ${resultadoCliente ? `
   <section class="block">
-    <div class="block-head"><h3>👤 ${resultadoCliente.clientesDistintos.join(' / ')}</h3><span class="hint">${resultadoCliente.qtdNegocios} negócio(s) no período — ${resultadoCliente.vendas.length} venda(s) integral(is), ${resultadoCliente.recs.length} recorrência(s)</span></div>
+    <div class="block-head"><h3>👤 ${resultadoCliente.clientesDistintos.join(' / ')}</h3><span class="hint">${resultadoCliente.qtdNegocios} negócio(s) no período, ${resultadoCliente.vendas.length} venda(s) integral(is), ${resultadoCliente.recs.length} recorrência(s)</span></div>
     <div class="cards" style="padding:18px 20px;margin:0;">
       <div class="card"><div class="lbl">Total vendido</div><div class="val">${fmtEUR(resultadoCliente.totalVendido)}</div></div>
       <div class="card"><div class="lbl">Total pago</div><div class="val good">${fmtEUR(resultadoCliente.totalPago)}</div></div>
       <div class="card"><div class="lbl">Pendente</div><div class="val ${resultadoCliente.totalPendente>0.005?'bad':'good'}">${resultadoCliente.totalPendente>0.005?fmtEUR(resultadoCliente.totalPendente):'quitado'}</div></div>
     </div>
-    <div style="padding:0 20px 16px;"><span class="field-hint">💳 Formas de pagamento usadas: ${resultadoCliente.formasPagamento.length ? resultadoCliente.formasPagamento.join(', ') : '—'}</span></div>
+    <div style="padding:0 20px 16px;"><span class="field-hint">💳 Formas de pagamento usadas: ${resultadoCliente.formasPagamento.length ? resultadoCliente.formasPagamento.join(', ') : '-'}</span></div>
   </section>
   <section class="block">
     <div class="block-head"><h3>Linha do tempo de pagamentos (${resultadoCliente.pagamentos.length})</h3><span class="hint">tudo que já foi pago, mais recente primeiro</span></div>
     ${resultadoCliente.pagamentos.length ? `<table><thead><tr><th>Data</th><th>Tipo</th><th>Serviço</th><th>Vendedor</th><th>Forma</th><th>Valor</th></tr></thead>
-    <tbody>${resultadoCliente.pagamentos.map(p=>`<tr><td>${fmtDate(p.data)}</td><td><span class="chip neutral">${p.tipo}</span></td><td>${p.servico||'—'}</td><td>${p.vendedor||'—'}</td><td>${p.forma||'—'}</td><td class="tnum good">${fmtEUR(p.valor)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum pagamento registado ainda.</div>`}
+    <tbody>${resultadoCliente.pagamentos.map(p=>`<tr><td>${fmtDate(p.data)}</td><td><span class="chip neutral">${p.tipo}</span></td><td>${p.servico||'-'}</td><td>${p.vendedor||'-'}</td><td>${p.forma||'-'}</td><td class="tnum good">${fmtEUR(p.valor)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum pagamento registado ainda.</div>`}
   </section>
   <section class="block">
     <div class="block-head"><h3>Negócios (${resultadoCliente.vendas.length + resultadoCliente.recs.length})</h3><span class="hint">contratos e vendas que compõem o total acima</span></div>
     <table><thead><tr><th>Data</th><th>Tipo</th><th>Serviço</th><th>Valor total</th><th>Status</th></tr></thead>
     <tbody>
-      ${resultadoCliente.vendas.map(s=>{ const st=saleStatus(s); return `<tr><td>${fmtDate(s.data)}</td><td><span class="chip neutral">💳 Integral</span></td><td>${s.servico||'—'}</td><td class="tnum">${fmtEUR(s.valorTotal)}</td><td>${st.valorPendente<=0.005?'<span class="chip good">quitado</span>':'<span class="chip bad">'+fmtEUR(st.valorPendente)+' pendente</span>'}</td></tr>`; }).join('')}
-      ${resultadoCliente.recs.map(r=>{ const st=recStatus(r); return `<tr><td>${fmtDate(r.dataVenda)}</td><td><span class="chip gold">🔁 Recorrente</span></td><td>${r.servico||'—'}</td><td class="tnum">${fmtEUR(r.valorContrato)}</td><td>${st.quitada?'<span class="chip good">quitado</span>':'<span class="chip bad">'+fmtEUR(st.valorPendente)+' pendente</span>'}</td></tr>`; }).join('')}
+      ${resultadoCliente.vendas.map(s=>{ const st=saleStatus(s); return `<tr><td>${fmtDate(s.data)}</td><td><span class="chip neutral">💳 Integral</span></td><td>${s.servico||'-'}</td><td class="tnum">${fmtEUR(s.valorTotal)}</td><td>${st.valorPendente<=0.005?'<span class="chip good">quitado</span>':'<span class="chip bad">'+fmtEUR(st.valorPendente)+' pendente</span>'}</td></tr>`; }).join('')}
+      ${resultadoCliente.recs.map(r=>{ const st=recStatus(r); return `<tr><td>${fmtDate(r.dataVenda)}</td><td><span class="chip gold">🔁 Recorrente</span></td><td>${r.servico||'-'}</td><td class="tnum">${fmtEUR(r.valorContrato)}</td><td>${st.quitada?'<span class="chip good">quitado</span>':'<span class="chip bad">'+fmtEUR(st.valorPendente)+' pendente</span>'}</td></tr>`; }).join('')}
     </tbody></table>
   </section>` : ''}
   ${resultadoServicos.length ? `
@@ -3444,13 +3444,13 @@ function renderListaLeadsEditavel(leads){
   const selectCell = (lead, campo, opcoes, valorAtual) => {
     const cor = corFriaParaTexto(valorAtual);
     return `<select data-lead-key="${lead.leadKey}" data-lead-field="${campo}" class="cc-select" style="background:${cor.bg};color:${cor.fg};border-color:${cor.bg};font-weight:600;">
-    <option value="">—</option>
+    <option value="">-</option>
     ${opcoes.map(o=>`<option ${o===valorAtual?'selected':''}>${o}</option>`).join('')}
   </select>`;
   };
 
   return `
-  <div class="field-hint" style="margin-bottom:12px;">📡 Dados ao vivo da planilha, mas as colunas com seleção abaixo são editadas aqui no painel — não alteram a planilha original. Atribuir um responsável coloca esse lead sob o controle dele — use o filtro abaixo pra ver só os seus. ${STATE.leadsLoadedAt ? `Última busca: ${STATE.leadsLoadedAt.toLocaleTimeString('pt-PT')}` : ''} <button class="btn ghost sm" id="btnRefreshLeads2" style="margin-left:10px;">🔄 Atualizar agora</button></div>
+  <div class="field-hint" style="margin-bottom:12px;">📡 Dados ao vivo da planilha, mas as colunas com seleção abaixo são editadas aqui no painel, não alteram a planilha original. Atribuir um responsável coloca esse lead sob o controle dele, use o filtro abaixo pra ver só os seus. ${STATE.leadsLoadedAt ? `Última busca: ${STATE.leadsLoadedAt.toLocaleTimeString('pt-PT')}` : ''} <button class="btn ghost sm" id="btnRefreshLeads2" style="margin-left:10px;">🔄 Atualizar agora</button></div>
   ${renderGenericFilterBar('campanhasFilter', ['all','month','week','day'], meses)}
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0;">
     <span style="font-size:12.5px;font-weight:600;color:var(--ink-soft);">Responsável:</span>
@@ -3469,14 +3469,14 @@ function renderListaLeadsEditavel(leads){
       <tbody>${filtrados.length ? filtrados.map(l=>`<tr>
           <td><strong>${l.nome}</strong>${l._editado?' <span class="chip gold" style="font-size:9px;">editado</span>':''}</td>
           <td>${fmtDate(l.data)}</td>
-          <td>${l.hora||'—'}</td>
+          <td>${l.hora||'-'}</td>
           <td title="${l.campanha}">${l.campanha.length>28?l.campanha.slice(0,28)+'…':l.campanha}</td>
           <td>${l.plataforma}${l.canal&&l.canal!==l.plataforma?' / '+l.canal:''}</td>
-          <td><select data-lead-key="${l.leadKey}" data-lead-field="responsavel" class="cc-select"><option value="">—</option>${vendedoresAtivos.map(s=>`<option ${s.nome===l.responsavel?'selected':''}>${s.nome}</option>`).join('')}</select></td>
+          <td><select data-lead-key="${l.leadKey}" data-lead-field="responsavel" class="cc-select"><option value="">-</option>${vendedoresAtivos.map(s=>`<option ${s.nome===l.responsavel?'selected':''}>${s.nome}</option>`).join('')}</select></td>
           <td>${selectCell(l,'status',STATUS_LEAD_OPCOES,l.status)}</td>
           <td>${selectCell(l,'consultoria',CONSULTORIA_OPCOES,l.consultoria)}</td>
           <td>${selectCell(l,'qualidade',QUALIDADE_LEAD_OPCOES,l.qualificado)}</td>
-          <td><input type="text" list="ccServicoList" data-lead-key="${l.leadKey}" data-lead-field="servicoFechado" class="cc-input" value="${l.servicoFechado||''}" placeholder="—"></td>
+          <td><input type="text" list="ccServicoList" data-lead-key="${l.leadKey}" data-lead-field="servicoFechado" class="cc-input" value="${l.servicoFechado||''}" placeholder="-"></td>
         </tr>`).join('') : `<tr><td colspan="10"><div class="empty">Nenhum lead nesse período.</div></td></tr>`}
       </tbody>
     </table>
@@ -3529,7 +3529,7 @@ function renderMetricasCampanhas(leads){
     <div class="card accent"><div class="lbl">📥 Leads no período</div><div class="val">${totalLeads}</div></div>
     <div class="card"><div class="lbl">✅ Qualificados</div><div class="val good">${totalQualificados}</div></div>
     <div class="card"><div class="lbl">🏆 Fechados</div><div class="val good">${totalFechados}</div></div>
-    <div class="card"><div class="lbl">📈 Taxa de conversão</div><div class="val">${totalLeads>0?fmtPct(totalFechados/totalLeads):'—'}</div></div>
+    <div class="card"><div class="lbl">📈 Taxa de conversão</div><div class="val">${totalLeads>0?fmtPct(totalFechados/totalLeads):'-'}</div></div>
   </div>
   ${melhorMesQualidade ? `<div class="field-hint" style="margin-bottom:16px;">🏅 O mês com a <strong>maior taxa de qualidade</strong> de leads (histórico completo) foi <strong>${monthLabel(melhorMesQualidade.mes)}</strong>, com ${fmtPct(melhorMesQualidade.taxa)} dos leads qualificados (${melhorMesQualidade.qualificados} de ${melhorMesQualidade.total}).</div>` : ''}
   <div class="charts-grid">
@@ -3652,14 +3652,14 @@ function renderMetricas(){
     <div class="block-head"><h3>Leads do período (${leadsFiltrados.length})</h3></div>
     ${leadsFiltrados.length ? `<div style="max-height:420px;overflow:auto;"><table><thead><tr><th>Data</th><th>Nome</th><th>Telefone</th><th>Serviço</th><th>Plataforma/Canal</th><th>Status</th><th>Qualificação</th></tr></thead>
     <tbody>${[...leadsFiltrados].sort((a,b)=>b.data.localeCompare(a.data)).slice(0,300).map(l=>`<tr>
-        <td>${fmtDate(l.data)}</td><td><strong>${l.nome}</strong></td><td>${l.telefone||'—'}</td><td>${l.servico}</td>
+        <td>${fmtDate(l.data)}</td><td><strong>${l.nome}</strong></td><td>${l.telefone||'-'}</td><td>${l.servico}</td>
         <td>${l.plataforma} / ${l.canal}</td>
         <td><span class="chip" style="background:${corFriaParaTexto(l.status).bg};color:${corFriaParaTexto(l.status).fg};">${l.status}</span></td>
         <td><span class="chip" style="background:${corFriaParaTexto(l.qualificado).bg};color:${corFriaParaTexto(l.qualificado).fg};">${l.qualificado}</span></td>
       </tr>`).join('')}</tbody></table></div>` : `<div class="empty">Nenhum lead encontrado nesse período.</div>`}
   </section>`;
 }
-/* Desempenho dos serviços de verdade vendidos (não os leads de anúncio) —
+/* Desempenho dos serviços de verdade vendidos (não os leads de anúncio) ,
    efetividade = quantos negócios fecharam com aquele serviço; rotatividade
    = quanto de valor aquele serviço já girou no período. Mesma fonte que
    alimenta a Composição por serviço em Clientes. */
@@ -3718,7 +3718,7 @@ function renderClientes(){
   </div>
 
   <section class="block">
-    <div class="block-head"><h3>Funil agregado — todos os vendedores</h3><span class="hint">soma do funil diário de cada vendedor no período selecionado</span></div>
+    <div class="block-head"><h3>Funil agregado, todos os vendedores</h3><span class="hint">soma do funil diário de cada vendedor no período selecionado</span></div>
     <div style="padding:18px 20px;">
       ${etapas.map(([k,label])=>{
         const v = funil[k]||0;
@@ -3746,7 +3746,7 @@ function renderClientes(){
   </section>
 
   <section class="block">
-    <div class="block-head"><h3>Composição do pipeline por origem — quantidade de leads</h3><span class="hint">clique num número pra ver quem são esses clientes</span></div>
+    <div class="block-head"><h3>Composição do pipeline por origem, quantidade de leads</h3><span class="hint">clique num número pra ver quem são esses clientes</span></div>
     <div style="padding:18px 20px;">
       ${origemPorQtd.length ? origemPorQtd.map(o=>`
         <div class="hbar-row">
@@ -3758,7 +3758,7 @@ function renderClientes(){
   </section>
 
   <section class="block">
-    <div class="block-head"><h3>Composição do fluxo de serviços</h3><span class="hint">quantos clientes compraram cada serviço — clique pra ver quem são</span></div>
+    <div class="block-head"><h3>Composição do fluxo de serviços</h3><span class="hint">quantos clientes compraram cada serviço, clique pra ver quem são</span></div>
     <div style="padding:18px 20px;">
       ${servicoComp.length ? servicoComp.map(s=>`
         <div class="hbar-row">
@@ -3803,7 +3803,7 @@ function renderFunilManual(seller, st){
     <div class="cards" style="margin:16px 20px 0;">
       <div class="card"><div class="lbl">Conversas iniciadas (mês)</div><div class="val">${st.conversas}</div></div>
       <div class="card"><div class="lbl">Leads qualificados (mês)</div><div class="val">${st.novosContatos}</div></div>
-      <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${st.taxaConversao!==null?fmtPct(st.taxaConversao):'—'}</div></div>
+      <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${st.taxaConversao!==null?fmtPct(st.taxaConversao):'-'}</div></div>
     </div>
     <div class="funil-day-nav">
       <button class="btn ghost sm" data-funil-nav="-1">&larr; Dia anterior</button>
@@ -3826,12 +3826,12 @@ function renderFunilManual(seller, st){
         <input type="number" min="0" step="0.01" class="funil-input funil-money" data-fdate="${dataAtual}" data-fcol="pagoNoDia" value="${dia.pagoNoDia||''}" placeholder="0">
       </div>
     </div>
-    <div class="field-hint" style="padding:0 20px 16px;">Os campos "Valor da venda" e "Pago no dia" aqui são só para acompanhamento do funil, no mesmo formato da tua planilha — o faturamento e a comissão oficiais continuam vindo dos registos em Vendas/Recorrências, para não contar o mesmo dinheiro duas vezes.</div>
+    <div class="field-hint" style="padding:0 20px 16px;">Os campos "Valor da venda" e "Pago no dia" aqui são só para acompanhamento do funil, no mesmo formato da tua planilha, o faturamento e a comissão oficiais continuam vindo dos registos em Vendas/Recorrências, para não contar o mesmo dinheiro duas vezes.</div>
   </section>`;
 }
 
 /* Tabela de "vendas avulsas" reaproveitada no perfil do vendedor e em
-   Minhas Vendas — sempre ordenada da mais recente pra mais antiga (o
+   Minhas Vendas, sempre ordenada da mais recente pra mais antiga (o
    dia 1 do mês fica no fim da lista), com Editar/Excluir em cada linha. */
 function salesTable(list){
   const ordenada = [...list].sort((a,b)=> (b.data||'').localeCompare(a.data||''));
@@ -3911,7 +3911,7 @@ function renderSellerDetail(){
     <div style="margin-left:auto;display:flex;gap:8px;">${seller.ativo ? `<button class="btn danger sm" id="btnToggleSeller">Desativar</button>` : `<button class="btn gold sm" id="btnToggleSeller">Reativar</button>`}</div>
   </div>
   <div class="cards">
-    <div class="card accent"><div class="lbl">Valor vendido (contratado)</div><div class="val good" data-detalhe-card="vendido" data-detalhe-seller="${seller.id}" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(st.valorVendido)}</div><div class="sub">${st.nSales} venda(s) — pago ou não</div></div>
+    <div class="card accent"><div class="lbl">Valor vendido (contratado)</div><div class="val good" data-detalhe-card="vendido" data-detalhe-seller="${seller.id}" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(st.valorVendido)}</div><div class="sub">${st.nSales} venda(s), pago ou não</div></div>
     <div class="card"><div class="lbl">Faturado (caixa)</div><div class="val good" data-detalhe-card="faturado" data-detalhe-seller="${seller.id}" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(st.valorFaturado)}</div></div>
     <div class="card"><div class="lbl">Pendente</div><div class="val bad" data-detalhe-card="pendente" data-detalhe-seller="${seller.id}" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(st.valorPendente)}</div></div>
     <div class="card"><div class="lbl">Comissão (${fmtPct(taxaComissao())} sobre o líquido de IVA)</div><div class="val" data-comissao-seller="${seller.id}" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver como foi calculada">${fmtEUR(st.comissao)}</div></div>
@@ -3921,7 +3921,7 @@ function renderSellerDetail(){
   <section class="block">
     <div class="block-head"><h3>Acesso ao painel</h3><span class="hint">login e permissões</span><button class="btn gold sm" data-criar-conta-seller="${seller.id}">Criar conta</button></div>
     <div style="padding:16px 20px;max-width:460px;">
-      <div class="field-hint">Já existe uma conta pra este colaborador? Verifique em <strong>Supabase → Authentication → Users</strong> antes de criar outra — o botão acima cria um login novo (e-mail/senha), já ligado a este vendedor. Pra redefinir senha ou remover acesso, use o painel do Supabase diretamente (ver <code>docs/SECURITY_MIGRATION.md</code>).</div>
+      <div class="field-hint">Já existe uma conta pra este colaborador? Verifique em <strong>Supabase → Authentication → Users</strong> antes de criar outra, o botão acima cria um login novo (e-mail/senha), já ligado a este vendedor. Pra redefinir senha ou remover acesso, use o painel do Supabase diretamente (ver <code>docs/SECURITY_MIGRATION.md</code>).</div>
     </div>
   </section>
   <section class="block"><div class="block-head"><h3>Recorrências (${recs.length})</h3></div>${recurrenceTable([...recs].sort((a,b)=> (b.dataVenda||'').localeCompare(a.dataVenda||'')),{hideVendedor:true})}</section>
@@ -3992,7 +3992,7 @@ function renderConfig(){
     <div class="block-head"><h3>Pedidos de acesso pendentes (${STATE.accessRequests.length})</h3><span class="hint">quem pediu acesso pela tela de login, aguardando aprovação</span></div>
     ${STATE.accessRequests.length ? STATE.accessRequests.map(r=>`
       <div style="padding:16px 20px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-        <div style="min-width:160px;"><div class="lbl" style="font-size:11px;color:var(--ink-soft);">Nome</div><strong>${r.nome||'—'}</strong><div style="font-size:11.5px;color:var(--ink-soft);">${r.email||''}</div></div>
+        <div style="min-width:160px;"><div class="lbl" style="font-size:11px;color:var(--ink-soft);">Nome</div><strong>${r.nome||'-'}</strong><div style="font-size:11.5px;color:var(--ink-soft);">${r.email||''}</div></div>
         <div class="field" style="margin:0;"><label>Papel</label><select id="reqRole-${r.id}"><option value="colaborador">Colaborador(a)</option><option value="gestor">Gestor(a)</option></select></div>
         <div class="field" style="margin:0;" id="reqSellerField-${r.id}"><label>Vendedor</label><select id="reqSeller-${r.id}">${STATE.sellers.map(s=>`<option value="${s.id}">${s.nome}</option>`).join('')}</select></div>
         <button class="btn gold sm" data-approve-request="${r.id}">Aprovar</button>
@@ -4019,8 +4019,8 @@ function renderConfig(){
       <div class="field"><label>Percentual de comissão sobre o valor líquido (%)</label><input type="number" id="cfgTaxaComissao" min="0" max="100" step="1" value="${(taxaComissao()*100).toFixed(0)}"></div>
       <div class="field"><label>Percentual de IVA a descontar de entradas/parcelas de recorrência (%)</label><input type="number" id="cfgTaxaIva" min="0" max="100" step="1" value="${(taxaIva()*100).toFixed(0)}"></div>
       <div class="field-hint" style="margin-bottom:16px;">
-        <strong>Venda integral (avulsa, paga de uma vez):</strong> desconta-se o IVA real do serviço (definido no Catálogo de Serviços) do valor recebido — a comissão é o percentual de comissão sobre o que sobra.<br><br>
-        <strong>Entrada ou parcela de uma recorrência:</strong> desconta-se o percentual de IVA acima <em>sobre o valor efetivamente pago naquele momento</em> (não é uma fatia do IVA total do contrato — cada pagamento paga o seu próprio IVA). Nas parcelas, desconta-se também a fatia da taxa administrativa do contrato diluída pelo nº de parcelas, a menos que o contrato esteja marcado como isento (botão "Isento de taxa administrativa" na tabela de recorrências).
+        <strong>Venda integral (avulsa, paga de uma vez):</strong> desconta-se o IVA real do serviço (definido no Catálogo de Serviços) do valor recebido, a comissão é o percentual de comissão sobre o que sobra.<br><br>
+        <strong>Entrada ou parcela de uma recorrência:</strong> desconta-se o percentual de IVA acima <em>sobre o valor efetivamente pago naquele momento</em> (não é uma fatia do IVA total do contrato, cada pagamento paga o seu próprio IVA). Nas parcelas, desconta-se também a fatia da taxa administrativa do contrato diluída pelo nº de parcelas, a menos que o contrato esteja marcado como isento (botão "Isento de taxa administrativa" na tabela de recorrências).
       </div>
       <button class="btn gold" id="btnSaveComissao">Guardar regras</button>
     </div>
@@ -4048,7 +4048,7 @@ function renderConfig(){
     <button class="btn ghost sm" id="btnToggleVendedoresInativos"><span class="nav-group-chevron" style="display:inline-block;color:var(--ink-soft);transition:transform .3s cubic-bezier(.34,1.56,.64,1);transform:rotate(${painelAberto?'90deg':'0deg'});">▸</span> Vendedores inativos ${inativos.length?`<span class="chip neutral" style="margin-left:4px;">${inativos.length}</span>`:''}</button>
     <div class="nav-group-body ${painelAberto?'aberto':''}" style="max-height:${painelAberto?'600px':'0'};">
       <section class="block" style="margin-top:10px;">
-        <div class="block-head"><h3>Vendedores inativos</h3><span class="hint">fora do dia a dia — reative se precisar</span></div>
+        <div class="block-head"><h3>Vendedores inativos</h3><span class="hint">fora do dia a dia, reative se precisar</span></div>
         <table><thead><tr><th>Nome</th><th>Status</th><th>ID (p/ profiles)</th><th></th></tr></thead>
         <tbody>${inativos.map(linhaVendedor).join('') || `<tr><td colspan="4"><div class="empty">Nenhum vendedor inativo.</div></td></tr>`}</tbody></table>
       </section>
@@ -4069,7 +4069,7 @@ function renderConfig(){
     </div>
   </section>
   <section class="block">
-    <div class="block-head"><h3>Origens de lead (${origensLeadList().length})</h3><span class="hint">de onde vieram os clientes — usado ao cadastrar vendas e recorrências</span></div>
+    <div class="block-head"><h3>Origens de lead (${origensLeadList().length})</h3><span class="hint">de onde vieram os clientes, usado ao cadastrar vendas e recorrências</span></div>
     <div style="padding:16px 20px;">
       <div class="field-row" style="align-items:flex-end;max-width:460px;">
         <div class="field" style="flex:1;"><label>Nova origem</label><input type="text" id="novaOrigemLead" placeholder="Ex.: LINKEDIN"></div>
@@ -4096,7 +4096,7 @@ function renderFinanceiro(){
   const lucro = computeLucro(filter);
   return `
   ${renderGenericFilterBar('financeiroFilter', ['all','month','week','day'], months)}
-  <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado) — só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte. Os cards abaixo mostram só o que já foi <strong>efetivamente pago</strong> no período (mesmo critério do Resumo, Extrato e Registro) — as abas "Custos fixos"/"Custos variáveis" mostram todo o lançamento, pago ou ainda pendente.</div>
+  <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado), só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte. Os cards abaixo mostram só o que já foi <strong>efetivamente pago</strong> no período (mesmo critério do Resumo, Extrato e Registro), as abas "Custos fixos"/"Custos variáveis" mostram todo o lançamento, pago ou ainda pendente.</div>
   <div class="cards">
     <div class="card"><div class="lbl">Custos fixos pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val" data-detalhe-card="custosFixos" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(costs.totalFixos)}</div></div>
     <div class="card"><div class="lbl">Custos variáveis pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val" data-detalhe-card="custosVariaveis" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(costs.totalVariaveis)}</div></div>
@@ -4124,7 +4124,7 @@ function renderCostsTab(list, tab, monthKeyAtual){
     <div class="block-head"><h3>${label} (${filtrada.length})</h3><button class="btn gold" id="btnAddCost" data-default-categoria="${tab==='variaveis'?'VARIÁVEL':'FIXO'}">+ Novo custo</button></div>
     ${filtrada.length ? `<table><thead><tr><th>Nome</th><th>Valor</th><th>Vencimento</th><th>Pago</th><th></th></tr></thead>
     <tbody>${filtrada.map(c=>`<tr>
-        <td><strong>${c.nome}</strong>${c._projetado?'<span class="chip neutral" style="margin-left:8px;" title="Repete automaticamente a partir do lançamento anterior — editar aqui muda o valor a partir de agora, sem afetar meses já fechados">repete</span>':''}</td>
+        <td><strong>${c.nome}</strong>${c._projetado?'<span class="chip neutral" style="margin-left:8px;" title="Repete automaticamente a partir do lançamento anterior, editar aqui muda o valor a partir de agora, sem afetar meses já fechados">repete</span>':''}</td>
         <td class="tnum">${fmtEUR(c.valor)}</td>
         <td>${fmtDate(c.vencimento)}</td>
         <td><button class="chip ${c.pago?'good':'bad'}" data-toggle-cost="${c.id}" data-cost-month="${monthKeyAtual||''}" style="border:none;">${c.pago?'pago':'pendente'}</button></td>
@@ -4132,57 +4132,57 @@ function renderCostsTab(list, tab, monthKeyAtual){
       </tr>`).join('')}</tbody></table>` : `<div class="empty">${STATE.searchFinanceiro ? 'Nenhum custo encontrado com esse nome.' : 'Nenhum custo '+(tab==='variaveis'?'variável':'fixo')+' nesse período.'}</div>`}
   </section>`;
 }
-/* Extrato do dia: tudo que mexeu no caixa naquele dia específico — vendas
+/* Extrato do dia: tudo que mexeu no caixa naquele dia específico, vendas
    recebidas, entrada/parcelas de recorrência, e custos com vencimento
    naquele dia (fixos ou variáveis, pagos ou pendentes). */
-/* Lista unificada de movimentações financeiras num período qualquer — usada
+/* Lista unificada de movimentações financeiras num período qualquer, usada
    tanto no Extrato do dia (período = 1 dia) quanto no Registro (qualquer
    período). Cada linha já vem com emoji, categoria e sinal (+/-) prontos. */
 function linhasFinanceiras(filter){
   const linhas = [];
   STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && (s.valorPago||0)>0 && inPeriodOrAll(s.data, filter)).forEach(s=>{
-    linhas.push({ data:s.data, emoji:'💳', tipo:'Venda integral', categoria:'Receita', cliente:s.cliente, vendedor:s.vendedorNome, forma:s.formaPagamento||'—', valor:s.valorPago, sinal:1, _ref:{tipo:'venda', saleId:s.id} });
+    linhas.push({ data:s.data, emoji:'💳', tipo:'Venda integral', categoria:'Receita', cliente:s.cliente, vendedor:s.vendedorNome, forma:s.formaPagamento||'-', valor:s.valorPago, sinal:1, _ref:{tipo:'venda', saleId:s.id} });
   });
   STATE.recurrences.forEach(r=>{
     const st = recStatus(r);
     if((r.valorEntrada||0)>0 && inPeriodOrAll(r.dataVenda, filter)){
-      linhas.push({ data:r.dataVenda, emoji:'🔁', tipo:'Entrada de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor:r.valorEntrada, sinal:1, _ref:{tipo:'entrada', recId:r.id} });
+      linhas.push({ data:r.dataVenda, emoji:'🔁', tipo:'Entrada de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'-', valor:r.valorEntrada, sinal:1, _ref:{tipo:'entrada', recId:r.id} });
     }
     r.parcelas.forEach(p=>{
       if(p.pago && p.data && inPeriodOrAll(p.data, filter)){
-        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor: p.valor!=null ? p.valor : st.valorParcela, sinal:1, _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
+        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'-', valor: p.valor!=null ? p.valor : st.valorParcela, sinal:1, _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
       if(ex.data && inPeriodOrAll(ex.data, filter)){
-        linhas.push({ data:ex.data, emoji:'💠', tipo:'Pagamento personalizado', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'—', valor: ex.valor||0, sinal:1, _ref:{tipo:'extra', recId:r.id, extraId:ex.id} });
+        linhas.push({ data:ex.data, emoji:'💠', tipo:'Pagamento personalizado', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'-', valor: ex.valor||0, sinal:1, _ref:{tipo:'extra', recId:r.id, extraId:ex.id} });
       }
     });
   });
   STATE.costs.filter(c=>c.categoria==='FIXO').forEach(c=>{
     // Custos históricos foram importados com "pago:true" mas sem
-    // dataPagamento (esse campo não existia na planilha original) — sem
+    // dataPagamento (esse campo não existia na planilha original), sem
     // esse fallback pro vencimento, eles contam como "pago" na tabela de
     // gestão mas somem inteiros do total de despesas, dando €0,00 mesmo
     // com dezenas de custos marcados como pagos.
     const dataEfetiva = c.dataPagamento || c.vencimento;
     if(c.pago && dataEfetiva && inPeriodOrAll(dataEfetiva, filter)){
-      linhas.push({ data:dataEfetiva, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoExato', custoId:c.id} });
+      linhas.push({ data:dataEfetiva, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoExato', custoId:c.id} });
     }
     if(c.pagoPorMes){
       Object.entries(c.pagoPorMes).forEach(([mesKey,reg])=>{
         if(reg && typeof reg==='object' && reg.pago && reg.data && inPeriodOrAll(reg.data, filter)){
-          linhas.push({ data:reg.data, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoMes', custoId:c.id, mes:mesKey} });
+          linhas.push({ data:reg.data, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoMes', custoId:c.id, mes:mesKey} });
         }
       });
     }
   });
   STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.pago && inPeriodOrAll(c.vencimento, filter)).forEach(c=>{
-    linhas.push({ data:c.vencimento, emoji:'📦', tipo:'Custo variável', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1, _ref:{tipo:'custoVariavel', custoId:c.id} });
+    linhas.push({ data:c.vencimento, emoji:'📦', tipo:'Custo variável', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1, _ref:{tipo:'custoVariavel', custoId:c.id} });
   });
   return linhas.sort((a,b)=> (b.data||'').localeCompare(a.data||''));
 }
-/* Desfaz um lançamento diretamente do Extrato/Registro — cada tipo tem seu
+/* Desfaz um lançamento diretamente do Extrato/Registro, cada tipo tem seu
    jeito certo de "voltar atrás": uma venda vira estorno (o valor pago
    zera, a venda continua existindo como pendente, pra não sumir do
    histórico); uma parcela ou entrada volta a ficar pendente; um pagamento
@@ -4232,13 +4232,13 @@ function renderExtratoTab(){
   const monthKey = data.slice(0,7);
   const filtroDia = {granularity:'day', anchor:data};
   let linhas = linhasFinanceiras(filtroDia);
-  // pendências (ainda não pagas) com vencimento nesse dia — mostradas à parte
+  // pendências (ainda não pagas) com vencimento nesse dia, mostradas à parte
   const pendentes = [];
   custosFixosDoMes(monthKey).forEach(c=>{
-    if(!c.pago && c.vencimento===data) pendentes.push({ data, emoji:'⏳', tipo:'Custo fixo (pendente)', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
+    if(!c.pago && c.vencimento===data) pendentes.push({ data, emoji:'⏳', tipo:'Custo fixo (pendente)', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1 });
   });
   STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && !c.pago && c.vencimento===data).forEach(c=>{
-    pendentes.push({ data, emoji:'⏳', tipo:'Custo variável (pendente)', categoria:'Despesa', cliente:c.nome, vendedor:'—', forma:'—', valor:c.valor, sinal:-1 });
+    pendentes.push({ data, emoji:'⏳', tipo:'Custo variável (pendente)', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1 });
   });
   linhas = linhas.filter(l=>matchesSearch(l.cliente, STATE.searchFinanceiro));
   const pendentesFiltradas = pendentes.filter(l=>matchesSearch(l.cliente, STATE.searchFinanceiro));
@@ -4253,7 +4253,7 @@ function renderExtratoTab(){
   ${renderSearchBar('searchFinanceiro','Buscar por nome…')}
   <section class="block saldo-hero-block">
     <div class="saldo-hero">
-      <div class="saldo-hero-lbl">💰 Saldo do dia — ${fmtDate(data)}</div>
+      <div class="saldo-hero-lbl">💰 Saldo do dia, ${fmtDate(data)}</div>
       <div class="saldo-hero-val ${saldo>=0?'good':'bad'}">${fmtEUR(saldo)}</div>
       <div class="saldo-hero-sub">🟢 entrou ${fmtEUR(totalEntrou)} &nbsp;·&nbsp; 🔴 saiu ${fmtEUR(totalSaiu)}</div>
     </div>
@@ -4264,15 +4264,15 @@ function renderExtratoTab(){
       <div class="extrato-item">
         <div class="extrato-icon">${l.emoji}</div>
         <div class="extrato-main">
-          <div class="extrato-titulo">${l.tipo} — ${l.cliente}</div>
-          <div class="extrato-tags"><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span>${l.vendedor&&l.vendedor!=='—'?`<span class="chip neutral">👤 ${l.vendedor}</span>`:''}${l.forma&&l.forma!=='—'?`<span class="chip neutral">💳 ${l.forma}</span>`:''}${l.tipo.includes('pendente')?'<span class="chip bad">pendente</span>':''}</div>
+          <div class="extrato-titulo">${l.tipo}, ${l.cliente}</div>
+          <div class="extrato-tags"><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span>${l.vendedor&&l.vendedor!=='-'?`<span class="chip neutral">👤 ${l.vendedor}</span>`:''}${l.forma&&l.forma!=='-'?`<span class="chip neutral">💳 ${l.forma}</span>`:''}${l.tipo.includes('pendente')?'<span class="chip bad">pendente</span>':''}</div>
         </div>
         <div class="extrato-valor ${l.sinal>0?'good':'bad'}">${l.sinal>0?'+':'−'} ${fmtEUR(l.valor)}</div>
         ${(STATE.role==='gestor' && l._ref) ? `<button class="btn ghost sm" data-estornar='${JSON.stringify(l._ref)}' data-estornar-desc="${l.tipo} de ${l.cliente} (${fmtEUR(l.valor)})" title="Desfazer este lançamento">↩️</button>` : ''}
       </div>`).join('')}</div>` : `<div class="empty">Nenhuma movimentação registada nesse dia.</div>`}
   </section>`;
 }
-/* Registro do período — igual ao Extrato, mas pra qualquer intervalo (não só
+/* Registro do período, igual ao Extrato, mas pra qualquer intervalo (não só
    um dia), sincronizado ao vivo com vendas e recorrências: cada pagamento
    novo já aparece aqui assim que é lançado, sem precisar de nenhum passo
    extra. */
@@ -4288,10 +4288,10 @@ function renderRegistroTab(filter){
     <div class="card accent"><div class="lbl">💰 Saldo do período</div><div class="val ${totalEntrou-totalSaiu>=0?'good':'bad'}">${fmtEUR(totalEntrou-totalSaiu)}</div></div>
   </div>
   <section class="block">
-    <div class="block-head"><h3>Registos do período (${linhas.length})</h3><span class="hint">ao vivo — toda venda, recorrência e custo pago aparece aqui na hora</span></div>
+    <div class="block-head"><h3>Registos do período (${linhas.length})</h3><span class="hint">ao vivo, toda venda, recorrência e custo pago aparece aqui na hora</span></div>
     ${linhas.length ? `<table><thead><tr><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Data</th><th>Fonte</th><th>Valor</th>${STATE.role==='gestor'?'<th></th>':''}</tr></thead>
     <tbody>${linhas.map(l=>`<tr>
-        <td>${l.emoji} <strong>${l.cliente}</strong>${l.vendedor&&l.vendedor!=='—'?` <span style="color:var(--ink-soft);font-size:11.5px;">· ${l.vendedor}</span>`:''}</td>
+        <td>${l.emoji} <strong>${l.cliente}</strong>${l.vendedor&&l.vendedor!=='-'?` <span style="color:var(--ink-soft);font-size:11.5px;">· ${l.vendedor}</span>`:''}</td>
         <td>${l.tipo}</td>
         <td><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span></td>
         <td>${fmtDate(l.data)}</td>
@@ -4309,18 +4309,18 @@ function renderResumoFinanceiro(filter){
   const novasVendas = STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && inPeriodOrAll(s.data, filter));
   const novasRecs = STATE.recurrences.filter(r=>inPeriodOrAll(r.dataVenda, filter));
 
-  // 1) Entrada de novos serviços — dinheiro de negócios fechados NESTE período
+  // 1) Entrada de novos serviços, dinheiro de negócios fechados NESTE período
   const linhasNovos = [
     ...novasVendas.filter(s=>(s.valorPago||0)>0).map(s=>({ data:s.data, cliente:s.cliente, vendedor:s.vendedorNome, tipo:'Venda integral', valor:s.valorPago })),
     ...novasRecs.filter(r=>(r.valorEntrada||0)>0).map(r=>({ data:r.dataVenda, cliente:r.cliente, vendedor:r.vendedorNome, tipo:'Entrada de recorrência', valor:r.valorEntrada }))
   ].sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   const entradaNovosServicos = linhasNovos.reduce((a,l)=>a+l.valor,0);
 
-  // 2) Receita geral — TUDO que entrou no período, novo ou não
+  // 2) Receita geral, TUDO que entrou no período, novo ou não
   const linhasReceita = eventosPeriodo.map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo, valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   const receitaGeral = linhasReceita.reduce((a,l)=>a+l.valor,0);
 
-  // 3) Recorrências pagas no período — parcelas e pagamentos personalizados (não conta a entrada, essa já é "novo negócio")
+  // 3) Recorrências pagas no período, parcelas e pagamentos personalizados (não conta a entrada, essa já é "novo negócio")
   const linhasRecPagas = eventosPeriodo.filter(e=>e.tipo.startsWith('Parcela')||e.tipo==='Pagamento personalizado').map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo, valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   const recorrenciasPagas = linhasRecPagas.reduce((a,l)=>a+l.valor,0);
 
@@ -4346,7 +4346,7 @@ function renderResumoFinanceiro(filter){
   const valorRecQuitadas = linhasRecQuitadas.reduce((a,l)=>a+l.valor,0);
 
   // 8) Vendas integrais totalmente pagas nesse período
-  const linhasVendasPagas = novasVendas.filter(s=>saleStatus(s).valorPendente<=0.005).map(s=>({ data:s.data, cliente:s.cliente, vendedor:s.vendedorNome, tipo:s.servico||'—', valor:s.valorTotal })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const linhasVendasPagas = novasVendas.filter(s=>saleStatus(s).valorPendente<=0.005).map(s=>({ data:s.data, cliente:s.cliente, vendedor:s.vendedorNome, tipo:s.servico||'-', valor:s.valorTotal })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   const qtdVendasPagas = linhasVendasPagas.length;
   const valorVendasPagas = linhasVendasPagas.reduce((a,l)=>a+l.valor,0);
 
@@ -4354,15 +4354,15 @@ function renderResumoFinanceiro(filter){
     <section class="block">
       <div class="block-head"><h3>${titulo}</h3><span class="hint">${hint}</span></div>
       ${linhas.length ? `<div style="max-height:260px;overflow:auto;"><table><thead><tr><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Detalhe</th><th>Valor</th></tr></thead>
-      <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.data)}</td><td><strong>${l.cliente}</strong></td><td>${l.vendedor||'—'}</td><td><span class="chip neutral">${l.tipo}</span></td><td class="tnum ${corValor||''}">${fmtEUR(l.valor)}</td></tr>`).join('')}</tbody></table></div>`
+      <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.data)}</td><td><strong>${l.cliente}</strong></td><td>${l.vendedor||'-'}</td><td><span class="chip neutral">${l.tipo}</span></td><td class="tnum ${corValor||''}">${fmtEUR(l.valor)}</td></tr>`).join('')}</tbody></table></div>`
       : `<div class="empty">Nada nesse período.</div>`}
     </section>`;
 
   return `
   <div class="cards" style="margin-bottom:10px;">
-    <div class="card accent"><div class="lbl">🆕 Entrada de novos serviços</div><div class="val good">${fmtEUR(entradaNovosServicos)}</div><div class="sub">${linhasNovos.length} lançamento(s) — negócios fechados neste período</div></div>
-    <div class="card accent"><div class="lbl">💰 Receita geral da empresa</div><div class="val good">${fmtEUR(receitaGeral)}</div><div class="sub">${linhasReceita.length} lançamento(s) — tudo que entrou no período</div></div>
-    <div class="card accent"><div class="lbl">🔁 Recorrências pagas</div><div class="val good">${fmtEUR(recorrenciasPagas)}</div><div class="sub">${linhasRecPagas.length} parcela(s)/pagamento(s) — não conta a entrada</div></div>
+    <div class="card accent"><div class="lbl">🆕 Entrada de novos serviços</div><div class="val good">${fmtEUR(entradaNovosServicos)}</div><div class="sub">${linhasNovos.length} lançamento(s), negócios fechados neste período</div></div>
+    <div class="card accent"><div class="lbl">💰 Receita geral da empresa</div><div class="val good">${fmtEUR(receitaGeral)}</div><div class="sub">${linhasReceita.length} lançamento(s), tudo que entrou no período</div></div>
+    <div class="card accent"><div class="lbl">🔁 Recorrências pagas</div><div class="val good">${fmtEUR(recorrenciasPagas)}</div><div class="sub">${linhasRecPagas.length} parcela(s)/pagamento(s), não conta a entrada</div></div>
   </div>
   <div class="cards" style="margin-bottom:20px;">
     <div class="card"><div class="lbl">📤 Despesas no período</div><div class="val bad">${fmtEUR(despesasPeriodo)}</div><div class="sub">${linhasDespesas.length} custo(s) pago(s)</div></div>
@@ -4373,14 +4373,14 @@ function renderResumoFinanceiro(filter){
     <div class="card"><div class="lbl">✅ Recorrências quitadas</div><div class="val good">${qtdRecQuitadas}</div><div class="sub">${fmtEUR(valorRecQuitadas)} em contratos fechados</div></div>
     <div class="card"><div class="lbl">✅ Vendas integrais pagas</div><div class="val good">${qtdVendasPagas}</div><div class="sub">${fmtEUR(valorVendasPagas)} recebidos</div></div>
   </div>
-  ${listaBlock('🆕 Entrada de novos serviços — detalhamento', 'o que compõe esse valor', linhasNovos, 'good')}
-  ${listaBlock('💰 Receita geral — detalhamento', 'todo lançamento que gerou o valor de receita do período', linhasReceita, 'good')}
-  ${listaBlock('🔁 Recorrências pagas — detalhamento', 'quais parcelas/pagamentos compõem esse valor', linhasRecPagas, 'good')}
-  ${listaBlock('📤 Despesas — detalhamento', 'custos fixos e variáveis pagos no período', linhasDespesas, 'bad')}
-  ${listaBlock('🧾 Impostos — detalhamento', 'IVA de cada recebimento do período', linhasImpostos, 'bad')}
-  ${listaBlock('⏳ Clientes pendentes — detalhamento', 'recorrências iniciadas no período que ainda não quitaram', recsPendentes, 'bad')}
-  ${listaBlock('✅ Recorrências quitadas — detalhamento', 'contratos iniciados no período que já foram 100% pagos', linhasRecQuitadas, 'good')}
-  ${listaBlock('✅ Vendas integrais pagas — detalhamento', 'vendas integrais do período já totalmente recebidas', linhasVendasPagas, 'good')}`;
+  ${listaBlock('🆕 Entrada de novos serviços, detalhamento', 'o que compõe esse valor', linhasNovos, 'good')}
+  ${listaBlock('💰 Receita geral, detalhamento', 'todo lançamento que gerou o valor de receita do período', linhasReceita, 'good')}
+  ${listaBlock('🔁 Recorrências pagas, detalhamento', 'quais parcelas/pagamentos compõem esse valor', linhasRecPagas, 'good')}
+  ${listaBlock('📤 Despesas, detalhamento', 'custos fixos e variáveis pagos no período', linhasDespesas, 'bad')}
+  ${listaBlock('🧾 Impostos, detalhamento', 'IVA de cada recebimento do período', linhasImpostos, 'bad')}
+  ${listaBlock('⏳ Clientes pendentes, detalhamento', 'recorrências iniciadas no período que ainda não quitaram', recsPendentes, 'bad')}
+  ${listaBlock('✅ Recorrências quitadas, detalhamento', 'contratos iniciados no período que já foram 100% pagos', linhasRecQuitadas, 'good')}
+  ${listaBlock('✅ Vendas integrais pagas, detalhamento', 'vendas integrais do período já totalmente recebidas', linhasVendasPagas, 'good')}`;
 }
 function renderImpostosTab(filter){
   const events = buildEvents().filter(e=>inPeriodOrAll(e.date, filter)).sort((a,b)=> b.date.localeCompare(a.date));
@@ -4421,7 +4421,7 @@ function openAddSellerModal(){
     <div class="modal-head"><h3>Adicionar vendedor</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       <div class="field"><label>Nome</label><input type="text" id="sNome" placeholder="Ex.: João Pereira"></div>
-      <div class="field-hint">O acesso ao painel (login) não é definido aqui — depois de criar o vendedor, crie a conta dele em <strong>Supabase → Authentication → Users</strong> e associe com uma linha em <strong>profiles</strong> usando <code>seller_id: "${id}"</code>. Ver <code>docs/SECURITY_MIGRATION.md</code>.</div>
+      <div class="field-hint">O acesso ao painel (login) não é definido aqui, depois de criar o vendedor, crie a conta dele em <strong>Supabase → Authentication → Users</strong> e associe com uma linha em <strong>profiles</strong> usando <code>seller_id: "${id}"</code>. Ver <code>docs/SECURITY_MIGRATION.md</code>.</div>
     </div>
     <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Adicionar</button></div>
   </div></div>`;
@@ -4438,7 +4438,7 @@ function openAddSellerModal(){
 
 /* Modal único de lançamento rápido: o gestor/colaborador escolhe o tipo
    (venda integral ou recorrência) e o sistema cria o registo na área certa
-   automaticamente — Vendas ou Recorrências. */
+   automaticamente, Vendas ou Recorrências. */
 function openQuickAddModal(initialTipo, forColaborador){
   let tipo = initialTipo || 'integral';
   const opts = activeSellers().map(s=>`<option value="${s.id}">${s.nome}</option>`).join('');
@@ -4454,7 +4454,7 @@ function openQuickAddModal(initialTipo, forColaborador){
           <button data-qtype="integral" class="${tipo==='integral'?'active':''}">Venda integral</button>
           <button data-qtype="recorrencia" class="${tipo==='recorrencia'?'active':''}">Recorrência</button>
         </div>
-        <div class="field-hint" style="margin:-8px 0 14px;">${tipo==='integral' ? 'Cliente pagou o valor todo de uma vez — entra direto em Vendas.' : 'Cliente vai pagar em parcelas (com ou sem entrada) — entra em Recorrências.'}</div>
+        <div class="field-hint" style="margin:-8px 0 14px;">${tipo==='integral' ? 'Cliente pagou o valor todo de uma vez, entra direto em Vendas.' : 'Cliente vai pagar em parcelas (com ou sem entrada), entra em Recorrências.'}</div>
         <div class="field"><label>Cliente</label><input type="text" id="qCliente" placeholder="Nome do cliente"></div>
         <div class="field"><label>Serviço</label><input list="qServiceList" id="qServico" placeholder="Comece a digitar para escolher do catálogo…"><datalist id="qServiceList">${serviceOpts}</datalist>
           <div class="field-hint" id="qServicoPreview">Selecione um serviço do catálogo para preencher o valor automaticamente, ou digite um nome livre.</div>
@@ -4516,7 +4516,7 @@ function openQuickAddModal(initialTipo, forColaborador){
         else { document.getElementById('qValorContrato').value = matchedService.honorarioFinal; }
         prev.innerHTML = `Honorário base: <strong>${fmtEUR(matchedService.honorarioBase)}</strong> · IVA: ${fmtEUR(matchedService.iva)} · Taxa adm.: ${fmtEUR(matchedService.txAdm)}`;
       } else {
-        prev.textContent = 'Serviço não cadastrado no catálogo — será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
+        prev.textContent = 'Serviço não cadastrado no catálogo, será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
       }
     });
 
@@ -4534,7 +4534,7 @@ function openQuickAddModal(initialTipo, forColaborador){
         if(!valorPago){ alert('Informe o valor pago.'); return; }
         const formaPagamento = document.getElementById('qFormaPagamento').value;
         const novaVenda = {
-          id:'vda-'+Date.now(), data, cliente, vendedorId, vendedorNome: vendedor?vendedor.nome:'—',
+          id:'vda-'+Date.now(), data, cliente, vendedorId, vendedorNome: vendedor?vendedor.nome:'-',
           origem, servico, valorTotal: valorPago, valorPago, pagamentoIntegral:true, nParcelas:null,
           formaPagamento, registro:null, obs:null,
           honorarioBase: matchedService?matchedService.honorarioBase:valorPago,
@@ -4554,7 +4554,7 @@ function openQuickAddModal(initialTipo, forColaborador){
           id:'rec-'+Date.now(), dataVenda:data, cliente, servico, nParcelas, valorEntrada, formaPagamento, origem,
           honorarioBase: matchedService?matchedService.honorarioBase:valorContrato,
           iva: matchedService?matchedService.iva:0, txAdm: matchedService?matchedService.txAdm:0,
-          valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'—', parcelas, origemSheet:'manual'
+          valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'-', parcelas, origemSheet:'manual'
         };
         STATE.recurrences.push(novaRec);
         await persistRecorrencia(novaRec); showSuccessToast('Recorrência criada com sucesso!'); closeModal(); renderAll();
@@ -4570,12 +4570,12 @@ function openQuickAddModal(initialTipo, forColaborador){
    e nº de parcelas (preservando o status pago/pendente das parcelas que
    continuarem existindo). Serve tanto pra corrigir dados importados errado
    quanto pra ajustar uma recorrência no dia a dia. */
-/* Edita uma venda avulsa já cadastrada — cliente, serviço, vendedor, data,
+/* Edita uma venda avulsa já cadastrada, cliente, serviço, vendedor, data,
    origem, valor total/recebido, forma de pagamento e honorário base/IVA/
    taxa administrativa. Serve pra corrigir dados importados errado e pra
    remover duplicatas (junto com o botão Excluir). */
 /* Cria uma conta de login nova (Supabase Auth + profiles), chamando a
-   Edge Function "create-user" — a chave service_role necessária pra isso
+   Edge Function "create-user", a chave service_role necessária pra isso
    NUNCA fica no navegador, só existe do lado do servidor (ver o comentário
    no topo de supabase/functions/create-user/index.ts). Se prefillSellerId
    vier preenchido, a conta já nasce ligada a esse vendedor (colaborador);
@@ -4585,7 +4585,7 @@ function openCreateAccountModal(prefillSellerId){
   const opts = STATE.sellers.map(s=>`<option value="${s.id}">${s.nome}</option>`).join('');
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
-    <div class="modal-head"><h3>Criar conta de acesso${sellerFixo ? ' — '+sellerFixo.nome : ''}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-head"><h3>Criar conta de acesso${sellerFixo ? ', '+sellerFixo.nome : ''}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       <div class="field"><label>Nome</label><input type="text" id="caNome" value="${sellerFixo?sellerFixo.nome:''}"></div>
       ${sellerFixo ? `<input type="hidden" id="caRole" value="colaborador"><input type="hidden" id="caSeller" value="${sellerFixo.id}">
@@ -4595,7 +4595,7 @@ function openCreateAccountModal(prefillSellerId){
       <div class="field"><label>E-mail de login</label><input type="email" id="caEmail" placeholder="pessoa@escritorio.local"></div>
       <div class="field"><label>Senha</label><input type="password" id="caSenha" placeholder="Mínimo 6 caracteres"></div>
       <div id="caError" style="color:var(--bad);font-size:12.5px;margin:-6px 0 12px;display:none;"></div>
-      <div id="caSuccess" style="color:var(--good);font-size:12.5px;margin:-6px 0 12px;display:none;">Conta criada — a pessoa já pode entrar com este e-mail e senha.</div>
+      <div id="caSuccess" style="color:var(--good);font-size:12.5px;margin:-6px 0 12px;display:none;">Conta criada, a pessoa já pode entrar com este e-mail e senha.</div>
     </div>
     <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Criar conta</button></div>
   </div></div>`;
@@ -4639,7 +4639,7 @@ function openCreateAccountModal(prefillSellerId){
       okBox.style.display = 'block';
       btn.textContent = 'Conta criada ✓';
     }catch(e){
-      errBox.textContent = 'Não consegui falar com a função de criação de conta — confirme se ela já foi publicada no Supabase (ver docs/SECURITY_MIGRATION.md).';
+      errBox.textContent = 'Não consegui falar com a função de criação de conta, confirme se ela já foi publicada no Supabase (ver docs/SECURITY_MIGRATION.md).';
       errBox.style.display = 'block';
       btn.disabled = false; btn.textContent = 'Criar conta';
     }
@@ -4654,17 +4654,17 @@ function openEditSaleModal(saleId){
   const serviceOpts = [...STATE.services].sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(s=>`<option value="${s.nome}">`).join('');
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
-    <div class="modal-head"><h3>Editar venda — ${sale.cliente}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-head"><h3>Editar venda, ${sale.cliente}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       <div class="field"><label>Cliente</label><input type="text" id="esCliente" value="${sale.cliente||''}"></div>
       <div class="field"><label>Serviço</label><input list="esServiceList" id="esServico" value="${sale.servico||''}"><datalist id="esServiceList">${serviceOpts}</datalist>
-        <div class="field-hint" id="esServicoPreview">Escolher um serviço do catálogo preenche honorário base/IVA/taxa automaticamente — deixe como está se não quiser mudar.</div>
+        <div class="field-hint" id="esServicoPreview">Escolher um serviço do catálogo preenche honorário base/IVA/taxa automaticamente, deixe como está se não quiser mudar.</div>
       </div>
       <div class="field-row">
         <div class="field"><label>Data da venda</label><input type="date" id="esData" value="${sale.data||''}"></div>
         <div class="field"><label>Vendedor</label>${podeMudarVendedor
           ? `<select id="esVendedor">${opts}</select>`
-          : `<input type="text" value="${sale.vendedorNome||'—'}" disabled style="background:var(--surface-2);color:var(--ink-soft);">`}
+          : `<input type="text" value="${sale.vendedorNome||'-'}" disabled style="background:var(--surface-2);color:var(--ink-soft);">`}
         </div>
       </div>
       <div class="field-row">
@@ -4699,7 +4699,7 @@ function openEditSaleModal(saleId){
       document.getElementById('esTx').value = matched.txAdm;
       prev.innerHTML = `Honorário base: <strong>${fmtEUR(matched.honorarioBase)}</strong> · IVA: ${fmtEUR(matched.iva)} · Taxa adm.: ${fmtEUR(matched.txAdm)}`;
     } else {
-      prev.textContent = 'Serviço não encontrado no catálogo — os valores acima não são alterados automaticamente.';
+      prev.textContent = 'Serviço não encontrado no catálogo, os valores acima não são alterados automaticamente.';
     }
   });
 
@@ -4736,11 +4736,11 @@ function openEditRecModal(recId){
   const opcoesParcelas = Array.from({length:8}, (_,i)=>i+1).map(n=>`<option value="${n}" ${n===nAtual?'selected':''}>${n}</option>`).join('');
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
-    <div class="modal-head"><h3>Editar recorrência — ${rec.cliente}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-head"><h3>Editar recorrência, ${rec.cliente}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
       <div class="field"><label>Cliente</label><input type="text" id="erCliente" value="${rec.cliente||''}"></div>
       <div class="field"><label>Serviço</label><input list="erServiceList" id="erServico" value="${rec.servico||''}"><datalist id="erServiceList">${serviceOpts}</datalist>
-        <div class="field-hint" id="erServicoPreview">Escolher um serviço do catálogo preenche honorário base/IVA/taxa automaticamente — deixe como está se não quiser mudar.</div>
+        <div class="field-hint" id="erServicoPreview">Escolher um serviço do catálogo preenche honorário base/IVA/taxa automaticamente, deixe como está se não quiser mudar.</div>
       </div>
       <div class="field-row">
         <div class="field"><label>Data da venda</label><input type="date" id="erData" value="${rec.dataVenda||''}"></div>
@@ -4751,7 +4751,7 @@ function openEditRecModal(recId){
         <div class="field"><label>Valor de entrada / já pago (€)</label><input type="number" id="erEntrada" min="0" step="0.01" value="${rec.valorEntrada||0}"></div>
       </div>
       <div class="field"><label>Forma de pagamento</label><select id="erFormaPagamento">${formasPagamentoList().map(f=>`<option ${f===rec.formaPagamento?'selected':''}>${f}</option>`).join('')}</select>
-        <div class="field-hint">Usada no gráfico "Forma de pagamento mais utilizada" da Visão Geral — vale pra entrada e parcelas desse contrato.</div>
+        <div class="field-hint">Usada no gráfico "Forma de pagamento mais utilizada" da Visão Geral, vale pra entrada e parcelas desse contrato.</div>
       </div>
       <div class="field"><label>Origem do lead</label><select id="erOrigem">${[...new Set([...origensLeadList(), rec.origem].filter(Boolean))].map(o=>`<option ${o===rec.origem?'selected':''}>${o}</option>`).join('')}</select></div>
       <div class="field-row">
@@ -4761,7 +4761,7 @@ function openEditRecModal(recId){
       </div>
       <div class="field"><label><input type="checkbox" id="erIsentoTx" ${rec.isentoTaxaAdm?'checked':''} style="width:auto;margin-right:8px;">Isento de taxa administrativa (não cobra nas parcelas, mesmo com valor acima preenchido)</label></div>
       <div class="field"><label>Nº de parcelas (após a entrada)</label><select id="erParcelas">${opcoesParcelas}</select>
-        <div class="field-hint">Aumentar adiciona parcelas pendentes no fim. Reduzir remove as últimas — cuidado se alguma delas já estiver paga.</div>
+        <div class="field-hint">Aumentar adiciona parcelas pendentes no fim. Reduzir remove as últimas, cuidado se alguma delas já estiver paga.</div>
       </div>
     </div>
     <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Guardar alterações</button></div>
@@ -4781,7 +4781,7 @@ function openEditRecModal(recId){
       document.getElementById('erTx').value = matched.txAdm;
       prev.innerHTML = `Honorário base: <strong>${fmtEUR(matched.honorarioBase)}</strong> · IVA: ${fmtEUR(matched.iva)} · Taxa adm.: ${fmtEUR(matched.txAdm)}`;
     } else {
-      prev.textContent = 'Serviço não encontrado no catálogo — os valores acima não são alterados automaticamente.';
+      prev.textContent = 'Serviço não encontrado no catálogo, os valores acima não são alterados automaticamente.';
     }
   });
 
@@ -4860,7 +4860,7 @@ function openAddRecModal(forColaborador){
       document.getElementById('rValor').value = matchedService.honorarioFinal;
       prev.innerHTML = `Honorário base: <strong>${fmtEUR(matchedService.honorarioBase)}</strong> · IVA: ${fmtEUR(matchedService.iva)} · Taxa adm.: ${fmtEUR(matchedService.txAdm)}`;
     } else {
-      prev.textContent = 'Serviço não cadastrado no catálogo — será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
+      prev.textContent = 'Serviço não cadastrado no catálogo, será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
     }
   });
 
@@ -4884,7 +4884,7 @@ function openAddRecModal(forColaborador){
       honorarioBase: matchedService?matchedService.honorarioBase:valorContrato,
       iva: matchedService?matchedService.iva:0,
       txAdm: matchedService?matchedService.txAdm:0,
-      valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'—', parcelas, origemSheet:'manual'
+      valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'-', parcelas, origemSheet:'manual'
     };
     STATE.recurrences.push(novaRec2);
     await persistRecorrencia(novaRec2); showSuccessToast('Recorrência criada com sucesso!'); closeModal(); renderAll();
@@ -5016,7 +5016,7 @@ function wireViewportEvents(){
     if(gfDate) gfDate.addEventListener('change', ()=>{ STATE[key].anchor = gfDate.value; renderAll(); });
   });
 
-  // Filtro de mês — Recorrências pagas
+  // Filtro de mês, Recorrências pagas
   vp.querySelectorAll('[data-paidmonth]').forEach(b=>{
     b.addEventListener('click', ()=>{ STATE.paidMonthFilter = b.dataset.paidmonth; renderAll(); });
   });
@@ -5029,7 +5029,7 @@ function wireViewportEvents(){
         if(!rec){ showErrorToast('recorrência '+recId+' não encontrada.'); return; }
         const parcela = rec.parcelas.find(pp=>pp.numero===num);
         if(!parcela){ showErrorToast('parcela '+num+' não encontrada.'); return; }
-        // esse clique só existe pra parcelas JÁ pagas (desfazer) — pra pagar
+        // esse clique só existe pra parcelas JÁ pagas (desfazer), pra pagar
         // uma parcela pendente agora abre o modal, ver data-parcela-pagar.
         parcela.pago = false; parcela.data = null; parcela.valor = null;
         renderAll(); // atualiza a tela já, independente do resultado da gravação
@@ -5091,7 +5091,7 @@ function wireViewportEvents(){
       const sale = STATE.sales.find(s=>s.id===saleId);
       openConfirmModal({
         title:'Excluir venda', danger:true, confirmLabel:'Excluir',
-        message:`Tem a certeza que deseja excluir a venda de <strong>${sale.cliente}</strong> (${fmtEUR(sale.valorTotal)}, ${fmtDate(sale.data)})? Esta ação não pode ser desfeita — use isto pra remover duplicatas.`,
+        message:`Tem a certeza que deseja excluir a venda de <strong>${sale.cliente}</strong> (${fmtEUR(sale.valorTotal)}, ${fmtDate(sale.data)})? Esta ação não pode ser desfeita, use isto pra remover duplicatas.`,
         onConfirm: async ()=>{ STATE.sales = STATE.sales.filter(s=>s.id!==saleId); await supa.from('vendas').delete().eq('id', saleId); showSuccessToast('Venda excluída.'); renderAll(); }
       });
     });
@@ -5369,7 +5369,7 @@ function wireViewportEvents(){
         danger: true,
         confirmLabel: ehVenda ? 'Estornar' : 'Desfazer',
         message: ehVenda
-          ? `Isso vai estornar <strong>${desc}</strong> — o valor recebido volta a zero e a venda passa a aparecer como pendente (ela não desaparece do sistema). Tem a certeza?`
+          ? `Isso vai estornar <strong>${desc}</strong>, o valor recebido volta a zero e a venda passa a aparecer como pendente (ela não desaparece do sistema). Tem a certeza?`
           : `Isso vai desfazer <strong>${desc}</strong>, voltando o valor a ficar em aberto. Tem a certeza?`,
         onConfirm: async ()=>{ await estornarLancamento(ref); showSuccessToast(ehVenda ? 'Venda estornada.' : 'Lançamento desfeito.'); renderAll(); }
       });
@@ -5449,7 +5449,7 @@ function wireViewportEvents(){
       if(!c.pagoPorMes) c.pagoPorMes = {};
       const estavaPago = costPagoNoMes(c, mes);
       // A data do pagamento tem que ser a data de vencimento DAQUELE mês
-      // projetado, não a data de hoje — senão, marcar um mês antigo como
+      // projetado, não a data de hoje, senão, marcar um mês antigo como
       // pago (ex.: acertar o aluguel de junho, hoje em setembro) faz esse
       // valor contar como despesa de setembro, inflando o mês corrente.
       c.pagoPorMes[mes] = estavaPago ? {pago:false} : {pago:true, data:projetarVencimentoNoMes(c.vencimento, mes)};
@@ -5457,7 +5457,7 @@ function wireViewportEvents(){
     } else {
       c.pago = !c.pago;
       // Mesma correção do caso projetado: usa o vencimento do próprio
-      // custo como data do pagamento, não a data de hoje — senão, marcar
+      // custo como data do pagamento, não a data de hoje, senão, marcar
       // um custo antigo (de um mês passado) como pago hoje faz esse valor
       // contar como despesa do mês corrente, em vez do mês a que pertence.
       c.dataPagamento = c.pago ? (c.vencimento || todayISO()) : null;
