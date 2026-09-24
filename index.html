@@ -580,23 +580,26 @@ async function carregarVendasRecorrencias(){
 
 // Dados de negócio: Supabase é a fonte única partilhada
 const DB = {
+  // Erro de leitura NÃO pode virar dado de exemplo: propaga o erro pra quem
+  // chamou (o boot para). E chave ausente só devolve o padrão em memória,
+  // nunca grava nada no banco por conta própria.
   async get(key, fallback){
-    try{
-      const v = await sbGet(key);
-      if(v!==undefined) return v;
-      if(fallback!==undefined) await this.set(key, fallback); // primeira vez: semeia com os dados de exemplo
-      return fallback;
-    }catch(e){
+    let v;
+    try{ v = await sbGet(key); }
+    catch(e){
       console.error('Supabase get falhou', key, e);
       showErrorToast('não consegui ler do Supabase ('+key+'): '+e.message);
-      return fallback;
+      throw e;
     }
+    return v!==undefined ? v : fallback;
   },
+  // Erro de gravação também propaga: quem chamou não pode seguir como se
+  // tivesse gravado (antes o toast aparecia mas o fluxo mostrava "sucesso").
   async set(key, value){
     try{ await sbSet(key, value); }
     catch(e){
       console.error('Supabase set falhou', key, e);
-      showErrorToast('não consegui gravar no Supabase ('+key+'): '+e.message);
+      throw new Error('não consegui gravar no Supabase ('+key+'): '+e.message);
     }
   }
 };
@@ -772,16 +775,18 @@ function origensLeadList(){
    consegue mesmo ler as suas próprias vendas/recorrências/funil (o servidor
    impõe isso; aqui só refletimos o mesmo recorte no que pedimos). */
 async function loadState(){
-  STATE.sellers = await DB.get('crm:sellers', SEED_DATA.sellers);
-  STATE.services = await DB.get('crm:services', SEED_DATA.services);
-  STATE.meta = await DB.get('crm:meta', SEED_DATA.meta);
+  // Sem SEED como dado real: chave ausente = lista vazia (nunca vendedores
+  // ou serviços de exemplo que depois seriam gravados como se fossem reais).
+  STATE.sellers = await DB.get('crm:sellers', []);
+  STATE.services = await DB.get('crm:services', []);
+  STATE.meta = await DB.get('crm:meta', SEED_DATA.meta); // só configuração padrão (meta/comissão/IVA)
   STATE.leadEdits = await DB.get('crm:leadEdits', {});
   STATE.controleLeads = await DB.get('crm:controleLeads', []);
   STATE.followUps = await DB.get('crm:followUps', []);
   STATE.sales = [];
   STATE.recurrences = [];
   if(STATE.role==='gestor'){
-    STATE.costs = await DB.get('crm:costs', SEED_DATA.costs);
+    STATE.costs = await DB.get('crm:costs', []);
     await carregarVendasRecorrencias();
     for(const s of STATE.sellers){
       s.funilDiario = await DB.get('crm:funil:'+s.id, {});
@@ -1113,6 +1118,46 @@ async function persistRecorrencia(rec){
   const { error: eDelX } = await q;
   if(eDelX) throw eDelX;
 }
+/* Gravação segura: a tela só fica com a mudança se o banco aceitou. Se
+   falhar, desfaz o que foi mudado em memória e avisa, em vez de mostrar
+   um registo que não existe no banco (ou deixar um meio gravado). */
+async function gravarOuReverter(desfazer, gravar, msgErro){
+  try{ await gravar(); return true; }
+  catch(e){
+    try{ await desfazer(); }catch(_){}
+    showErrorToast((msgErro||'a alteração NÃO foi gravada')+' ('+((e&&e.message)||e)+'). Nada mudou, tente de novo.');
+    return false;
+  }
+}
+function snapshotObj(o){ return JSON.parse(JSON.stringify(o)); }
+function restaurarObj(alvo, snap){ Object.keys(alvo).forEach(k=>{ delete alvo[k]; }); Object.assign(alvo, snap); }
+async function criarVenda(venda){
+  STATE.sales.push(venda);
+  return gravarOuReverter(()=>{ STATE.sales = STATE.sales.filter(s=>s!==venda); }, ()=>persistVenda(venda), 'a venda NÃO foi gravada');
+}
+async function criarRecorrencia(rec){
+  STATE.recurrences.push(rec);
+  // persistRecorrencia grava a recorrência e depois as parcelas, em chamadas
+  // separadas; se as parcelas forem recusadas (ex.: colaborador sem
+  // permissão), a recorrência já gravada é apagada pra não ficar sem parcelas.
+  return gravarOuReverter(async ()=>{
+    STATE.recurrences = STATE.recurrences.filter(r=>r!==rec);
+    const { error } = await supa.from('recorrencias').delete().eq('id', rec.id);
+    if(error) showErrorToast('a recorrência de '+rec.cliente+' pode ter ficado gravada SEM parcelas, avise o gestor ('+error.message+').');
+  }, ()=>persistRecorrencia(rec), 'a recorrência NÃO foi gravada');
+}
+async function salvarAlteracao(obj, mutar, gravar, msgErro){
+  const snap = snapshotObj(obj);
+  mutar();
+  return gravarOuReverter(()=>restaurarObj(obj, snap), gravar, msgErro);
+}
+async function excluirRegistoNoBanco(tabela, id){
+  const { error, count } = await supa.from(tabela).delete({ count:'exact' }).eq('id', id);
+  if(error){ showErrorToast('não foi possível excluir ('+error.message+'). Nada mudou.'); return false; }
+  if(!count){ showErrorToast('o servidor não excluiu o registo (sem permissão ou já não existe). Recarregue a página.'); return false; }
+  return true;
+}
+function travarBotao(btn){ if(!btn || btn.disabled) return false; btn.disabled = true; return true; }
 async function persist(part, sellerId){
   if(part==='sellers'){
     // crm:sellers é partilhado e não guarda mais o funil de ninguém
@@ -1310,7 +1355,7 @@ function buildEvents(){
         const valorReal = valorEfetivoParcela(p, st);
         const ivaValorParc = ivaProporcionalRecorrencia(r, valorReal);
         const liquido = valorReal - ivaValorParc - txAdmPorParcela;
-        events.push({ date: p.data, valor: valorReal, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:txAdmPorParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente });
+        events.push({ date: p.data, valor: valorReal, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:txAdmPorParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente, estimado: parcelaComValorEstimado(p) });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
@@ -1369,7 +1414,12 @@ function recStatus(rec){
   const valorPagoExtras = extras.reduce((a,e)=>a+(e.valor||0),0);
   const valorPago = entrada + valorPagoParcelas + valorPagoExtras;
   const valorPendente = Math.max(0, valorContratoDevido - valorPago);
-  return { valorParcela, parcelasInfo, pagas, total, valorPago, valorPendente, quitada: valorPendente<=0.005, entrada, extras, valorContratoDevido };
+  // Para PAGAR a próxima parcela: o saldo real dividido pelas parcelas em
+  // aberto (valorParcela é só o padrão histórico usado em parcelas antigas
+  // sem valor, e pode passar do saldo depois de congelamentos/isenção).
+  const abertas = rec.parcelas.filter(p=>!p.pago).length;
+  const valorSugeridoProxima = abertas>0 ? valorPendente/abertas : 0;
+  return { valorParcela, valorSugeridoProxima, parcelasInfo, pagas, total, valorPago, valorPendente, quitada: valorPendente<=0.005, entrada, extras, valorContratoDevido };
 }
 /* "Atrasada" = ainda não quitada e já passou mais de 30 dias desde a venda.
    A planilha não guarda data de vencimento por parcela, então esta é uma
@@ -1414,6 +1464,45 @@ function taxaComissao(){ return STATE.meta.taxaComissao!=null ? STATE.meta.taxaC
 function valorEfetivoParcela(parcela, statusRecorrencia){
   const valorInformado = Number(parcela && parcela.valor);
   return valorInformado > 0 ? valorInformado : statusRecorrencia.valorParcela;
+}
+function parcelaComValorEstimado(parcela){ return !!(parcela && parcela.pago && !(Number(parcela.valor) > 0)); }
+function arred4(n){ return Math.round(n*10000)/10000; }
+/* O valor PADRÃO de uma parcela depende do contrato atual (contrato −
+   entrada) ÷ nº de parcelas. Parcela paga sem valor gravado herdava esse
+   padrão, então editar o contrato ou desfazer a entrada mudava o valor de
+   parcelas pagas meses atrás. Antes de qualquer mudança dessas, o valor que
+   estava a ser mostrado fica gravado na parcela. */
+function congelarValoresParcelasPagas(rec){
+  const st = recStatus(rec);
+  let mudou = false;
+  rec.parcelas.forEach(p=>{
+    if(parcelaComValorEstimado(p) && st.valorParcela > 0.005){ p.valor = arred4(st.valorParcela); mudou = true; }
+  });
+  return mudou;
+}
+/* Marca parcelas como pagas SEMPRE com valor gravado (o padrão do momento). */
+function registrarPagamentoParcelas(rec, numeros, data){
+  const st = recStatus(rec);
+  const valor = st.valorSugeridoProxima > 0.005 ? arred4(st.valorSugeridoProxima) : null; // saldo real; nunca 0 (CHECK valor > 0)
+  rec.parcelas.forEach(p=>{
+    if(numeros.includes(p.numero) && !p.pago){ p.pago = true; p.data = data; p.valor = valor; }
+  });
+}
+/* Aplica a edição de uma recorrência sem reescrever o passado: congela os
+   valores já pagos e não deixa reduzir parcelas abaixo de uma já paga. */
+function aplicarEdicaoRecorrencia(rec, campos){
+  const nNovo = Number(campos.nParcelas)||1;
+  const ultimaPaga = rec.parcelas.filter(p=>p.pago).reduce((m,p)=>Math.max(m, p.numero), 0);
+  if(nNovo < ultimaPaga){
+    return { erro:`A parcela ${ultimaPaga} já está paga, não dá para reduzir para ${nNovo} parcela(s). Se esse pagamento estiver errado, desfaça-o primeiro.` };
+  }
+  congelarValoresParcelasPagas(rec);
+  let parcelas = rec.parcelas.slice().sort((a,b)=>a.numero-b.numero);
+  if(nNovo > parcelas.length){ for(let i=parcelas.length; i<nNovo; i++) parcelas.push({numero:i+1, data:null, pago:false}); }
+  else if(nNovo < parcelas.length){ parcelas = parcelas.slice(0, nNovo); }
+  parcelas.forEach((p,i)=>{ p.numero = i+1; });
+  Object.assign(rec, campos, { nParcelas:nNovo, parcelas });
+  return { ok:true };
 }
 
 // O IVA guardado na recorrência é o IVA total do serviço. Cada recebimento
@@ -1510,9 +1599,11 @@ function computeSellerStats(sellerId, filter){
   const seller = sellerById(sellerId) || {};
   const funil = sumFunilDiario(seller, filter);
   const temFunilDiario = Object.keys(seller.funilDiario||{}).length > 0;
-  const conversas = temFunilDiario ? funil.conversas : (seller.conversasIniciadas||0);
-  const novosContatos = temFunilDiario ? funil.leadsQualificados : (seller.novosContatos||0);
-  const fechamentosManual = seller.fechamentosManual||0;
+  // Totais manuais antigos (sem data) só valem para "Total histórico".
+  const tudo = !filter || filter.granularity==='all';
+  const conversas = temFunilDiario ? funil.conversas : (tudo ? (seller.conversasIniciadas||0) : 0);
+  const novosContatos = temFunilDiario ? funil.leadsQualificados : (tudo ? (seller.novosContatos||0) : 0);
+  const fechamentosManual = tudo ? (seller.fechamentosManual||0) : 0;
   const taxaConversao = conversas>0 ? (fechamentosManual||deals)/conversas : null;
   return {
     valorFaturado, valorPendente, comissao, deals, valorVendido,
@@ -1544,9 +1635,18 @@ function computeGlobalForPeriod(filter){
   // valor de contrato de TODA recorrência, mesmo as sem venda espelhada.
   const valorVendido = salesIn.filter(s=>!s.jaContabilizadoViaRecorrencia).reduce((a,s)=>a+(s.valorTotal||0),0)
                       + recsIn.reduce((a,r)=>a+(r.valorContrato||0),0);
-  const fechamentos = salesIn.length + recsIn.length;
+  // Venda-espelho e a recorrência dela são UM fechamento só.
+  const fechamentos = salesIn.filter(s=>!s.jaContabilizadoViaRecorrencia).length + recsIn.length;
+  // Conversas vêm só do funil diário do período. O total manual antigo
+  // (conversasIniciadas) só vale para "Total histórico"; num mês sem funil
+  // preenchido a taxa fica sem valor, em vez de usar um número inventado.
+  const tudo = !filter || filter.granularity==='all';
   let conversas = 0;
-  activeSellers().forEach(s=>{ conversas += sumFunilDiario(s, filter).conversas || s.conversasIniciadas||0; });
+  // todos os vendedores (inclusive inativos), igual aos fechamentos
+  STATE.sellers.forEach(s=>{
+    const c = sumFunilDiario(s, filter).conversas;
+    conversas += c || (tudo && !Object.keys(s.funilDiario||{}).length ? (s.conversasIniciadas||0) : 0);
+  });
   const taxaConversao = conversas>0 ? fechamentos/conversas : null;
   const meta = STATE.meta.valorMeta || 0;
   return {
@@ -1572,12 +1672,20 @@ function computeTaxes(filter){
 }
 function normNomeCusto(s){ return (s||'').trim().toUpperCase(); }
 
-/* Projeta um custo fixo pro mês informado, usando o vencimento mais recente
-   conhecido, é isso que faz um custo fixo "repetir" todo mês sem precisar
-   ser relançado. Se já existir um lançamento com vencimento EXATO nesse mês
-   (nome igual), esse lançamento manda, permite ajustar o valor de um mês
-   específico sem mexer nos demais. Custos variáveis nunca repetem: só contam
-   no mês exato do vencimento (por isso "zeram" a cada mês novo). */
+/* CUSTOS FIXOS, regra do escritório (definida pelo gestor em 24/09/2026):
+   - um custo fixo lançado no mês N repete em N+1, N+2... como custo padrão,
+     usando sempre o lançamento mais recente com aquele nome;
+   - um lançamento com vencimento no próprio mês substitui a repetição
+     naquele mês;
+   - só conta como pago quando é marcado, e guarda a data REAL do pagamento
+     (mesmo que tenha sido pago depois do vencimento);
+   - excluir a partir de um mês M grava fimEm = M no lançamento que estava a
+     repetir: some de M em diante e os meses anteriores ficam como estavam;
+     só volta a repetir se for relançado manualmente.
+   custosFixosDoMes() é a FONTE ÚNICA: a lista de Custos fixos, os cards, o
+   Resumo, o Registro, o Extrato e o lucro saem todos daqui, por isso não
+   podem mais discordar entre si. Custos variáveis nunca repetem. */
+function mesDe(dataISO){ return dataISO ? String(dataISO).slice(0,7) : null; }
 function custosFixosDoMes(monthKey){
   const porNome = new Map();
   STATE.costs.forEach(c=>{
@@ -1589,19 +1697,33 @@ function custosFixosDoMes(monthKey){
   const out = [];
   porNome.forEach(arr=>{
     arr.sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
-    const exato = arr.find(c=>c.vencimento.slice(0,7)===monthKey);
-    if(exato){ out.push(Object.assign({}, exato, { _dataPagamento: exato.pago ? (exato.dataPagamento||exato.vencimento) : null })); return; }
-    const anteriores = arr.filter(c=>c.vencimento.slice(0,7) < monthKey);
-    if(anteriores.length){
-      const base = anteriores[anteriores.length-1];
-      const pago = costPagoNoMes(base, monthKey);
-      out.push(Object.assign({}, base, {
-        vencimento: projetarVencimentoNoMes(base.vencimento, monthKey),
-        pago,
-        _dataPagamento: pago ? custoDataPagamentoNoMes(base, monthKey) : null,
-        _projetado: true
-      }));
+    const exatos = arr.filter(c=>mesDe(c.vencimento)===monthKey);
+    if(exatos.length){
+      // Pagamento marcado na repetição de um lançamento anterior, num mês
+      // que já tem lançamento próprio: não soma de novo, só fica sinalizado.
+      const ignorados = arr.filter(c=>mesDe(c.vencimento) < monthKey && costPagoNoMes(c, monthKey)).map(c=>c.id);
+      exatos.forEach((c,i)=>out.push(Object.assign({}, c, {
+        _mes: monthKey,
+        _dataPagamento: c.pago ? (c.dataPagamento||c.vencimento) : null,
+        _valorPago: c.pago ? (Number(c.valor)||0) : 0,
+        _duplicado: exatos.length>1,
+        _pagamentoIgnorado: (i===0 && ignorados.length) ? ignorados : null
+      })));
+      return;
     }
+    const anteriores = arr.filter(c=>mesDe(c.vencimento) < monthKey);
+    if(!anteriores.length) return;
+    const base = anteriores[anteriores.length-1];
+    if(base.fimEm && base.fimEm <= monthKey) return; // repetição interrompida a partir de fimEm
+    const reg = registoPagamentoNoMes(base, monthKey);
+    out.push(Object.assign({}, base, {
+      vencimento: projetarVencimentoNoMes(base.vencimento, monthKey),
+      pago: reg.pago,
+      _mes: monthKey,
+      _dataPagamento: reg.pago ? reg.data : null,
+      _valorPago: reg.pago ? reg.valor : 0,
+      _projetado: true
+    }));
   });
   return out;
 }
@@ -1609,15 +1731,130 @@ function projetarVencimentoNoMes(vencimentoOriginal, monthKey){
   const dia = Math.min(Number(vencimentoOriginal.slice(8,10)), daysInMonth(monthKey));
   return `${monthKey}-${String(dia).padStart(2,'0')}`;
 }
-function costPagoNoMes(cost, monthKey){
-  const registo = cost.pagoPorMes && cost.pagoPorMes[monthKey];
-  if(registo==null) return false; // custo fixo projetado começa pendente em cada mês novo
-  return typeof registo==='object' ? !!registo.pago : !!registo;
+/* Pagamento de uma repetição (mês projetado). Aceita o formato antigo
+   (true/false) e o atual ({pago, data, valor}). O valor pago fica guardado
+   no próprio registo, pra que mudar o valor do custo depois não reescreva
+   meses já pagos. Registos antigos sem data usam o vencimento projetado. */
+function registoPagamentoNoMes(cost, monthKey){
+  const r = cost.pagoPorMes && cost.pagoPorMes[monthKey];
+  if(r==null || r===false) return { pago:false };
+  if(typeof r!=='object') return { pago:true, data:projetarVencimentoNoMes(cost.vencimento, monthKey), valor:Number(cost.valor)||0 };
+  if(!r.pago) return { pago:false };
+  return { pago:true, data: r.data || projetarVencimentoNoMes(cost.vencimento, monthKey), valor: r.valor!=null ? Number(r.valor)||0 : Number(cost.valor)||0 };
 }
-function custoDataPagamentoNoMes(cost, monthKey){
-  const registo = cost.pagoPorMes && cost.pagoPorMes[monthKey];
-  if(registo && typeof registo==='object' && registo.data) return registo.data;
-  return projetarVencimentoNoMes(cost.vencimento, monthKey); // pago antigo sem data registada, usa o vencimento como aproximação
+function costPagoNoMes(cost, monthKey){ return registoPagamentoNoMes(cost, monthKey).pago; }
+/* Meses de competência a considerar pra um filtro: o próprio mês, ou (para
+   dia/semana/total) do primeiro custo fixo até ao último mês relevante. */
+function mesesDeCompetencia(filter){
+  if(filter && filter.granularity==='month') return [filter.anchor.slice(0,7)];
+  const vencs = STATE.costs.filter(c=>c.categoria==='FIXO' && c.vencimento).map(c=>mesDe(c.vencimento)).sort();
+  if(!vencs.length) return [];
+  let fim = [todayISO().slice(0,7), vencs[vencs.length-1], filter && filter.anchor ? filter.anchor.slice(0,7) : ''].sort().pop();
+  const out = [];
+  let [y,m] = vencs[0].split('-').map(Number);
+  while(true){
+    const mk = `${y}-${String(m).padStart(2,'0')}`;
+    if(mk > fim) break;
+    out.push(mk);
+    m++; if(m>12){ m=1; y++; }
+  }
+  return out;
+}
+function novoIdCusto(){
+  let id;
+  do { id = 'cst-'+Date.now()+'-'+Math.random().toString(36).slice(2,6); } while(STATE.costs.some(c=>c.id===id));
+  return id;
+}
+/* Ações sobre custos. mes = mês que está a ser visto na tela (YYYY-MM) ou
+   null. Devolvem {ok:true} ou {erro:'mensagem'}; quem chama grava. */
+function marcarCustoPago(costId, mes, dataPagamento){
+  const c = STATE.costs.find(x=>x.id===costId);
+  if(!c) return { erro:'Custo não encontrado.' };
+  const data = dataPagamento || todayISO();
+  if(c.categoria==='FIXO' && mes && c.vencimento && mes!==mesDe(c.vencimento)){
+    if(!c.pagoPorMes) c.pagoPorMes = {};
+    c.pagoPorMes[mes] = { pago:true, data, valor:Number(c.valor)||0 };
+  } else {
+    c.pago = true; c.dataPagamento = data;
+  }
+  return { ok:true };
+}
+function desmarcarCustoPago(costId, mes){
+  const c = STATE.costs.find(x=>x.id===costId);
+  if(!c) return { erro:'Custo não encontrado.' };
+  if(c.categoria==='FIXO' && mes && c.vencimento && mes!==mesDe(c.vencimento)){
+    if(!c.pagoPorMes) c.pagoPorMes = {};
+    c.pagoPorMes[mes] = { pago:false };
+  } else {
+    c.pago = false; c.dataPagamento = null;
+  }
+  return { ok:true };
+}
+function salvarEdicaoCusto(costId, mes, campos){
+  const c = STATE.costs.find(x=>x.id===costId);
+  if(!c) return { erro:'Custo não encontrado.' };
+  const { nome, valor, categoria } = campos;
+  let vencimento = campos.vencimento || null;
+  const mesOrigem = mesDe(c.vencimento);
+  if(c.categoria==='FIXO' && mes && mesOrigem && mes!==mesOrigem){
+    // Editar uma REPETIÇÃO: vira um lançamento novo a partir deste mês. O
+    // lançamento original (e todos os meses anteriores) fica intacto.
+    vencimento = vencimento || projetarVencimentoNoMes(c.vencimento, mes);
+    if(mesDe(vencimento)!==mes) return { erro:'A data de vencimento tem de ficar dentro do mês que está a editar ('+mes+').' };
+    const reg = registoPagamentoNoMes(c, mes);
+    const novo = { id:novoIdCusto(), nome, valor, categoria, vencimento, pago:!!reg.pago, dataPagamento: reg.pago ? reg.data : null };
+    if(c.pagoPorMes && c.pagoPorMes[mes]!=null) delete c.pagoPorMes[mes];
+    // Mudou de nome ou deixou de ser fixo: o nome antigo para de repetir aqui
+    // (senão os dois ficariam a repetir juntos).
+    if(categoria!=='FIXO' || normNomeCusto(nome)!==normNomeCusto(c.nome)) c.fimEm = mes;
+    STATE.costs.push(novo);
+    return { ok:true, id:novo.id };
+  }
+  if(mesOrigem && vencimento && mesDe(vencimento)!==mesOrigem){
+    return { erro:'Este lançamento é de '+mesOrigem+', a data de vencimento tem de ficar nesse mês. Para mudar a partir de outro mês, edite a repetição nesse mês.' };
+  }
+  // Congela o valor dos meses já pagos pela repetição deste lançamento,
+  // pra que a mudança de valor valha só daqui pra frente.
+  Object.entries(c.pagoPorMes||{}).forEach(([mk, r])=>{
+    const reg = registoPagamentoNoMes(c, mk);
+    if(reg.pago && (typeof r!=='object' || r.valor==null)) c.pagoPorMes[mk] = { pago:true, data:reg.data, valor:reg.valor };
+  });
+  const nomeAntigo = c.nome, eraFixo = c.categoria==='FIXO';
+  Object.assign(c, { nome, valor, categoria, vencimento: vencimento || c.vencimento });
+  // Renomear (ou deixar de ser fixo) no próprio mês: o nome antigo não pode
+  // voltar a repetir a partir de um lançamento mais antigo.
+  if(eraFixo && mesOrigem && (categoria!=='FIXO' || normNomeCusto(nome)!==normNomeCusto(nomeAntigo))) interromperAnteriorMesmoNome(nomeAntigo, mesOrigem);
+  return { ok:true, id:c.id };
+}
+/* Interrompe (fimEm = mes) o lançamento mais antigo com este nome que
+   voltaria a repetir a partir de "mes", se não houver outro lançamento do
+   mesmo nome nesse mês. */
+function interromperAnteriorMesmoNome(nome, mes){
+  const mesmoNome = STATE.costs.filter(x=>x.categoria==='FIXO' && x.vencimento && normNomeCusto(x.nome)===normNomeCusto(nome));
+  if(mesmoNome.some(x=>mesDe(x.vencimento)===mes)) return;
+  const anteriores = mesmoNome.filter(x=>mesDe(x.vencimento) < mes).sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+  const base = anteriores[anteriores.length-1];
+  if(base && (!base.fimEm || base.fimEm > mes)) base.fimEm = mes;
+}
+function excluirCusto(costId, mes){
+  const c = STATE.costs.find(x=>x.id===costId);
+  if(!c) return { erro:'Custo não encontrado.' };
+  const mesOrigem = mesDe(c.vencimento);
+  if(c.categoria==='FIXO' && mes && mesOrigem && mes > mesOrigem){
+    c.fimEm = mes; // interrompe a repetição de "mes" em diante; o passado fica
+    return { ok:true, modo:'interrompido' };
+  }
+  const pagosDepois = Object.keys(c.pagoPorMes||{}).filter(mk=>(!mesOrigem || mk > mesOrigem) && costPagoNoMes(c, mk)).sort();
+  if(pagosDepois.length){
+    return { erro:'Este custo tem pagamentos registados em meses seguintes ('+pagosDepois.join(', ')+'). Para não apagar esse histórico, exclua-o a partir do mês seguinte ao último pagamento.' };
+  }
+  STATE.costs = STATE.costs.filter(x=>x.id!==costId);
+  // Excluir o lançamento do próprio mês também interrompe a repetição: sem
+  // isto, um lançamento mais antigo com o mesmo nome voltaria a repetir a
+  // partir deste mês. (Se ainda houver outro lançamento do mesmo nome neste
+  // mês, era só um duplicado: o custo continua.)
+  if(c.categoria==='FIXO' && mesOrigem) interromperAnteriorMesmoNome(c.nome, mesOrigem);
+  return { ok:true, modo:'apagado' };
 }
 /* Custos fixos do mês atual, vencidos e ainda pendentes, mostrados como
    aviso na Visão Geral, com botão de pagar ali mesmo. */
@@ -1634,10 +1871,15 @@ function computeCosts(filter){
   let list;
   if(filter && filter.granularity==='month'){
     const monthKey = filter.anchor.slice(0,7);
-    const variaveisDoMes = STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.vencimento && c.vencimento.slice(0,7)===monthKey);
+    const variaveisDoMes = STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && mesDe(c.vencimento || c.dataPagamento)===monthKey);
     list = [...custosFixosDoMes(monthKey), ...variaveisDoMes];
   } else {
-    list = STATE.costs.filter(c=>inPeriodOrAll(c.vencimento, filter));
+    // Mesmo critério dos cards: repetições de cada mês do período (pelo
+    // vencimento projetado) + variáveis pela data de referência.
+    const fixos = [];
+    mesesDeCompetencia(filter).forEach(mk=>custosFixosDoMes(mk).forEach(c=>{ if(inPeriodOrAll(c.vencimento, filter)) fixos.push(c); }));
+    const variaveis = STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && inPeriodOrAll(c.vencimento || c.dataPagamento, filter));
+    list = [...fixos, ...variaveis];
   }
   const fixos = list.filter(c=>c.categoria==='FIXO');
   const variaveis = list.filter(c=>c.categoria==='VARIÁVEL');
@@ -1674,7 +1916,9 @@ function ranking(filter){
 function computeVendasBreakdown(filter, sellerId){
   const salesIn = STATE.sales.filter(s=> (!sellerId || s.vendedorId===sellerId) && inPeriodOrAll(s.data, filter));
   const recsIn = STATE.recurrences.filter(r=> (!sellerId || r.vendedorId===sellerId) && inPeriodOrAll(r.dataVenda, filter));
-  const integrais = salesIn.filter(s=>s.pagamentoIntegral);
+  // Mesmo critério do card "Valor vendido": toda venda que não é espelho
+  // de uma recorrência (assim os dois subcards somam exatamente o card).
+  const integrais = salesIn.filter(s=>!s.jaContabilizadoViaRecorrencia);
   const valorIntegrais = integrais.reduce((a,s)=>a+(s.valorTotal||0),0);
   const valorRecorrencias = recsIn.reduce((a,r)=>a+(r.valorContrato||0),0);
   /* "Parcelas pagas no período" tem que olhar a DATA DO PAGAMENTO de
@@ -1695,7 +1939,7 @@ function renderVendasSubcards(filter, sellerId){
   const b = computeVendasBreakdown(filter, sellerId);
   return `
   <div class="cards" style="margin-top:-10px;">
-    <div class="card"><div class="lbl">Vendas integrais (pagas à vista)</div><div class="val">${fmtEUR(b.valorIntegrais)}</div><div class="sub">${b.nIntegrais} venda(s)</div></div>
+    <div class="card"><div class="lbl">Vendas avulsas (sem recorrência)</div><div class="val">${fmtEUR(b.valorIntegrais)}</div><div class="sub">${b.nIntegrais} venda(s)</div></div>
     <div class="card"><div class="lbl">Vendas recorrentes (contratado)</div><div class="val">${fmtEUR(b.valorRecorrencias)}</div><div class="sub">${b.nRecorrencias} contrato(s)</div></div>
     <div class="card"><div class="lbl">Parcelas pagas</div><div class="val good">${b.parcelasPagas}</div><div class="sub">pagas no período, de qualquer contrato</div></div>
     <div class="card"><div class="lbl">Parcelas em aberto</div><div class="val bad">${b.parcelasAbertas}</div><div class="sub">situação atual, ainda não pagas</div></div>
@@ -1919,7 +2163,12 @@ async function applyCorrecaoDatasCustosProjetados(){
    escrita ampla o suficiente pra elas; um colaborador simplesmente pula
    esta parte e vai direto para os proprios dados. */
 async function runGestorMigrationsIfNeeded(){
-  if(STATE.role!=='gestor') return;
+  // DESATIVADO (auditoria 24/09/2026): todas estas migrações já correram em
+  // produção (as 12 flags estão gravadas em crm:meta). Voltar a corrê-las
+  // reescreveria vendas, parcelas e custos com snapshots de julho, e
+  // applyCorrecaoDatasCustosProjetados apagaria datas reais de pagamento.
+  // Um crm:meta ausente ou recriado não pode reabrir esse caminho.
+  return;
   await applyCorrecaoDatasCustosProjetados();
   await applyHistoricalImport();
   await applyDedupSalesVsRecurrences();
@@ -1940,7 +2189,18 @@ async function loadAccessRequests(){
   STATE.accessRequests = data || [];
 }
 async function bootAfterLogin(){
-  await loadState();
+  try{ await loadState(); }
+  catch(e){
+    // Sem os dados reais não entra no painel (nem mostra números parciais).
+    console.error('Falha ao carregar dados', e);
+    // Encerra a sessão pra que "entrar de novo" recarregue tudo do zero.
+    try{ await supa.auth.signOut(); }catch(_){}
+    STATE.role=null; STATE.myOwnSellerId=null; STATE.myEmail=null;
+    STATE.sales=[]; STATE.recurrences=[]; STATE.costs=[];
+    renderLoginScreen('signin');
+    showErrorToast('não foi possível carregar os dados do servidor, nada foi alterado. Tente entrar de novo em instantes.');
+    return;
+  }
   await runGestorMigrationsIfNeeded();
   await loadAccessRequests();
   await loadAlertaDismissido();
@@ -2217,13 +2477,13 @@ function abrirPagamentoModal(recId, parcelaNumero){
   if(!rec) return;
   const st = recStatus(rec);
   const personalizado = parcelaNumero==null;
-  const valorSugerido = personalizado ? '' : st.valorParcela.toFixed(2);
+  const valorSugerido = personalizado ? '' : st.valorSugeridoProxima.toFixed(2);
   const hoje = todayISO();
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
     <div class="modal-head"><h3>${personalizado ? 'Pagamento personalizado' : 'Efetuar pagamento, Parcela '+parcelaNumero}, ${rec.cliente}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:14px;">Pendente total do contrato: <strong>${fmtEUR(st.valorPendente)}</strong>${!personalizado?` · valor padrão desta parcela: <strong>${fmtEUR(st.valorParcela)}</strong>`:''}</div>
+      <div class="field-hint" style="margin-bottom:14px;">Pendente total do contrato: <strong>${fmtEUR(st.valorPendente)}</strong>${!personalizado?` · valor sugerido desta parcela: <strong>${fmtEUR(st.valorSugeridoProxima)}</strong>`:''}</div>
       <div class="field"><label>Valor pago (€)</label><input type="number" id="pgValor" min="0.01" step="0.01" value="${valorSugerido}" placeholder="${personalizado?'Quanto o cliente pagou':''}"></div>
       <div class="field"><label>Data do pagamento</label><input type="date" id="pgData" value="${hoje}"></div>
       <div id="pgAviso" style="display:none;color:var(--bad);font-size:12.5px;margin-top:-6px;"></div>
@@ -2238,19 +2498,28 @@ function abrirPagamentoModal(recId, parcelaNumero){
     const data = document.getElementById('pgData').value || hoje;
     const aviso = document.getElementById('pgAviso');
     if(valor<=0){ aviso.textContent = 'Informe um valor maior que zero.'; aviso.style.display='block'; return; }
-    if(valor > st.valorPendente + 0.01){
-      aviso.textContent = `Esse valor é maior que o pendente do contrato (${fmtEUR(st.valorPendente)}), confirme se está certo antes de continuar, ou ajuste o valor.`;
+    const btnSave = document.getElementById('mSave');
+    if(valor > st.valorPendente + 0.01 && !btnSave.dataset.confirmouExcesso){
+      // Antes o aviso aparecia mas gravava no mesmo clique; agora exige confirmação.
+      aviso.textContent = `Esse valor é maior que o pendente do contrato (${fmtEUR(st.valorPendente)}). Confira; se estiver certo, clique de novo em "Confirmar mesmo assim".`;
       aviso.style.display='block';
+      btnSave.dataset.confirmouExcesso = '1';
+      btnSave.textContent = 'Confirmar mesmo assim';
+      return;
     }
-    if(personalizado){
-      if(!rec.pagamentosExtras) rec.pagamentosExtras = [];
-      rec.pagamentosExtras.push({ id:'pgx-'+Date.now(), data, valor });
-    } else {
-      const p = rec.parcelas.find(x=>x.numero===parcelaNumero);
-      if(!p) return;
-      p.pago = true; p.valor = valor; p.data = data;
-    }
-    await persistRecorrencia(rec); showSuccessToast('Pagamento registado com sucesso!'); closeModal(); renderAll();
+    if(!personalizado && !rec.parcelas.find(x=>x.numero===parcelaNumero)) return;
+    if(!travarBotao(btnSave)) return; // evita pagamento duplicado por duplo clique
+    const ok = await salvarAlteracao(rec, ()=>{
+      if(personalizado){
+        if(!rec.pagamentosExtras) rec.pagamentosExtras = [];
+        rec.pagamentosExtras.push({ id:'pgx-'+Date.now(), data, valor });
+      } else {
+        const p = rec.parcelas.find(x=>x.numero===parcelaNumero);
+        p.pago = true; p.valor = valor; p.data = data;
+      }
+    }, ()=>persistRecorrencia(rec), 'o pagamento NÃO foi gravado');
+    if(ok) showSuccessToast('Pagamento registado com sucesso!');
+    closeModal(); renderAll();
   };
 }
 /* Marca a parcela pendente mais antiga de uma recorrência como paga,
@@ -2258,11 +2527,10 @@ function abrirPagamentoModal(recId, parcelaNumero){
    do alerta de recorrências atrasadas, pra não precisar abrir um
    modal pra cada uma quando se quer só bater o registro rápido. */
 async function marcarProximaParcelaComoPaga(rec){
-  const st = recStatus(rec);
   const p = rec.parcelas.find(x=>!x.pago);
   if(!p) return;
-  p.pago = true; p.valor = st.valorParcela; p.data = todayISO();
-  await persistRecorrencia(rec);
+  await salvarAlteracao(rec, ()=>registrarPagamentoParcelas(rec, [p.numero], todayISO()),
+    ()=>persistRecorrencia(rec), 'o pagamento de '+rec.cliente+' NÃO foi gravado');
 }
 function abrirPagamentoRecorrenciaModal(recId){
   const rec = STATE.recurrences.find(r=>r.id===recId);
@@ -2274,12 +2542,12 @@ function abrirPagamentoRecorrenciaModal(recId){
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
     <div class="modal-head"><h3>Efetuar pagamento, ${rec.cliente}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:14px;">Pendente total: <strong>${fmtEUR(st.valorPendente)}</strong> · valor de cada parcela: <strong>${fmtEUR(st.valorParcela)}</strong> · vendedor: <strong>${rec.vendedorNome||'-'}</strong></div>
+      <div class="field-hint" style="margin-bottom:14px;">Pendente total: <strong>${fmtEUR(st.valorPendente)}</strong> · valor de cada parcela: <strong>${fmtEUR(st.valorSugeridoProxima)}</strong> · vendedor: <strong>${rec.vendedorNome||'-'}</strong></div>
       ${pendentes.length ? `
       <div class="field"><label>Parcela(s) a marcar como paga(s)</label>
         ${pendentes.map(p=>`
           <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <input type="checkbox" class="pgParcelaChk" value="${p.numero}" ${p.numero===pendentes[0].numero?'checked':''}> Parcela ${p.numero}, ${fmtEUR(st.valorParcela)}
+            <input type="checkbox" class="pgParcelaChk" value="${p.numero}" ${p.numero===pendentes[0].numero?'checked':''}> Parcela ${p.numero}, ${fmtEUR(st.valorSugeridoProxima)}
           </label>`).join('')}
       </div>
       <div class="field"><label>Data do pagamento</label><input type="date" id="pgData" value="${hoje}"></div>
@@ -2295,8 +2563,10 @@ function abrirPagamentoRecorrenciaModal(recId){
     const data = document.getElementById('pgData').value || hoje;
     const selecionadas = Array.from(document.querySelectorAll('.pgParcelaChk:checked')).map(el=>Number(el.value));
     if(!selecionadas.length){ alert('Selecione ao menos uma parcela.'); return; }
-    rec.parcelas.forEach(p=>{ if(selecionadas.includes(p.numero)){ p.pago = true; p.data = data; } });
-    await persistRecorrencia(rec);
+    if(!travarBotao(btnSave)) return;
+    const ok = await salvarAlteracao(rec, ()=>registrarPagamentoParcelas(rec, selecionadas, data), // grava também o valor de cada parcela
+      ()=>persistRecorrencia(rec), 'o pagamento NÃO foi gravado');
+    if(ok) showSuccessToast('Pagamento registado com sucesso!');
     closeModal();
     renderAll();
   };
@@ -2443,7 +2713,7 @@ function renderSaldoEEvolucaoCharts(){
   const todas = linhasFinanceiras({granularity:'all'});
   const porMes = {};
   todas.forEach(l=>{
-    const mk = (l.data||'').slice(0,7);
+    const mk = (l.sinal<0 && l.competencia) ? l.competencia : (l.data||'').slice(0,7); // custos no mês a que se referem, igual aos cards
     if(!mk) return;
     if(!porMes[mk]) porMes[mk] = {entrou:0, saiu:0};
     if(l.sinal>0) porMes[mk].entrou += l.valor; else porMes[mk].saiu += l.valor;
@@ -2522,7 +2792,7 @@ function renderOverview(){
     <div class="card"><div class="lbl">Faturamento recebido (caixa)</div><div class="val good" data-detalhe-card="faturado" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorFaturado)}</div><div class="sub">dinheiro que entrou no período, pode incluir parcelas de vendas de outros meses, por isso pode superar o "vendido"</div></div>
     <div class="card"><div class="lbl">Pendências (a receber)</div><div class="val bad" data-detalhe-card="pendente" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorPendente)}</div><div class="sub">tudo que falta receber (vendas + recorrências) de negócios originados no período</div></div>
     <div class="card"><div class="lbl">Recorrência em andamento</div><div class="val" data-detalhe-card="recorrencia" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.recorrenciaAtivaValor)}</div><div class="sub">${g.nRecsAbertas} contrato(s) com parcela pendente, só a parte das pendências que vem de recorrências (pode bater com o card ao lado quando não há venda integral pendente)</div></div>
-    <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${g.taxaConversao!==null ? fmtPct(g.taxaConversao) : '-'}</div><div class="sub">${g.taxaConversao!==null ? g.fechamentos+' fechamentos no período / '+g.conversas+' conversas totais' : 'informe conversas iniciadas por vendedor'}</div></div>
+    <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${g.taxaConversao!==null ? fmtPct(g.taxaConversao) : '-'}</div><div class="sub">${g.taxaConversao!==null ? g.fechamentos+' fechamentos no período / '+g.conversas+' conversas no funil' : 'sem funil diário preenchido neste período'}</div></div>
   </div>
   ${renderVendasSubcards(STATE.periodFilter, null)}
   ${renderChartsPanel()}
@@ -4130,15 +4400,18 @@ function renderFinanceiro(){
   const costs = computeCosts(filter);
   const tax = computeTaxes(filter);
   const lucro = computeLucro(filter);
+  const estimados = buildEvents().filter(e=>e.estimado && inPeriodOrAll(e.date, filter));
+  const avisoEstimados = estimados.length ? `<div class="field-hint" style="margin:0 0 14px;border-left:3px solid var(--bad);padding-left:10px;">⚠️ <strong>${estimados.length} parcela(s)</strong> deste período foram marcadas como pagas <strong>sem valor registado</strong>. O recebido inclui <strong>${fmtEUR(estimados.reduce((a,e)=>a+e.valor,0))}</strong> estimados pelo valor padrão do contrato (veja "valor estimado" no Registro). Confira com o extrato bancário.</div>` : '';
   return `
   ${renderGenericFilterBar('financeiroFilter', ['all','month','week','day'], months)}
-  <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado), só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte. Os cards abaixo mostram só o que já foi <strong>efetivamente pago</strong> no período (mesmo critério do Resumo, Extrato e Registro), as abas "Custos fixos"/"Custos variáveis" mostram todo o lançamento, pago ou ainda pendente.</div>
+  <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado). Para mudar o valor a partir de um mês, edite a repetição desse mês; <strong>excluir</strong> num mês interrompe a repetição dali em diante, sem mexer nos meses anteriores. Ao marcar como pago, informe a <strong>data real do pagamento</strong>. Custos <strong>variáveis</strong> nunca repetem. Os cards somam exatamente os custos marcados como pagos na lista do mês (mesmo que pagos depois do vencimento); o Extrato do dia mostra cada pagamento na data em que foi feito.</div>
   <div class="cards">
     <div class="card"><div class="lbl">Custos fixos pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val" data-detalhe-card="custosFixos" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(costs.totalFixos)}</div></div>
     <div class="card"><div class="lbl">Custos variáveis pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val" data-detalhe-card="custosVariaveis" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(costs.totalVariaveis)}</div></div>
     <div class="card"><div class="lbl">Impostos devidos (sobre valor recebido)</div><div class="val bad" data-detalhe-card="impostos" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(tax.total)}</div><div class="sub">IVA ${fmtEUR(tax.ivaDevido)} · Taxa adm. ${fmtEUR(tax.txAdmDevido)}</div></div>
     <div class="card accent"><div class="lbl">Lucro líquido estimado</div><div class="val ${lucro>=0?'good':'bad'}" data-detalhe-card="lucro" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver a fórmula">${fmtEUR(lucro)}</div><div class="sub">recebido − impostos − custos pagos, no período</div></div>
   </div>
+  ${avisoEstimados}
   <div class="subtabs">
     <button data-ftab="resumo" class="${tab==='resumo'?'active':''}">📊 Resumo</button>
     <button data-ftab="fixos" class="${tab==='fixos'?'active':''}">Custos fixos</button>
@@ -4160,11 +4433,11 @@ function renderCostsTab(list, tab, monthKeyAtual){
     <div class="block-head"><h3>${label} (${filtrada.length})</h3><button class="btn gold" id="btnAddCost" data-default-categoria="${tab==='variaveis'?'VARIÁVEL':'FIXO'}">+ Novo custo</button></div>
     ${filtrada.length ? `<table><thead><tr><th>Nome</th><th>Valor</th><th>Vencimento</th><th>Pago</th><th></th></tr></thead>
     <tbody>${filtrada.map(c=>`<tr>
-        <td><strong>${c.nome}</strong>${c._projetado?'<span class="chip neutral" style="margin-left:8px;" title="Repete automaticamente a partir do lançamento anterior, editar aqui muda o valor a partir de agora, sem afetar meses já fechados">repete</span>':''}</td>
-        <td class="tnum">${fmtEUR(c.valor)}</td>
+        <td><strong>${c.nome}</strong>${c._projetado?'<span class="chip neutral" style="margin-left:8px;" title="Repete automaticamente a partir do lançamento anterior. Editar aqui cria um valor novo a partir deste mês; os meses anteriores não mudam.">repete</span>':''}${c._duplicado?'<span class="chip bad" style="margin-left:8px;" title="Há mais de um lançamento com este nome neste mês, todos somam no total. Exclua os que forem repetidos.">lançado mais de uma vez</span>':''}${c._pagamentoIgnorado?'<span class="chip neutral" style="margin-left:8px;" title="Também havia um pagamento marcado na repetição de um lançamento anterior para este mês. Ele não é somado de novo.">pagamento repetido ignorado</span>':''}</td>
+        <td class="tnum">${fmtEUR(c.pago && c._valorPago!=null ? c._valorPago : c.valor)}</td>
         <td>${fmtDate(c.vencimento)}</td>
-        <td><button class="chip ${c.pago?'good':'bad'}" data-toggle-cost="${c.id}" data-cost-month="${monthKeyAtual||''}" style="border:none;">${c.pago?'pago':'pendente'}</button></td>
-        <td><div class="btn-group btn-group-actions"><button class="btn ghost sm" data-edit-cost="${c.id}">Editar</button><button class="btn danger sm" data-del-cost="${c.id}" ${c._projetado?'data-del-cost-repete="1" title="Isto apaga o lançamento original e para a repetição a partir de agora"':''}>Excluir</button></div></td>
+        <td><button class="chip ${c.pago?'good':'bad'}" data-toggle-cost="${c.id}" data-cost-month="${c._mes||monthKeyAtual||''}" style="border:none;" title="${c.pago?'Clique para desfazer o pagamento':'Clique para registar o pagamento'}">${c.pago?'pago'+(c._dataPagamento?' em '+fmtDateShort(c._dataPagamento):''):'pendente'}</button></td>
+        <td><div class="btn-group btn-group-actions"><button class="btn ghost sm" data-edit-cost="${c.id}" data-cost-month="${c._mes||monthKeyAtual||''}">Editar</button><button class="btn danger sm" data-del-cost="${c.id}" data-cost-month="${c._mes||monthKeyAtual||''}" ${c._projetado?'data-del-cost-repete="1" title="Para a repetição a partir deste mês, os meses anteriores ficam como estão"':''}>Excluir</button></div></td>
       </tr>`).join('')}</tbody></table>` : `<div class="empty">${STATE.searchFinanceiro ? 'Nenhum custo encontrado com esse nome.' : 'Nenhum custo '+(tab==='variaveis'?'variável':'fixo')+' nesse período.'}</div>`}
   </section>`;
 }
@@ -4174,7 +4447,8 @@ function renderCostsTab(list, tab, monthKeyAtual){
 /* Lista unificada de movimentações financeiras num período qualquer, usada
    tanto no Extrato do dia (período = 1 dia) quanto no Registro (qualquer
    período). Cada linha já vem com emoji, categoria e sinal (+/-) prontos. */
-function linhasFinanceiras(filter){
+function linhasFinanceiras(filter, opts){
+  const porPagamento = !!(opts && opts.porPagamento); // Extrato do dia: custos na data real do pagamento
   const linhas = [];
   STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && (s.valorPago||0)>0 && inPeriodOrAll(s.data, filter)).forEach(s=>{
     linhas.push({ data:s.data, emoji:'💳', tipo:'Venda integral', categoria:'Receita', cliente:s.cliente, vendedor:s.vendedorNome, forma:s.formaPagamento||'-', valor:s.valorPago, sinal:1, _ref:{tipo:'venda', saleId:s.id} });
@@ -4186,7 +4460,7 @@ function linhasFinanceiras(filter){
     }
     r.parcelas.forEach(p=>{
       if(p.pago && p.data && inPeriodOrAll(p.data, filter)){
-        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'-', valor: valorEfetivoParcela(p, st), sinal:1, _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
+        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'-', valor: valorEfetivoParcela(p, st), sinal:1, estimado: parcelaComValorEstimado(p), _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
@@ -4195,26 +4469,25 @@ function linhasFinanceiras(filter){
       }
     });
   });
-  STATE.costs.filter(c=>c.categoria==='FIXO').forEach(c=>{
-    // Custos históricos foram importados com "pago:true" mas sem
-    // dataPagamento (esse campo não existia na planilha original), sem
-    // esse fallback pro vencimento, eles contam como "pago" na tabela de
-    // gestão mas somem inteiros do total de despesas, dando €0,00 mesmo
-    // com dezenas de custos marcados como pagos.
-    const dataEfetiva = c.dataPagamento || c.vencimento;
-    if(c.pago && dataEfetiva && inPeriodOrAll(dataEfetiva, filter)){
-      linhas.push({ data:dataEfetiva, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoExato', custoId:c.id} });
-    }
-    if(c.pagoPorMes){
-      Object.entries(c.pagoPorMes).forEach(([mesKey,reg])=>{
-        if(reg && typeof reg==='object' && reg.pago && reg.data && inPeriodOrAll(reg.data, filter)){
-          linhas.push({ data:reg.data, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1, _ref:{tipo:'custoFixoMes', custoId:c.id, mes:mesKey} });
-        }
-      });
-    }
+  // Custos fixos: exatamente os mesmos itens da lista de Custos fixos
+  // (custosFixosDoMes). Cards, lista, Resumo, Registro e gráfico contam
+  // pela COMPETÊNCIA (o vencimento do mês a que o custo se refere, bate com
+  // a lista mesmo pago com atraso); o Extrato do dia conta pela data real.
+  const porMes = filter && filter.granularity==='month';
+  mesesDeCompetencia(porPagamento ? {granularity:'all'} : filter).forEach(mk=>{
+    custosFixosDoMes(mk).filter(c=>c.pago).forEach(c=>{
+      const dentro = porPagamento ? inPeriodOrAll(c._dataPagamento, filter)
+        : porMes ? mk===filter.anchor.slice(0,7) : inPeriodOrAll(c.vencimento, filter);
+      if(!dentro) return;
+      linhas.push({ data:c._dataPagamento, competencia:mk, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c._valorPago, sinal:-1,
+        _ref: c._projetado ? {tipo:'custoFixoMes', custoId:c.id, mes:mk} : {tipo:'custoFixoExato', custoId:c.id} });
+    });
   });
-  STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.pago && inPeriodOrAll(c.vencimento, filter)).forEach(c=>{
-    linhas.push({ data:c.vencimento, emoji:'📦', tipo:'Custo variável', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1, _ref:{tipo:'custoVariavel', custoId:c.id} });
+  STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.pago && (c.vencimento || c.dataPagamento)).forEach(c=>{
+    const data = c.dataPagamento || c.vencimento;
+    const ref = c.vencimento || c.dataPagamento;
+    if(!inPeriodOrAll(porPagamento ? data : ref, filter)) return;
+    linhas.push({ data, competencia:mesDe(ref), emoji:'📦', tipo:'Custo variável', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1, _ref:{tipo:'custoVariavel', custoId:c.id} });
   });
   return linhas.sort((a,b)=> (b.data||'').localeCompare(a.data||''));
 }
@@ -4224,50 +4497,42 @@ function linhasFinanceiras(filter){
    histórico); uma parcela ou entrada volta a ficar pendente; um pagamento
    personalizado é removido; um custo volta a ficar por pagar. */
 async function estornarLancamento(ref){
+  // Devolve true só se o banco aceitou; se recusar, a tela volta ao que era.
   if(ref.tipo==='venda'){
     const s = STATE.sales.find(x=>x.id===ref.saleId);
-    if(!s) return;
-    s.valorPago = 0;
-    await persistVenda(s);
-  } else if(ref.tipo==='entrada'){
-    const r = STATE.recurrences.find(x=>x.id===ref.recId);
-    if(!r) return;
-    r.valorEntrada = 0;
-    await persistRecorrencia(r);
-  } else if(ref.tipo==='parcela'){
-    const r = STATE.recurrences.find(x=>x.id===ref.recId);
-    if(!r) return;
-    const p = r.parcelas.find(x=>x.numero===ref.numero);
-    if(!p) return;
-    p.pago = false; p.data = null; p.valor = null;
-    await persistRecorrencia(r);
-  } else if(ref.tipo==='extra'){
-    const r = STATE.recurrences.find(x=>x.id===ref.recId);
-    if(!r) return;
-    r.pagamentosExtras = (r.pagamentosExtras||[]).filter(e=>e.id!==ref.extraId);
-    await persistRecorrencia(r);
-  } else if(ref.tipo==='custoFixoExato'){
-    const c = STATE.costs.find(x=>x.id===ref.custoId);
-    if(!c) return;
-    c.pago = false; c.dataPagamento = null;
-    await persist('costs');
-  } else if(ref.tipo==='custoFixoMes'){
-    const c = STATE.costs.find(x=>x.id===ref.custoId);
-    if(!c || !c.pagoPorMes) return;
-    c.pagoPorMes[ref.mes] = {pago:false};
-    await persist('costs');
-  } else if(ref.tipo==='custoVariavel'){
-    const c = STATE.costs.find(x=>x.id===ref.custoId);
-    if(!c) return;
-    c.pago = false;
-    await persist('costs');
+    if(!s) return false;
+    return salvarAlteracao(s, ()=>{ s.valorPago = 0; }, ()=>persistVenda(s), 'o estorno NÃO foi gravado');
   }
+  if(ref.tipo==='entrada' || ref.tipo==='parcela' || ref.tipo==='extra'){
+    const r = STATE.recurrences.find(x=>x.id===ref.recId);
+    if(!r) return false;
+    if(ref.tipo==='parcela' && !r.parcelas.find(x=>x.numero===ref.numero)) return false;
+    return salvarAlteracao(r, ()=>{
+      if(ref.tipo==='entrada'){
+        congelarValoresParcelasPagas(r); // zerar a entrada mudaria o valor das parcelas já pagas
+        r.valorEntrada = 0;
+      } else if(ref.tipo==='parcela'){
+        const p = r.parcelas.find(x=>x.numero===ref.numero);
+        p.pago = false; p.data = null; p.valor = null;
+      } else {
+        r.pagamentosExtras = (r.pagamentosExtras||[]).filter(e=>e.id!==ref.extraId);
+      }
+    }, ()=>persistRecorrencia(r), 'o desfazer NÃO foi gravado');
+  }
+  const c = STATE.costs.find(x=>x.id===ref.custoId);
+  if(!c) return false;
+  const antes = JSON.stringify(STATE.costs);
+  if(ref.tipo==='custoFixoExato' || ref.tipo==='custoVariavel'){ c.pago = false; c.dataPagamento = null; }
+  else if(ref.tipo==='custoFixoMes'){ desmarcarCustoPago(c.id, ref.mes); }
+  else return false;
+  return gravarCustosOuReverter(antes);
 }
+
 function renderExtratoTab(){
   const data = STATE.extratoData || todayISO();
   const monthKey = data.slice(0,7);
   const filtroDia = {granularity:'day', anchor:data};
-  let linhas = linhasFinanceiras(filtroDia);
+  let linhas = linhasFinanceiras(filtroDia, { porPagamento:true });
   // pendências (ainda não pagas) com vencimento nesse dia, mostradas à parte
   const pendentes = [];
   custosFixosDoMes(monthKey).forEach(c=>{
@@ -4301,7 +4566,7 @@ function renderExtratoTab(){
         <div class="extrato-icon">${l.emoji}</div>
         <div class="extrato-main">
           <div class="extrato-titulo">${l.tipo}, ${l.cliente}</div>
-          <div class="extrato-tags"><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span>${l.vendedor&&l.vendedor!=='-'?`<span class="chip neutral">👤 ${l.vendedor}</span>`:''}${l.forma&&l.forma!=='-'?`<span class="chip neutral">💳 ${l.forma}</span>`:''}${l.tipo.includes('pendente')?'<span class="chip bad">pendente</span>':''}</div>
+          <div class="extrato-tags"><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span>${l.vendedor&&l.vendedor!=='-'?`<span class="chip neutral">👤 ${l.vendedor}</span>`:''}${l.forma&&l.forma!=='-'?`<span class="chip neutral">💳 ${l.forma}</span>`:''}${l.tipo.includes('pendente')?'<span class="chip bad">pendente</span>':''}${l.estimado?'<span class="chip bad" title="Parcela paga sem valor registado, mostra o valor padrão do contrato">valor estimado</span>':''}</div>
         </div>
         <div class="extrato-valor ${l.sinal>0?'good':'bad'}">${l.sinal>0?'+':'−'} ${fmtEUR(l.valor)}</div>
         ${(STATE.role==='gestor' && l._ref) ? `<button class="btn ghost sm" data-estornar='${JSON.stringify(l._ref)}' data-estornar-desc="${l.tipo} de ${l.cliente} (${fmtEUR(l.valor)})" title="Desfazer este lançamento">↩️</button>` : ''}
@@ -4328,7 +4593,7 @@ function renderRegistroTab(filter){
     ${linhas.length ? `<table><thead><tr><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Data</th><th>Fonte</th><th>Valor</th>${STATE.role==='gestor'?'<th></th>':''}</tr></thead>
     <tbody>${linhas.map(l=>`<tr>
         <td>${l.emoji} <strong>${l.cliente}</strong>${l.vendedor&&l.vendedor!=='-'?` <span style="color:var(--ink-soft);font-size:11.5px;">· ${l.vendedor}</span>`:''}</td>
-        <td>${l.tipo}</td>
+        <td>${l.tipo}${l.estimado?' <span class="chip bad" title="Parcela marcada como paga sem valor registado, o valor mostrado é o valor padrão do contrato">valor estimado</span>':''}</td>
         <td><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span></td>
         <td>${fmtDate(l.data)}</td>
         <td>${l.forma}</td>
@@ -4353,11 +4618,11 @@ function renderResumoFinanceiro(filter){
   const entradaNovosServicos = linhasNovos.reduce((a,l)=>a+l.valor,0);
 
   // 2) Receita geral, TUDO que entrou no período, novo ou não
-  const linhasReceita = eventosPeriodo.map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo, valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const linhasReceita = eventosPeriodo.map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo+(e.estimado?' · valor estimado':''), valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   const receitaGeral = linhasReceita.reduce((a,l)=>a+l.valor,0);
 
   // 3) Recorrências pagas no período, parcelas e pagamentos personalizados (não conta a entrada, essa já é "novo negócio")
-  const linhasRecPagas = eventosPeriodo.filter(e=>e.tipo.startsWith('Parcela')||e.tipo==='Pagamento personalizado').map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo, valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const linhasRecPagas = eventosPeriodo.filter(e=>e.tipo.startsWith('Parcela')||e.tipo==='Pagamento personalizado').map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo+(e.estimado?' · valor estimado':''), valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   const recorrenciasPagas = linhasRecPagas.reduce((a,l)=>a+l.valor,0);
 
   // 4) Despesas no período
@@ -4577,8 +4842,9 @@ function openQuickAddModal(initialTipo, forColaborador){
           honorarioBase: componentes.honorarioBase,
           iva: componentes.iva, txAdm: componentes.txAdm
         };
-        STATE.sales.push(novaVenda);
-        await persistVenda(novaVenda); showSuccessToast('Venda registada com sucesso!'); closeModal(); renderAll();
+        if(!travarBotao(document.getElementById('mSave'))) return; // evita venda duplicada por duplo clique
+        if(await criarVenda(novaVenda)) showSuccessToast('Venda registada com sucesso!');
+        closeModal(); renderAll();
       } else {
         const valorContrato = Number(document.getElementById('qValorContrato').value)||0;
         const valorEntrada = Number(document.getElementById('qEntrada').value)||0;
@@ -4594,8 +4860,9 @@ function openQuickAddModal(initialTipo, forColaborador){
           iva: componentes.iva, txAdm: componentes.txAdm,
           valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'-', parcelas, origemSheet:'manual'
         };
-        STATE.recurrences.push(novaRec);
-        await persistRecorrencia(novaRec); showSuccessToast('Recorrência criada com sucesso!'); closeModal(); renderAll();
+        if(!travarBotao(document.getElementById('mSave'))) return;
+        if(await criarRecorrencia(novaRec)) showSuccessToast('Recorrência criada com sucesso!');
+        closeModal(); renderAll();
       }
     };
   }
@@ -4760,11 +5027,12 @@ function openEditSaleModal(saleId){
       alert('Honorário base + IVA + taxa administrativa devem ser iguais ao valor total.'); return;
     }
     const vendedor = sellerById(vendedorId);
-    Object.assign(sale, {
+    if(!travarBotao(document.getElementById('mSave'))) return;
+    await salvarAlteracao(sale, ()=>Object.assign(sale, {
       cliente, servico, data, vendedorId, vendedorNome: vendedor?vendedor.nome:sale.vendedorNome,
       origem, formaPagamento, valorTotal, valorPago, pagamentoIntegral, honorarioBase, iva, txAdm
-    });
-    await persistVenda(sale); closeModal(); renderAll();
+    }), ()=>persistVenda(sale), 'a edição da venda NÃO foi gravada');
+    closeModal(); renderAll();
   };
 }
 
@@ -4846,21 +5114,18 @@ function openEditRecModal(recId){
       alert('Honorário base + IVA + taxa administrativa devem ser iguais ao valor do contrato.'); return;
     }
     const vendedor = sellerById(vendedorId);
-
-    let parcelas = rec.parcelas.slice();
-    if(nParcelasNovo > parcelas.length){
-      for(let i=parcelas.length; i<nParcelasNovo; i++) parcelas.push({numero:i+1, data:null, pago:false});
-    } else if(nParcelasNovo < parcelas.length){
-      parcelas = parcelas.slice(0, nParcelasNovo);
-    }
-    parcelas.forEach((p,i)=>{ p.numero = i+1; });
-
-    Object.assign(rec, {
+    // Congela o valor das parcelas já pagas antes de mudar contrato/entrada/
+    // nº de parcelas, e recusa reduzir abaixo de uma parcela paga.
+    const snap = snapshotObj(rec);
+    const r = aplicarEdicaoRecorrencia(rec, {
       cliente, servico, dataVenda: data || rec.dataVenda, vendedorId,
       vendedorNome: vendedor?vendedor.nome:rec.vendedorNome,
-      valorContrato, valorEntrada, honorarioBase, iva, txAdm, formaPagamento, origem, isentoTaxaAdm, nParcelas: nParcelasNovo, parcelas
+      valorContrato, valorEntrada, honorarioBase, iva, txAdm, formaPagamento, origem, isentoTaxaAdm, nParcelas: nParcelasNovo
     });
-    await persistRecorrencia(rec); closeModal(); renderAll();
+    if(r.erro){ alert(r.erro); return; }
+    if(!travarBotao(document.getElementById('mSave'))) return;
+    await gravarOuReverter(()=>restaurarObj(rec, snap), ()=>persistRecorrencia(rec), 'a edição da recorrência NÃO foi gravada');
+    closeModal(); renderAll();
   };
 }
 
@@ -4931,8 +5196,9 @@ function openAddRecModal(forColaborador){
       txAdm: componentes.txAdm,
       valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'-', parcelas, origemSheet:'manual'
     };
-    STATE.recurrences.push(novaRec2);
-    await persistRecorrencia(novaRec2); showSuccessToast('Recorrência criada com sucesso!'); closeModal(); renderAll();
+    if(!travarBotao(document.getElementById('mSave'))) return;
+    if(await criarRecorrencia(novaRec2)) showSuccessToast('Recorrência criada com sucesso!');
+    closeModal(); renderAll();
   };
 }
 
@@ -4946,7 +5212,11 @@ function openConfirmModal({title, message, confirmLabel, onConfirm, danger}){
   document.getElementById('mClose').onclick = closeModal;
   document.getElementById('mCancel').onclick = closeModal;
   document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
-  document.getElementById('mOk').onclick = async ()=>{ await onConfirm(); closeModal(); };
+  const btnOk = document.getElementById('mOk');
+  btnOk.onclick = async ()=>{
+    if(!travarBotao(btnOk)) return; // evita executar a ação duas vezes
+    try{ await onConfirm(); } finally { closeModal(); }
+  };
 }
 
 function openServiceModal(existingId){
@@ -4984,8 +5254,52 @@ function openServiceModal(existingId){
   };
 }
 
-function openCostModal(existingId, defaultCategoria){
-  const existing = existingId ? STATE.costs.find(c=>c.id===existingId) : null;
+/* Grava crm:costs; se o servidor recusar, devolve STATE.costs ao que era
+   antes (snapshot em JSON) pra tela nunca mostrar algo que não foi salvo. */
+async function gravarCustosOuReverter(snapshotAntes){
+  try{ await sbSet('crm:costs', STATE.costs); return true; }
+  catch(e){
+    STATE.costs = JSON.parse(snapshotAntes);
+    showErrorToast('o custo NÃO foi gravado ('+e.message+'). Nada mudou, tente de novo.');
+    return false;
+  }
+}
+/* Registar o pagamento de um custo com a data REAL em que foi pago
+   (padrão: hoje), mesmo que seja depois do vencimento. */
+function abrirPagamentoCustoModal(costId, mes){
+  const c = STATE.costs.find(x=>x.id===costId);
+  if(!c) return;
+  const projetado = c.categoria==='FIXO' && mes && c.vencimento && mes!==mesDe(c.vencimento);
+  const venc = projetado ? projetarVencimentoNoMes(c.vencimento, mes) : c.vencimento;
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:420px;">
+    <div class="modal-head"><h3>Registar pagamento, ${c.nome}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:14px;">Valor: <strong>${fmtEUR(c.valor)}</strong>${venc?' · vencimento '+fmtDate(venc):''}${mes?' · referente a '+monthLabel(mes):''}</div>
+      <div class="field"><label>Data em que foi pago</label><input type="date" id="pcData" value="${todayISO()}"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Confirmar pagamento</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+  const btn = document.getElementById('mSave');
+  btn.onclick = async ()=>{
+    const data = document.getElementById('pcData').value;
+    if(!data){ alert('Informe a data do pagamento.'); return; }
+    btn.disabled = true;
+    const antes = JSON.stringify(STATE.costs);
+    marcarCustoPago(costId, mes, data);
+    const ok = await gravarCustosOuReverter(antes);
+    if(ok) showSuccessToast('Pagamento registado com sucesso!');
+    closeModal(); renderAll();
+  };
+}
+function openCostModal(existingId, defaultCategoria, mesVisualizado){
+  const existingRaw = existingId ? STATE.costs.find(c=>c.id===existingId) : null;
+  // Numa repetição, o formulário mostra o vencimento projetado do mês visto.
+  const projetado = existingRaw && existingRaw.categoria==='FIXO' && mesVisualizado && existingRaw.vencimento && mesVisualizado!==mesDe(existingRaw.vencimento);
+  const existing = existingRaw ? Object.assign({}, existingRaw, projetado ? { vencimento: projetarVencimentoNoMes(existingRaw.vencimento, mesVisualizado) } : {}) : null;
   const catInicial = existing ? existing.categoria : (defaultCategoria || 'FIXO');
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
@@ -5003,18 +5317,27 @@ function openCostModal(existingId, defaultCategoria){
   document.getElementById('mClose').onclick = closeModal;
   document.getElementById('mCancel').onclick = closeModal;
   document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
-  document.getElementById('mSave').onclick = async ()=>{
+  if(projetado){
+    document.querySelector('#modalRoot .modal-body').insertAdjacentHTML('afterbegin', `<div class="field-hint" style="margin-bottom:14px;">Está a editar a repetição de <strong>${monthLabel(mesVisualizado)}</strong>: vai ser criado um lançamento novo com estes dados, que passa a repetir daqui pra frente. Os meses anteriores não mudam.</div>`);
+  }
+  const btnSave = document.getElementById('mSave');
+  btnSave.onclick = async ()=>{
     const nome = document.getElementById('ctNome').value.trim();
-    if(!nome) return;
+    if(!nome){ alert('Informe o nome do custo.'); return; }
     const valor = Number(document.getElementById('ctValor').value)||0;
     const categoria = document.getElementById('ctCategoria').value;
     const vencimento = document.getElementById('ctVenc').value || null;
-    if(existing){
-      Object.assign(existing, {nome, valor, categoria, vencimento});
+    if(categoria==='FIXO' && !vencimento){ alert('Custo fixo precisa de data de vencimento (é ela que define o mês a partir do qual repete).'); return; }
+    btnSave.disabled = true;
+    const antes = JSON.stringify(STATE.costs);
+    if(existingRaw){
+      const r = salvarEdicaoCusto(existingRaw.id, mesVisualizado, {nome, valor, categoria, vencimento});
+      if(r.erro){ alert(r.erro); btnSave.disabled = false; return; }
     } else {
-      STATE.costs.push({id:'cst-'+Date.now(), nome, valor, categoria, vencimento, pago:false});
+      STATE.costs.push({id:novoIdCusto(), nome, valor, categoria, vencimento, pago:false});
     }
-    await persist('costs'); closeModal(); renderAll();
+    await gravarCustosOuReverter(antes);
+    closeModal(); renderAll();
   };
 }
 
@@ -5076,9 +5399,11 @@ function wireViewportEvents(){
         if(!parcela){ showErrorToast('parcela '+num+' não encontrada.'); return; }
         // esse clique só existe pra parcelas JÁ pagas (desfazer), pra pagar
         // uma parcela pendente agora abre o modal, ver data-parcela-pagar.
-        parcela.pago = false; parcela.data = null; parcela.valor = null;
-        renderAll(); // atualiza a tela já, independente do resultado da gravação
-        await persistRecorrencia(rec);
+        if(dot.dataset.ocupado) return; // evita duas gravações simultâneas
+        dot.dataset.ocupado = '1';
+        await salvarAlteracao(rec, ()=>{ parcela.pago = false; parcela.data = null; parcela.valor = null; },
+          ()=>persistRecorrencia(rec), 'o desfazer da parcela NÃO foi gravado');
+        renderAll();
       }catch(err){
         showErrorToast(err && err.message ? err.message : String(err));
       }
@@ -5137,7 +5462,10 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir venda', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a venda de <strong>${sale.cliente}</strong> (${fmtEUR(sale.valorTotal)}, ${fmtDate(sale.data)})? Esta ação não pode ser desfeita, use isto pra remover duplicatas.`,
-        onConfirm: async ()=>{ STATE.sales = STATE.sales.filter(s=>s.id!==saleId); await supa.from('vendas').delete().eq('id', saleId); showSuccessToast('Venda excluída.'); renderAll(); }
+        onConfirm: async ()=>{
+          if(!(await excluirRegistoNoBanco('vendas', saleId))) return; // só some da tela se o banco apagou
+          STATE.sales = STATE.sales.filter(s=>s.id!==saleId); showSuccessToast('Venda excluída.'); renderAll();
+        }
       });
     });
   });
@@ -5145,9 +5473,11 @@ function wireViewportEvents(){
   vp.querySelectorAll('[data-toggle-isento]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const rec = STATE.recurrences.find(r=>r.id===btn.dataset.toggleIsento);
-      if(!rec) return;
-      rec.isentoTaxaAdm = !rec.isentoTaxaAdm;
-      await persistRecorrencia(rec); renderAll();
+      if(!rec || !travarBotao(btn)) return;
+      // Isentar muda o valor padrão das parcelas: congela antes as já pagas.
+      await salvarAlteracao(rec, ()=>{ congelarValoresParcelasPagas(rec); rec.isentoTaxaAdm = !rec.isentoTaxaAdm; },
+        ()=>persistRecorrencia(rec), 'a alteração NÃO foi gravada');
+      renderAll();
     });
   });
 
@@ -5162,7 +5492,10 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir recorrência', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a recorrência de <strong>${rec.cliente}</strong>? Esta ação não pode ser desfeita.`,
-        onConfirm: async ()=>{ STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); await supa.from('recorrencias').delete().eq('id', recId); showSuccessToast('Recorrência excluída.'); renderAll(); }
+        onConfirm: async ()=>{
+          if(!(await excluirRegistoNoBanco('recorrencias', recId))) return;
+          STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); showSuccessToast('Recorrência excluída.'); renderAll();
+        }
       });
     });
   });
@@ -5301,9 +5634,9 @@ function wireViewportEvents(){
       if(!input.value){ alert('Escolha uma data antes de salvar.'); return; }
       const rec = STATE.recurrences.find(r=>r.id===recId);
       const p = rec && rec.parcelas.find(x=>x.numero===num);
-      if(!p) return;
-      p.data = input.value;
-      await persistRecorrencia(rec); renderAll();
+      if(!p || !travarBotao(btn)) return;
+      await salvarAlteracao(rec, ()=>{ p.data = input.value; }, ()=>persistRecorrencia(rec), 'a data NÃO foi gravada');
+      renderAll();
     });
   });
 
@@ -5416,7 +5749,7 @@ function wireViewportEvents(){
         message: ehVenda
           ? `Isso vai estornar <strong>${desc}</strong>, o valor recebido volta a zero e a venda passa a aparecer como pendente (ela não desaparece do sistema). Tem a certeza?`
           : `Isso vai desfazer <strong>${desc}</strong>, voltando o valor a ficar em aberto. Tem a certeza?`,
-        onConfirm: async ()=>{ await estornarLancamento(ref); showSuccessToast(ehVenda ? 'Venda estornada.' : 'Lançamento desfeito.'); renderAll(); }
+        onConfirm: async ()=>{ if(await estornarLancamento(ref)) showSuccessToast(ehVenda ? 'Venda estornada.' : 'Lançamento desfeito.'); renderAll(); }
       });
     });
   });
@@ -5483,57 +5816,41 @@ function wireViewportEvents(){
   if(extratoDataInput) extratoDataInput.addEventListener('change', ()=>{ STATE.extratoData = extratoDataInput.value; renderAll(); });
   const btnAddCost = document.getElementById('btnAddCost');
   if(btnAddCost) btnAddCost.onclick = ()=>openCostModal(null, btnAddCost.dataset.defaultCategoria);
-  vp.querySelectorAll('[data-edit-cost]').forEach(b=> b.addEventListener('click', ()=>openCostModal(b.dataset.editCost)));
+  vp.querySelectorAll('[data-edit-cost]').forEach(b=> b.addEventListener('click', ()=>openCostModal(b.dataset.editCost, null, b.dataset.costMonth||null)));
   vp.querySelectorAll('[data-toggle-cost]').forEach(b=> b.addEventListener('click', async ()=>{
     const c = STATE.costs.find(x=>x.id===b.dataset.toggleCost);
     if(!c) return;
-    const mes = b.dataset.costMonth;
-    const mesOrigem = c.vencimento ? c.vencimento.slice(0,7) : null;
-    let ficouPago = false;
-    if(c.categoria==='FIXO' && mes && mes!==mesOrigem){
-      if(!c.pagoPorMes) c.pagoPorMes = {};
-      const estavaPago = costPagoNoMes(c, mes);
-      // A data do pagamento tem que ser a data de vencimento DAQUELE mês
-      // projetado, não a data de hoje, senão, marcar um mês antigo como
-      // pago (ex.: acertar o aluguel de junho, hoje em setembro) faz esse
-      // valor contar como despesa de setembro, inflando o mês corrente.
-      c.pagoPorMes[mes] = estavaPago ? {pago:false} : {pago:true, data:projetarVencimentoNoMes(c.vencimento, mes)};
-      ficouPago = !estavaPago;
-    } else {
-      c.pago = !c.pago;
-      // Mesma correção do caso projetado: usa o vencimento do próprio
-      // custo como data do pagamento, não a data de hoje, senão, marcar
-      // um custo antigo (de um mês passado) como pago hoje faz esse valor
-      // contar como despesa do mês corrente, em vez do mês a que pertence.
-      c.dataPagamento = c.pago ? (c.vencimento || todayISO()) : null;
-      ficouPago = c.pago;
-    }
-    await persist('costs');
-    if(ficouPago) showSuccessToast('Pagamento registado com sucesso!');
-    renderAll();
+    const mes = b.dataset.costMonth || null;
+    const projetado = c.categoria==='FIXO' && mes && c.vencimento && mes!==mesDe(c.vencimento);
+    const estavaPago = projetado ? costPagoNoMes(c, mes) : !!c.pago;
+    if(!estavaPago){ abrirPagamentoCustoModal(c.id, mes); return; }
+    openConfirmModal({
+      title:'Desfazer pagamento', confirmLabel:'Desfazer',
+      message:`Marcar <strong>${c.nome}</strong>${mes?' ('+monthLabel(mes)+')':''} como pendente de novo?`,
+      onConfirm: async ()=>{
+        const antes = JSON.stringify(STATE.costs);
+        desmarcarCustoPago(c.id, mes);
+        await gravarCustosOuReverter(antes);
+        renderAll();
+      }
+    });
   }));
-  vp.querySelectorAll('[data-pagar-custo]').forEach(b=> b.addEventListener('click', async ()=>{
-    const c = STATE.costs.find(x=>x.id===b.dataset.pagarCusto);
-    if(!c) return;
-    const mes = b.dataset.custoMonth;
-    const mesOrigem = c.vencimento ? c.vencimento.slice(0,7) : null;
-    if(mes && mes!==mesOrigem){
-      if(!c.pagoPorMes) c.pagoPorMes = {};
-      c.pagoPorMes[mes] = {pago:true, data:projetarVencimentoNoMes(c.vencimento, mes)};
-    } else {
-      c.pago = true;
-      c.dataPagamento = c.vencimento || todayISO();
-    }
-    await persist('costs'); renderAll();
-  }));
+  vp.querySelectorAll('[data-pagar-custo]').forEach(b=> b.addEventListener('click', ()=>abrirPagamentoCustoModal(b.dataset.pagarCusto, b.dataset.custoMonth||null)));
   vp.querySelectorAll('[data-del-cost]').forEach(b=> b.addEventListener('click', ()=>{
     const repete = b.dataset.delCostRepete==='1';
+    const mes = b.dataset.costMonth || null;
     openConfirmModal({
       title:'Excluir custo', danger:true, confirmLabel:'Excluir',
       message: repete
-        ? 'Este custo repete automaticamente todo mês. Excluir apaga o lançamento original e <strong>para a repetição a partir de agora</strong> (os meses já fechados no passado não mudam). Tem a certeza?'
-        : 'Tem a certeza que deseja excluir este custo?',
-      onConfirm: async ()=>{ STATE.costs = STATE.costs.filter(c=>c.id!==b.dataset.delCost); await persist('costs'); renderAll(); }
+        ? `Este custo repete todo mês. Excluir aqui <strong>interrompe a repetição a partir de ${monthLabel(mes)}</strong>. Os meses anteriores (e os pagamentos já registados neles) ficam como estão. Para voltar a ter este custo, lance-o de novo manualmente.`
+        : 'Excluir este lançamento? Se ele estiver a repetir nos meses seguintes, essas repetições também deixam de aparecer.',
+      onConfirm: async ()=>{
+        const antes = JSON.stringify(STATE.costs);
+        const r = excluirCusto(b.dataset.delCost, mes);
+        if(r.erro){ alert(r.erro); return; }
+        await gravarCustosOuReverter(antes);
+        renderAll();
+      }
     });
   }));
 }
