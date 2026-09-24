@@ -1313,7 +1313,7 @@ function buildEvents(){
         const valorReal = valorEfetivoParcela(p, st);
         const ivaValorParc = ivaProporcionalRecorrencia(r, valorReal);
         const liquido = valorReal - ivaValorParc - txAdmPorParcela;
-        events.push({ date: p.data, valor: valorReal, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:txAdmPorParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente });
+        events.push({ date: p.data, valor: valorReal, comissao: Math.max(0,liquido)*rate, ivaValor:ivaValorParc, txAdmValor:txAdmPorParcela, vendedorId:r.vendedorId, vendedorNome:r.vendedorNome, tipo:'Parcela '+p.numero, cliente:r.cliente, estimado: parcelaComValorEstimado(p) });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
@@ -1417,6 +1417,45 @@ function taxaComissao(){ return STATE.meta.taxaComissao!=null ? STATE.meta.taxaC
 function valorEfetivoParcela(parcela, statusRecorrencia){
   const valorInformado = Number(parcela && parcela.valor);
   return valorInformado > 0 ? valorInformado : statusRecorrencia.valorParcela;
+}
+function parcelaComValorEstimado(parcela){ return !!(parcela && parcela.pago && !(Number(parcela.valor) > 0)); }
+function arred4(n){ return Math.round(n*10000)/10000; }
+/* O valor PADRÃO de uma parcela depende do contrato atual (contrato −
+   entrada) ÷ nº de parcelas. Parcela paga sem valor gravado herdava esse
+   padrão, então editar o contrato ou desfazer a entrada mudava o valor de
+   parcelas pagas meses atrás. Antes de qualquer mudança dessas, o valor que
+   estava a ser mostrado fica gravado na parcela. */
+function congelarValoresParcelasPagas(rec){
+  const st = recStatus(rec);
+  let mudou = false;
+  rec.parcelas.forEach(p=>{
+    if(parcelaComValorEstimado(p) && st.valorParcela > 0.005){ p.valor = arred4(st.valorParcela); mudou = true; }
+  });
+  return mudou;
+}
+/* Marca parcelas como pagas SEMPRE com valor gravado (o padrão do momento). */
+function registrarPagamentoParcelas(rec, numeros, data){
+  const st = recStatus(rec);
+  const valor = st.valorParcela > 0.005 ? arred4(st.valorParcela) : null; // nunca 0 (CHECK valor > 0)
+  rec.parcelas.forEach(p=>{
+    if(numeros.includes(p.numero) && !p.pago){ p.pago = true; p.data = data; p.valor = valor; }
+  });
+}
+/* Aplica a edição de uma recorrência sem reescrever o passado: congela os
+   valores já pagos e não deixa reduzir parcelas abaixo de uma já paga. */
+function aplicarEdicaoRecorrencia(rec, campos){
+  const nNovo = Number(campos.nParcelas)||1;
+  const ultimaPaga = rec.parcelas.filter(p=>p.pago).reduce((m,p)=>Math.max(m, p.numero), 0);
+  if(nNovo < ultimaPaga){
+    return { erro:`A parcela ${ultimaPaga} já está paga, não dá para reduzir para ${nNovo} parcela(s). Se esse pagamento estiver errado, desfaça-o primeiro.` };
+  }
+  congelarValoresParcelasPagas(rec);
+  let parcelas = rec.parcelas.slice().sort((a,b)=>a.numero-b.numero);
+  if(nNovo > parcelas.length){ for(let i=parcelas.length; i<nNovo; i++) parcelas.push({numero:i+1, data:null, pago:false}); }
+  else if(nNovo < parcelas.length){ parcelas = parcelas.slice(0, nNovo); }
+  parcelas.forEach((p,i)=>{ p.numero = i+1; });
+  Object.assign(rec, campos, { nParcelas:nNovo, parcelas });
+  return { ok:true };
 }
 
 // O IVA guardado na recorrência é o IVA total do serviço. Cada recebimento
@@ -2393,10 +2432,9 @@ function abrirPagamentoModal(recId, parcelaNumero){
    do alerta de recorrências atrasadas, pra não precisar abrir um
    modal pra cada uma quando se quer só bater o registro rápido. */
 async function marcarProximaParcelaComoPaga(rec){
-  const st = recStatus(rec);
   const p = rec.parcelas.find(x=>!x.pago);
   if(!p) return;
-  p.pago = true; p.valor = st.valorParcela; p.data = todayISO();
+  registrarPagamentoParcelas(rec, [p.numero], todayISO());
   await persistRecorrencia(rec);
 }
 function abrirPagamentoRecorrenciaModal(recId){
@@ -2430,7 +2468,7 @@ function abrirPagamentoRecorrenciaModal(recId){
     const data = document.getElementById('pgData').value || hoje;
     const selecionadas = Array.from(document.querySelectorAll('.pgParcelaChk:checked')).map(el=>Number(el.value));
     if(!selecionadas.length){ alert('Selecione ao menos uma parcela.'); return; }
-    rec.parcelas.forEach(p=>{ if(selecionadas.includes(p.numero)){ p.pago = true; p.data = data; } });
+    registrarPagamentoParcelas(rec, selecionadas, data); // grava também o valor de cada parcela
     await persistRecorrencia(rec);
     closeModal();
     renderAll();
@@ -4265,6 +4303,8 @@ function renderFinanceiro(){
   const costs = computeCosts(filter);
   const tax = computeTaxes(filter);
   const lucro = computeLucro(filter);
+  const estimados = buildEvents().filter(e=>e.estimado && inPeriodOrAll(e.date, filter));
+  const avisoEstimados = estimados.length ? `<div class="field-hint" style="margin:0 0 14px;border-left:3px solid var(--bad);padding-left:10px;">⚠️ <strong>${estimados.length} parcela(s)</strong> deste período foram marcadas como pagas <strong>sem valor registado</strong>. O recebido inclui <strong>${fmtEUR(estimados.reduce((a,e)=>a+e.valor,0))}</strong> estimados pelo valor padrão do contrato (veja "valor estimado" no Registro). Confira com o extrato bancário.</div>` : '';
   return `
   ${renderGenericFilterBar('financeiroFilter', ['all','month','week','day'], months)}
   <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado), só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte. Os cards abaixo mostram só o que já foi <strong>efetivamente pago</strong> no período (mesmo critério do Resumo, Extrato e Registro), as abas "Custos fixos"/"Custos variáveis" mostram todo o lançamento, pago ou ainda pendente.</div>
@@ -4274,6 +4314,7 @@ function renderFinanceiro(){
     <div class="card"><div class="lbl">Impostos devidos (sobre valor recebido)</div><div class="val bad" data-detalhe-card="impostos" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(tax.total)}</div><div class="sub">IVA ${fmtEUR(tax.ivaDevido)} · Taxa adm. ${fmtEUR(tax.txAdmDevido)}</div></div>
     <div class="card accent"><div class="lbl">Lucro líquido estimado</div><div class="val ${lucro>=0?'good':'bad'}" data-detalhe-card="lucro" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver a fórmula">${fmtEUR(lucro)}</div><div class="sub">recebido − impostos − custos pagos, no período</div></div>
   </div>
+  ${avisoEstimados}
   <div class="subtabs">
     <button data-ftab="resumo" class="${tab==='resumo'?'active':''}">📊 Resumo</button>
     <button data-ftab="fixos" class="${tab==='fixos'?'active':''}">Custos fixos</button>
@@ -4321,7 +4362,7 @@ function linhasFinanceiras(filter){
     }
     r.parcelas.forEach(p=>{
       if(p.pago && p.data && inPeriodOrAll(p.data, filter)){
-        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'-', valor: valorEfetivoParcela(p, st), sinal:1, _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
+        linhas.push({ data:p.data, emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', categoria:'Receita', cliente:r.cliente, vendedor:r.vendedorNome, forma:r.formaPagamento||'-', valor: valorEfetivoParcela(p, st), sinal:1, estimado: parcelaComValorEstimado(p), _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
       }
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
@@ -4363,6 +4404,7 @@ async function estornarLancamento(ref){
   } else if(ref.tipo==='entrada'){
     const r = STATE.recurrences.find(x=>x.id===ref.recId);
     if(!r) return;
+    congelarValoresParcelasPagas(r); // zerar a entrada mudaria o valor das parcelas já pagas
     r.valorEntrada = 0;
     await persistRecorrencia(r);
   } else if(ref.tipo==='parcela'){
@@ -4432,7 +4474,7 @@ function renderExtratoTab(){
         <div class="extrato-icon">${l.emoji}</div>
         <div class="extrato-main">
           <div class="extrato-titulo">${l.tipo}, ${l.cliente}</div>
-          <div class="extrato-tags"><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span>${l.vendedor&&l.vendedor!=='-'?`<span class="chip neutral">👤 ${l.vendedor}</span>`:''}${l.forma&&l.forma!=='-'?`<span class="chip neutral">💳 ${l.forma}</span>`:''}${l.tipo.includes('pendente')?'<span class="chip bad">pendente</span>':''}</div>
+          <div class="extrato-tags"><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span>${l.vendedor&&l.vendedor!=='-'?`<span class="chip neutral">👤 ${l.vendedor}</span>`:''}${l.forma&&l.forma!=='-'?`<span class="chip neutral">💳 ${l.forma}</span>`:''}${l.tipo.includes('pendente')?'<span class="chip bad">pendente</span>':''}${l.estimado?'<span class="chip bad" title="Parcela paga sem valor registado, mostra o valor padrão do contrato">valor estimado</span>':''}</div>
         </div>
         <div class="extrato-valor ${l.sinal>0?'good':'bad'}">${l.sinal>0?'+':'−'} ${fmtEUR(l.valor)}</div>
         ${(STATE.role==='gestor' && l._ref) ? `<button class="btn ghost sm" data-estornar='${JSON.stringify(l._ref)}' data-estornar-desc="${l.tipo} de ${l.cliente} (${fmtEUR(l.valor)})" title="Desfazer este lançamento">↩️</button>` : ''}
@@ -4459,7 +4501,7 @@ function renderRegistroTab(filter){
     ${linhas.length ? `<table><thead><tr><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Data</th><th>Fonte</th><th>Valor</th>${STATE.role==='gestor'?'<th></th>':''}</tr></thead>
     <tbody>${linhas.map(l=>`<tr>
         <td>${l.emoji} <strong>${l.cliente}</strong>${l.vendedor&&l.vendedor!=='-'?` <span style="color:var(--ink-soft);font-size:11.5px;">· ${l.vendedor}</span>`:''}</td>
-        <td>${l.tipo}</td>
+        <td>${l.tipo}${l.estimado?' <span class="chip bad" title="Parcela marcada como paga sem valor registado, o valor mostrado é o valor padrão do contrato">valor estimado</span>':''}</td>
         <td><span class="chip ${l.categoria==='Receita'?'good':'bad'}">${l.categoria}</span></td>
         <td>${fmtDate(l.data)}</td>
         <td>${l.forma}</td>
@@ -4484,11 +4526,11 @@ function renderResumoFinanceiro(filter){
   const entradaNovosServicos = linhasNovos.reduce((a,l)=>a+l.valor,0);
 
   // 2) Receita geral, TUDO que entrou no período, novo ou não
-  const linhasReceita = eventosPeriodo.map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo, valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const linhasReceita = eventosPeriodo.map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo+(e.estimado?' · valor estimado':''), valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   const receitaGeral = linhasReceita.reduce((a,l)=>a+l.valor,0);
 
   // 3) Recorrências pagas no período, parcelas e pagamentos personalizados (não conta a entrada, essa já é "novo negócio")
-  const linhasRecPagas = eventosPeriodo.filter(e=>e.tipo.startsWith('Parcela')||e.tipo==='Pagamento personalizado').map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo, valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const linhasRecPagas = eventosPeriodo.filter(e=>e.tipo.startsWith('Parcela')||e.tipo==='Pagamento personalizado').map(e=>({ data:e.date, cliente:e.cliente, vendedor:e.vendedorNome, tipo:e.tipo+(e.estimado?' · valor estimado':''), valor:e.valor })).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   const recorrenciasPagas = linhasRecPagas.reduce((a,l)=>a+l.valor,0);
 
   // 4) Despesas no período
@@ -4977,20 +5019,14 @@ function openEditRecModal(recId){
       alert('Honorário base + IVA + taxa administrativa devem ser iguais ao valor do contrato.'); return;
     }
     const vendedor = sellerById(vendedorId);
-
-    let parcelas = rec.parcelas.slice();
-    if(nParcelasNovo > parcelas.length){
-      for(let i=parcelas.length; i<nParcelasNovo; i++) parcelas.push({numero:i+1, data:null, pago:false});
-    } else if(nParcelasNovo < parcelas.length){
-      parcelas = parcelas.slice(0, nParcelasNovo);
-    }
-    parcelas.forEach((p,i)=>{ p.numero = i+1; });
-
-    Object.assign(rec, {
+    // Congela o valor das parcelas já pagas antes de mudar contrato/entrada/
+    // nº de parcelas, e recusa reduzir abaixo de uma parcela paga.
+    const r = aplicarEdicaoRecorrencia(rec, {
       cliente, servico, dataVenda: data || rec.dataVenda, vendedorId,
       vendedorNome: vendedor?vendedor.nome:rec.vendedorNome,
-      valorContrato, valorEntrada, honorarioBase, iva, txAdm, formaPagamento, origem, isentoTaxaAdm, nParcelas: nParcelasNovo, parcelas
+      valorContrato, valorEntrada, honorarioBase, iva, txAdm, formaPagamento, origem, isentoTaxaAdm, nParcelas: nParcelasNovo
     });
+    if(r.erro){ alert(r.erro); return; }
     await persistRecorrencia(rec); closeModal(); renderAll();
   };
 }
