@@ -60,3 +60,13 @@ test('reduzir nº de parcelas abaixo de uma parcela paga é recusado', () => {
   assert.ok(r.erro);
   assert.strictEqual(rec.parcelas.length, 2);
 });
+
+test('pagamento sugerido nunca passa do saldo real (parcela congelada + isenção)', () => {
+  const rec = { id:'r', dataVenda:'2026-06-01', cliente:'X', valorContrato:123, valorEntrada:0, iva:0, txAdm:23, nParcelas:2,
+    parcelas:[ {numero:1, pago:true, data:'2026-07-01', valor:61.5}, {numero:2, pago:false, data:null, valor:null} ], pagamentosExtras:[] };
+  const ctx = load([...FNS, ...NEW], { STATE:{ sales:[], recurrences:[rec], meta:{} } });
+  rec.isentoTaxaAdm = true; // devido passa a 100; saldo real 38,50
+  ctx.registrarPagamentoParcelas(rec, [2], '2026-08-01');
+  assert.strictEqual(rec.parcelas[1].valor, 38.5);
+  assert.ok(ctx.recStatus(rec).valorPendente <= 0.005);
+});

@@ -6,7 +6,7 @@ const { load } = require('./lib');
 
 const BASE_FNS = ['daysInMonth','toLocalISODate','todayISO','periodRange','inPeriodOrAll','normNomeCusto',
   'custosFixosDoMes','projetarVencimentoNoMes','costPagoNoMes','computeCosts','linhasFinanceiras','recStatus','valorEfetivoParcela'];
-const NEW_FNS = ['mesDe','registoPagamentoNoMes','mesesDeCompetencia','marcarCustoPago','desmarcarCustoPago','salvarEdicaoCusto','excluirCusto','novoIdCusto'];
+const NEW_FNS = ['interromperAnteriorMesmoNome','mesDe','registoPagamentoNoMes','mesesDeCompetencia','marcarCustoPago','desmarcarCustoPago','salvarEdicaoCusto','excluirCusto','novoIdCusto'];
 
 function tryLoad(costs){
   const STATE = { costs: JSON.parse(JSON.stringify(costs)), sales: [], recurrences: [] };
@@ -172,4 +172,12 @@ test('custo pago com atraso: card do mês de referência; Extrato na data real',
   assert.strictEqual(ctx.computeCosts(semana).totalFixos, 0); // o custo é de julho
   const extrato = ctx.linhasFinanceiras({ granularity:'day', anchor:'2026-08-03' }, { porPagamento:true }).filter(l=>l.tipo==='Custo fixo');
   assert.strictEqual(extrato.length, 1);
+});
+
+test('renomear o lançamento no próprio mês também interrompe o modelo anterior', () => {
+  const ctx = tryLoad(MODELO_E_NOVO_VALOR);
+  const r = ctx.salvarEdicaoCusto('abr', '2026-04', { nome:'RENDA', valor:1200, categoria:'FIXO', vencimento:'2026-04-05' });
+  assert.ok(r.ok);
+  assert.strictEqual(JSON.stringify(ctx.custosFixosDoMes('2026-06').map(c=>c.nome)), '["RENDA"]');
+  assert.strictEqual(JSON.stringify(ctx.custosFixosDoMes('2026-03').map(c=>c.nome)), '["ALUGUEL"]');
 });

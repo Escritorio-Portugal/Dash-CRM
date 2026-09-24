@@ -1142,7 +1142,8 @@ async function criarRecorrencia(rec){
   // permissão), a recorrência já gravada é apagada pra não ficar sem parcelas.
   return gravarOuReverter(async ()=>{
     STATE.recurrences = STATE.recurrences.filter(r=>r!==rec);
-    await supa.from('recorrencias').delete().eq('id', rec.id);
+    const { error } = await supa.from('recorrencias').delete().eq('id', rec.id);
+    if(error) showErrorToast('a recorrência de '+rec.cliente+' pode ter ficado gravada SEM parcelas, avise o gestor ('+error.message+').');
   }, ()=>persistRecorrencia(rec), 'a recorrência NÃO foi gravada');
 }
 async function salvarAlteracao(obj, mutar, gravar, msgErro){
@@ -1413,7 +1414,12 @@ function recStatus(rec){
   const valorPagoExtras = extras.reduce((a,e)=>a+(e.valor||0),0);
   const valorPago = entrada + valorPagoParcelas + valorPagoExtras;
   const valorPendente = Math.max(0, valorContratoDevido - valorPago);
-  return { valorParcela, parcelasInfo, pagas, total, valorPago, valorPendente, quitada: valorPendente<=0.005, entrada, extras, valorContratoDevido };
+  // Para PAGAR a próxima parcela: o saldo real dividido pelas parcelas em
+  // aberto (valorParcela é só o padrão histórico usado em parcelas antigas
+  // sem valor, e pode passar do saldo depois de congelamentos/isenção).
+  const abertas = rec.parcelas.filter(p=>!p.pago).length;
+  const valorSugeridoProxima = abertas>0 ? valorPendente/abertas : 0;
+  return { valorParcela, valorSugeridoProxima, parcelasInfo, pagas, total, valorPago, valorPendente, quitada: valorPendente<=0.005, entrada, extras, valorContratoDevido };
 }
 /* "Atrasada" = ainda não quitada e já passou mais de 30 dias desde a venda.
    A planilha não guarda data de vencimento por parcela, então esta é uma
@@ -1477,7 +1483,7 @@ function congelarValoresParcelasPagas(rec){
 /* Marca parcelas como pagas SEMPRE com valor gravado (o padrão do momento). */
 function registrarPagamentoParcelas(rec, numeros, data){
   const st = recStatus(rec);
-  const valor = st.valorParcela > 0.005 ? arred4(st.valorParcela) : null; // nunca 0 (CHECK valor > 0)
+  const valor = st.valorSugeridoProxima > 0.005 ? arred4(st.valorSugeridoProxima) : null; // saldo real; nunca 0 (CHECK valor > 0)
   rec.parcelas.forEach(p=>{
     if(numeros.includes(p.numero) && !p.pago){ p.pago = true; p.data = data; p.valor = valor; }
   });
@@ -1636,7 +1642,8 @@ function computeGlobalForPeriod(filter){
   // preenchido a taxa fica sem valor, em vez de usar um número inventado.
   const tudo = !filter || filter.granularity==='all';
   let conversas = 0;
-  activeSellers().forEach(s=>{
+  // todos os vendedores (inclusive inativos), igual aos fechamentos
+  STATE.sellers.forEach(s=>{
     const c = sumFunilDiario(s, filter).conversas;
     conversas += c || (tudo && !Object.keys(s.funilDiario||{}).length ? (s.conversasIniciadas||0) : 0);
   });
@@ -1812,8 +1819,22 @@ function salvarEdicaoCusto(costId, mes, campos){
     const reg = registoPagamentoNoMes(c, mk);
     if(reg.pago && (typeof r!=='object' || r.valor==null)) c.pagoPorMes[mk] = { pago:true, data:reg.data, valor:reg.valor };
   });
+  const nomeAntigo = c.nome, eraFixo = c.categoria==='FIXO';
   Object.assign(c, { nome, valor, categoria, vencimento: vencimento || c.vencimento });
+  // Renomear (ou deixar de ser fixo) no próprio mês: o nome antigo não pode
+  // voltar a repetir a partir de um lançamento mais antigo.
+  if(eraFixo && mesOrigem && (categoria!=='FIXO' || normNomeCusto(nome)!==normNomeCusto(nomeAntigo))) interromperAnteriorMesmoNome(nomeAntigo, mesOrigem);
   return { ok:true, id:c.id };
+}
+/* Interrompe (fimEm = mes) o lançamento mais antigo com este nome que
+   voltaria a repetir a partir de "mes", se não houver outro lançamento do
+   mesmo nome nesse mês. */
+function interromperAnteriorMesmoNome(nome, mes){
+  const mesmoNome = STATE.costs.filter(x=>x.categoria==='FIXO' && x.vencimento && normNomeCusto(x.nome)===normNomeCusto(nome));
+  if(mesmoNome.some(x=>mesDe(x.vencimento)===mes)) return;
+  const anteriores = mesmoNome.filter(x=>mesDe(x.vencimento) < mes).sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+  const base = anteriores[anteriores.length-1];
+  if(base && (!base.fimEm || base.fimEm > mes)) base.fimEm = mes;
 }
 function excluirCusto(costId, mes){
   const c = STATE.costs.find(x=>x.id===costId);
@@ -1832,14 +1853,7 @@ function excluirCusto(costId, mes){
   // isto, um lançamento mais antigo com o mesmo nome voltaria a repetir a
   // partir deste mês. (Se ainda houver outro lançamento do mesmo nome neste
   // mês, era só um duplicado: o custo continua.)
-  if(c.categoria==='FIXO' && mesOrigem){
-    const mesmoNome = STATE.costs.filter(x=>x.categoria==='FIXO' && x.vencimento && normNomeCusto(x.nome)===normNomeCusto(c.nome));
-    if(!mesmoNome.some(x=>mesDe(x.vencimento)===mesOrigem)){
-      const anteriores = mesmoNome.filter(x=>mesDe(x.vencimento) < mesOrigem).sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
-      const base = anteriores[anteriores.length-1];
-      if(base && (!base.fimEm || base.fimEm > mesOrigem)) base.fimEm = mesOrigem;
-    }
-  }
+  if(c.categoria==='FIXO' && mesOrigem) interromperAnteriorMesmoNome(c.nome, mesOrigem);
   return { ok:true, modo:'apagado' };
 }
 /* Custos fixos do mês atual, vencidos e ainda pendentes, mostrados como
@@ -2463,13 +2477,13 @@ function abrirPagamentoModal(recId, parcelaNumero){
   if(!rec) return;
   const st = recStatus(rec);
   const personalizado = parcelaNumero==null;
-  const valorSugerido = personalizado ? '' : st.valorParcela.toFixed(2);
+  const valorSugerido = personalizado ? '' : st.valorSugeridoProxima.toFixed(2);
   const hoje = todayISO();
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
     <div class="modal-head"><h3>${personalizado ? 'Pagamento personalizado' : 'Efetuar pagamento, Parcela '+parcelaNumero}, ${rec.cliente}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:14px;">Pendente total do contrato: <strong>${fmtEUR(st.valorPendente)}</strong>${!personalizado?` · valor padrão desta parcela: <strong>${fmtEUR(st.valorParcela)}</strong>`:''}</div>
+      <div class="field-hint" style="margin-bottom:14px;">Pendente total do contrato: <strong>${fmtEUR(st.valorPendente)}</strong>${!personalizado?` · valor sugerido desta parcela: <strong>${fmtEUR(st.valorSugeridoProxima)}</strong>`:''}</div>
       <div class="field"><label>Valor pago (€)</label><input type="number" id="pgValor" min="0.01" step="0.01" value="${valorSugerido}" placeholder="${personalizado?'Quanto o cliente pagou':''}"></div>
       <div class="field"><label>Data do pagamento</label><input type="date" id="pgData" value="${hoje}"></div>
       <div id="pgAviso" style="display:none;color:var(--bad);font-size:12.5px;margin-top:-6px;"></div>
@@ -2528,12 +2542,12 @@ function abrirPagamentoRecorrenciaModal(recId){
   <div class="modal-backdrop" id="mBackdrop"><div class="modal">
     <div class="modal-head"><h3>Efetuar pagamento, ${rec.cliente}</h3><button id="mClose">&times;</button></div>
     <div class="modal-body">
-      <div class="field-hint" style="margin-bottom:14px;">Pendente total: <strong>${fmtEUR(st.valorPendente)}</strong> · valor de cada parcela: <strong>${fmtEUR(st.valorParcela)}</strong> · vendedor: <strong>${rec.vendedorNome||'-'}</strong></div>
+      <div class="field-hint" style="margin-bottom:14px;">Pendente total: <strong>${fmtEUR(st.valorPendente)}</strong> · valor de cada parcela: <strong>${fmtEUR(st.valorSugeridoProxima)}</strong> · vendedor: <strong>${rec.vendedorNome||'-'}</strong></div>
       ${pendentes.length ? `
       <div class="field"><label>Parcela(s) a marcar como paga(s)</label>
         ${pendentes.map(p=>`
           <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <input type="checkbox" class="pgParcelaChk" value="${p.numero}" ${p.numero===pendentes[0].numero?'checked':''}> Parcela ${p.numero}, ${fmtEUR(st.valorParcela)}
+            <input type="checkbox" class="pgParcelaChk" value="${p.numero}" ${p.numero===pendentes[0].numero?'checked':''}> Parcela ${p.numero}, ${fmtEUR(st.valorSugeridoProxima)}
           </label>`).join('')}
       </div>
       <div class="field"><label>Data do pagamento</label><input type="date" id="pgData" value="${hoje}"></div>
@@ -5385,9 +5399,11 @@ function wireViewportEvents(){
         if(!parcela){ showErrorToast('parcela '+num+' não encontrada.'); return; }
         // esse clique só existe pra parcelas JÁ pagas (desfazer), pra pagar
         // uma parcela pendente agora abre o modal, ver data-parcela-pagar.
-        parcela.pago = false; parcela.data = null; parcela.valor = null;
-        renderAll(); // atualiza a tela já, independente do resultado da gravação
-        await persistRecorrencia(rec);
+        if(dot.dataset.ocupado) return; // evita duas gravações simultâneas
+        dot.dataset.ocupado = '1';
+        await salvarAlteracao(rec, ()=>{ parcela.pago = false; parcela.data = null; parcela.valor = null; },
+          ()=>persistRecorrencia(rec), 'o desfazer da parcela NÃO foi gravado');
+        renderAll();
       }catch(err){
         showErrorToast(err && err.message ? err.message : String(err));
       }
@@ -5457,7 +5473,7 @@ function wireViewportEvents(){
   vp.querySelectorAll('[data-toggle-isento]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const rec = STATE.recurrences.find(r=>r.id===btn.dataset.toggleIsento);
-      if(!rec) return;
+      if(!rec || !travarBotao(btn)) return;
       // Isentar muda o valor padrão das parcelas: congela antes as já pagas.
       await salvarAlteracao(rec, ()=>{ congelarValoresParcelasPagas(rec); rec.isentoTaxaAdm = !rec.isentoTaxaAdm; },
         ()=>persistRecorrencia(rec), 'a alteração NÃO foi gravada');
@@ -5618,9 +5634,9 @@ function wireViewportEvents(){
       if(!input.value){ alert('Escolha uma data antes de salvar.'); return; }
       const rec = STATE.recurrences.find(r=>r.id===recId);
       const p = rec && rec.parcelas.find(x=>x.numero===num);
-      if(!p) return;
-      p.data = input.value;
-      await persistRecorrencia(rec); renderAll();
+      if(!p || !travarBotao(btn)) return;
+      await salvarAlteracao(rec, ()=>{ p.data = input.value; }, ()=>persistRecorrencia(rec), 'a data NÃO foi gravada');
+      renderAll();
     });
   });
 

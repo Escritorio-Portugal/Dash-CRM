@@ -10,7 +10,8 @@ Verificação: `bash tests/audit/check.sh` (sintaxe + 34 testes) · harness com 
 | 4217bce | FIN-004, CODE-005 | 6 testes (`fin-004`) | nenhum número muda; 47 parcelas sem valor passam a aparecer como "valor estimado" (aviso agosto: 5 parcelas, €1.274,65) | revisão final pendente |
 | 0f7e66f | CODE-001/002/003, CODE-007 (parcial) | 5 testes (`code-003`) | nenhum número muda | revisão final pendente |
 | 1c21204 | FIN-006/007/008 | 5 testes (`fin-006`) | conversão mai/jun/jul/set: 87%/47%/58%/22% → "sem dados de funil"; ago 26,1% mantém; fechamentos mai 88 → 58 | revisão final pendente |
-| 88ec85f | revisão Codex de d578528 | 5 testes novos | meses idênticos; semana/dia/total agora também card = lista | revisão final pendente |
+| 88ec85f | revisão Codex de d578528 | 5 testes novos | meses idênticos; semana/dia/total agora também card = lista | revisão final: 4 HIGH + 1 MED → tratados no commit seguinte |
+| (seguinte) | revisão final Codex | 3 testes novos (37 no total) | nenhum número muda | ver findings/codex.md |
 
 ## Browser (E2E offline, Chrome, dados reais)
 | Verificação | Produção (399514d) | Branch |

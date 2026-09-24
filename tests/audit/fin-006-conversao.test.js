@@ -51,3 +51,10 @@ test('subcards somam o card "Valor vendido"', () => {
   const g = ctx.computeGlobalForPeriod(f), b = ctx.computeVendasBreakdown(f, null);
   assert.strictEqual(b.valorIntegrais + b.valorRecorrencias, g.valorVendido);
 });
+
+test('vendedor inativo: conversas dele continuam no denominador', () => {
+  const ctx = mk();
+  ctx.STATE.sellers[0].ativo = false;
+  const g = ctx.computeGlobalForPeriod(mes('2026-08'));
+  assert.strictEqual(g.conversas, 10);
+});

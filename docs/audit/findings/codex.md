@@ -44,3 +44,15 @@ Nota do Codex: não comprova pagamentos reais, conteúdo atual do banco nem migr
 | C conversão | CONFIRMED | fallback `conversasIniciadas` + espelhos em `fechamentos` (1547/1548). |
 | D colaborador × RLS | PARTIAL | Não atômico: confirmado. Política SELECT-only não verificável pelo repo (Codex sem acesso ao banco; o Claude confirmou por `pg_policies`). Erro **não** é engolido: vira toast global (435). Colaborador **não** tem fluxo de pagamento de parcela (2640/2656). |
 | E CHARLES | CONFIRMED | Código não distingue; exige confirmação humana. |
+
+---
+
+# Rodada final — revisão de 399514d..88ec85f (2026-09-24)
+0 CRITICAL · 4 HIGH · 1 MEDIUM. Tratamento (commit seguinte):
+| # | Achado | Tratamento |
+|---|---|---|
+| 1 HIGH | persistRecorrencia não atômica no banco | Parcial: limpeza de recorrência nova agora verifica erro e avisa. Atomicidade real exige RPC transacional (DDL) → pendente de autorização. |
+| 2 HIGH | pagamento sugerido podia passar do saldo após congelar/isentar | `valorSugeridoProxima` = saldo real ÷ parcelas em aberto, usado em todos os fluxos de pagamento; valor padrão histórico inalterado. Teste com o exemplo do Codex (€123/€23). |
+| 3 HIGH | desfazer parcela, salvar data e isenção sem reversão/trava | `salvarAlteracao` + trava nos três caminhos. |
+| 4 HIGH | renomear lançamento no mês de origem ressuscitava modelo anterior | `interromperAnteriorMesmoNome` aplicado também na edição. Mantido de propósito: editar o valor do lançamento do próprio mês corrige aquele mês. |
+| 5 MED | vendedor inativo inflava conversão | conversas somam todos os vendedores, como os fechamentos. |
