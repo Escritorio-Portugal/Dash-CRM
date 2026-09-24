@@ -2000,7 +2000,7 @@ function abrirComissaoDetalhe(sellerId, filter){
     <div class="modal-body">
       <div class="field-hint" style="margin-bottom:14px;">
         <strong>Venda integral (avulsa, paga de uma vez):</strong> desconta-se o IVA real daquele serviço (Configurações → Catálogo de serviços) do valor recebido, a comissão é ${fmtPct(taxaComissao())} sobre o que sobra.<br>
-        <strong>Entrada ou parcela de recorrência:</strong> desconta-se ${fmtPct(taxaIva())} <em>sobre o valor pago naquele momento</em> (cada pagamento paga o seu próprio IVA, não é uma fatia do IVA total do contrato). Nas parcelas, desconta-se também a fatia da taxa administrativa do contrato (dividida pelo nº de parcelas), a menos que o contrato esteja marcado como isento. A comissão é ${fmtPct(taxaComissao())} sobre o que sobra.
+        <strong>Entrada, parcela ou pagamento de recorrência:</strong> desconta-se a parte do IVA do serviço proporcional ao valor recebido (ex.: recebeu metade do contrato, desconta metade do IVA do serviço). Nas parcelas, desconta-se também a fatia da taxa administrativa do contrato (dividida pelo nº de parcelas), a menos que o contrato esteja marcado como isento. A comissão é ${fmtPct(taxaComissao())} sobre o que sobra.
       </div>
       ${linhas.length ? `<div style="max-height:50vh;overflow:auto;"><table><thead><tr><th>Data</th><th>Cliente</th><th>Tipo</th><th>Recebido</th><th>IVA descontado</th><th>Tx adm. descontada</th><th>Líquido</th><th>Comissão</th></tr></thead>
       <tbody>${linhas.map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${l.cliente}</td><td><span class="chip neutral">${l.tipo}</span></td><td class="tnum">${fmtEUR(l.recebido)}</td><td class="tnum">${fmtEUR(l.ivaDesc)}</td><td class="tnum">${fmtEUR(l.txAdmDesc)}</td><td class="tnum">${fmtEUR(l.liquido)}</td><td class="tnum"><strong>${fmtEUR(l.comissao)}</strong></td></tr>`).join('')}</tbody></table></div>
@@ -4323,10 +4323,9 @@ function renderConfig(){
     <div class="block-head"><h3>Regras de comissão</h3><span class="hint">aplicadas a vendas e recorrências</span></div>
     <div style="padding:20px;max-width:460px;">
       <div class="field"><label>Percentual de comissão sobre o valor líquido (%)</label><input type="number" id="cfgTaxaComissao" min="0" max="100" step="1" value="${(taxaComissao()*100).toFixed(0)}"></div>
-      <div class="field"><label>Percentual de IVA a descontar de entradas/parcelas de recorrência (%)</label><input type="number" id="cfgTaxaIva" min="0" max="100" step="1" value="${(taxaIva()*100).toFixed(0)}"></div>
       <div class="field-hint" style="margin-bottom:16px;">
         <strong>Venda integral (avulsa, paga de uma vez):</strong> desconta-se o IVA real do serviço (definido no Catálogo de Serviços) do valor recebido, a comissão é o percentual de comissão sobre o que sobra.<br><br>
-        <strong>Entrada ou parcela de uma recorrência:</strong> desconta-se o percentual de IVA acima <em>sobre o valor efetivamente pago naquele momento</em> (não é uma fatia do IVA total do contrato, cada pagamento paga o seu próprio IVA). Nas parcelas, desconta-se também a fatia da taxa administrativa do contrato diluída pelo nº de parcelas, a menos que o contrato esteja marcado como isento (botão "Isento de taxa administrativa" na tabela de recorrências).
+        <strong>Entrada, parcela ou pagamento de uma recorrência:</strong> desconta-se a parte do IVA do serviço (Catálogo de Serviços) proporcional ao valor recebido. Nas parcelas, desconta-se também a fatia da taxa administrativa do contrato diluída pelo nº de parcelas, a menos que o contrato esteja marcado como isento (botão "Isento de taxa administrativa" na tabela de recorrências).
       </div>
       <button class="btn gold" id="btnSaveComissao">Guardar regras</button>
     </div>
@@ -5573,7 +5572,6 @@ function wireViewportEvents(){
   const btnSaveComissao = document.getElementById('btnSaveComissao');
   if(btnSaveComissao) btnSaveComissao.onclick = async ()=>{
     STATE.meta.taxaComissao = (Number(document.getElementById('cfgTaxaComissao').value)||0)/100;
-    STATE.meta.taxaIvaPadrao = (Number(document.getElementById('cfgTaxaIva').value)||0)/100;
     await persist('meta'); renderAll();
   };
   const btnAddSellerCfg = document.getElementById('btnAddSellerCfg');
