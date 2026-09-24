@@ -1430,14 +1430,14 @@ function recStatus(rec){
   const valorSugeridoProxima = abertas>0 ? valorPendente/abertas : 0;
   return { valorParcela, valorSugeridoProxima, parcelasInfo, pagas, total, valorPago, valorPendente, quitada: valorPendente<=0.005, entrada, extras, valorContratoDevido };
 }
-/* "Atrasada" = ainda não quitada e já passou mais de 30 dias desde a venda.
-   A planilha não guarda data de vencimento por parcela, então esta é uma
-   estimativa razoável (não uma data de vencimento contratual exata).
+/* VENCIMENTO DAS PARCELAS, regra do escritório (24/09/2026): a parcela n
+   vence n meses depois da data de registo da recorrência, no mesmo dia (ou
+   no último dia do mês, quando esse dia não existe). "Atrasada" = tem uma
+   parcela vencida que ainda não estava paga na data de referência.
    O "hoje" usado nesse cálculo passa a ser o ÚLTIMO DIA do período
    selecionado na tela (ou hoje de verdade, se esse dia ainda não chegou)
   , assim, escolher um mês passado mostra a situação REAL daquele mês,
    em vez de sempre misturar com o que está em aberto agora. */
-const DIAS_TOLERANCIA_ATRASO = 30;
 function referenceDateForFilter(filter){
   if(!filter || filter.granularity==='all') return todayISO();
   const { end } = periodRange(filter);
@@ -1445,13 +1445,35 @@ function referenceDateForFilter(filter){
   const ultimoDiaISO = toLocalISODate(ultimoDia);
   return ultimoDiaISO < todayISO() ? ultimoDiaISO : todayISO();
 }
+function vencimentoParcela(rec, numero){
+  if(!rec.dataVenda) return null;
+  const [y,m,d] = rec.dataVenda.split('-').map(Number);
+  const total = (m-1) + numero;
+  const ano = y + Math.floor(total/12), mes = (total%12)+1;
+  const mk = ano+'-'+String(mes).padStart(2,'0');
+  return mk+'-'+String(Math.min(d, daysInMonth(mk))).padStart(2,'0');
+}
+/* Primeira parcela vencida e ainda não paga na data de referência (uma
+   parcela paga DEPOIS da referência ainda estava em aberto naquela data;
+   paga sem data registada conta como paga). */
+function primeiraParcelaVencida(rec, refDateISO){
+  const ref = refDateISO || todayISO();
+  const abertas = rec.parcelas.slice().sort((a,b)=>a.numero-b.numero)
+    .filter(p=>!p.pago || (p.data && p.data > ref));
+  for(const p of abertas){
+    const venc = vencimentoParcela(rec, p.numero);
+    if(venc && venc < ref){
+      const dias = Math.round((new Date(ref+'T00:00:00') - new Date(venc+'T00:00:00')) / 86400000);
+      return { numero:p.numero, vencimento:venc, dias };
+    }
+  }
+  return null;
+}
 function diasAtraso(rec, refDateISO){
-  const st = recStatus(rec);
-  if(st.quitada) return 0;
-  const inicio = new Date(rec.dataVenda+'T00:00:00');
-  const ref = new Date((refDateISO||todayISO())+'T00:00:00');
-  const dias = Math.floor((ref - inicio) / 86400000);
-  return dias > DIAS_TOLERANCIA_ATRASO ? dias : 0;
+  const ref = refDateISO || todayISO();
+  if(ref >= todayISO() && recStatus(rec).quitada) return 0; // quitada hoje (inclui pagamentos avulsos)
+  const v = primeiraParcelaVencida(rec, ref);
+  return v ? v.dias : 0;
 }
 function recorrenciasAtrasadas(filter){
   const ref = referenceDateForFilter(filter);
@@ -2404,14 +2426,15 @@ function renderAlertaAtraso(){
   if(STATE.alertaDispensadoHoje) return '';
   return `
   <div class="alert-banner" id="alertaAtrasoBanner">
-    <span>⚠️ <strong>${atrasadas.length}</strong> cliente(s) com recorrência em atraso (mais de ${DIAS_TOLERANCIA_ATRASO} dias sem quitar), regularize os pagamentos.</span>
+    <span>⚠️ <strong>${atrasadas.length}</strong> cliente(s) com parcela de recorrência vencida e não paga, regularize os pagamentos.</span>
     <button id="btnFecharAlerta" title="Fechar por hoje">×</button>
   </div>`;
 }
 function faixaAtraso(dias){
   if(dias>=90) return '90+';
   if(dias>=60) return '60-90';
-  return '30-60';
+  if(dias>=30) return '30-60';
+  return '1-30';
 }
 function renderRecorrenciasAtrasadasBox(){
   const ref = referenceDateForFilter(STATE.periodFilter);
@@ -2431,7 +2454,7 @@ function renderRecorrenciasAtrasadasBox(){
   const vendedoresNaLista = [...new Map(todasAtrasadas.map(r=>[r.vendedorId, r.vendedorNome])).entries()];
   return `
   <section class="block atraso-block">
-    <div class="block-head"><h3>⚠️ Recorrências atrasadas (${todasAtrasadas.length})</h3><span class="hint">sem quitar há mais de ${DIAS_TOLERANCIA_ATRASO} dias, considerando a situação em ${fmtDate(ref)}${STATE.periodFilter.granularity!=='all'?' (fim do período selecionado)':' (hoje)'}</span></div>
+    <div class="block-head"><h3>⚠️ Recorrências atrasadas (${todasAtrasadas.length})</h3><span class="hint">com parcela vencida e não paga (cada parcela vence 1 mês após a anterior, a contar do registo), situação em ${fmtDate(ref)}${STATE.periodFilter.granularity!=='all'?' (fim do período selecionado)':' (hoje)'}</span></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface-2);">
       <select id="atrasadasFiltroVendedor" style="max-width:180px;">
         <option value="all" ${fVendedor==='all'?'selected':''}>Todos os vendedores</option>
@@ -2440,6 +2463,7 @@ function renderRecorrenciasAtrasadasBox(){
       <input type="text" id="atrasadasFiltroCliente" placeholder="Buscar cliente…" value="${(STATE.atrasadasFiltroCliente||'').replace(/"/g,'&quot;')}" style="max-width:200px;">
       <select id="atrasadasFiltroFaixa" style="max-width:160px;">
         <option value="all" ${fFaixa==='all'?'selected':''}>Qualquer atraso</option>
+        <option value="1-30" ${fFaixa==='1-30'?'selected':''}>Até 30 dias</option>
         <option value="30-60" ${fFaixa==='30-60'?'selected':''}>30–60 dias</option>
         <option value="60-90" ${fFaixa==='60-90'?'selected':''}>60–90 dias</option>
         <option value="90+" ${fFaixa==='90+'?'selected':''}>90+ dias</option>
@@ -2449,7 +2473,7 @@ function renderRecorrenciasAtrasadasBox(){
     <table><thead><tr><th><input type="checkbox" id="atrasadasSelecionarTodas" ${shown.length && shown.every(r=>sel[r.id])?'checked':''}></th><th>Cliente</th><th>Serviço</th><th>Vendedor</th><th>Parcelas</th><th>Dias em atraso</th><th>Pendente</th><th></th></tr></thead>
     <tbody>${shown.map(r=>{
       const st = recStatus(r);
-      return `<tr><td><input type="checkbox" data-atrasada-check="${r.id}" ${sel[r.id]?'checked':''}></td><td><strong>${r.cliente}</strong></td><td>${r.servico||'-'}</td><td>${r.vendedorNome||'-'}</td><td>${st.pagas}/${st.total} pagas</td><td><span class="chip bad">${diasAtraso(r, ref)} dias</span></td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
+      return `<tr><td><input type="checkbox" data-atrasada-check="${r.id}" ${sel[r.id]?'checked':''}></td><td><strong>${r.cliente}</strong></td><td>${r.servico||'-'}</td><td>${r.vendedorNome||'-'}</td><td>${st.pagas}/${st.total} pagas</td><td><span class="chip bad">${diasAtraso(r, ref)} dias</span>${(v=>v?`<div style="font-size:11px;color:var(--ink-soft);margin-top:3px;">parcela ${v.numero} venceu ${fmtDate(v.vencimento)}</div>`:'')(primeiraParcelaVencida(r, ref))}</td><td class="tnum">${fmtEUR(st.valorPendente)}</td><td><button class="btn gold sm" data-pagar-rec="${r.id}">Efetuar pagamento</button></td></tr>`;
     }).join('') || `<tr><td colspan="8"><div class="empty">Nenhuma recorrência atrasada com esses filtros.</div></td></tr>`}</tbody></table>
     ${atrasadas.length>5 ? `<div style="text-align:center;padding:12px;border-top:1px solid var(--line);"><button class="btn ghost sm" data-toggle-expand="expandAtrasadas">${STATE.expandAtrasadas ? 'Ver menos' : `••• Ver mais (${atrasadas.length-5})`}</button></div>` : ''}
   </section>`;
