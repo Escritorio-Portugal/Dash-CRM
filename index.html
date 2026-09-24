@@ -580,17 +580,18 @@ async function carregarVendasRecorrencias(){
 
 // Dados de negócio: Supabase é a fonte única partilhada
 const DB = {
+  // Erro de leitura NÃO pode virar dado de exemplo: propaga o erro pra quem
+  // chamou (o boot para). E chave ausente só devolve o padrão em memória,
+  // nunca grava nada no banco por conta própria.
   async get(key, fallback){
-    try{
-      const v = await sbGet(key);
-      if(v!==undefined) return v;
-      if(fallback!==undefined) await this.set(key, fallback); // primeira vez: semeia com os dados de exemplo
-      return fallback;
-    }catch(e){
+    let v;
+    try{ v = await sbGet(key); }
+    catch(e){
       console.error('Supabase get falhou', key, e);
       showErrorToast('não consegui ler do Supabase ('+key+'): '+e.message);
-      return fallback;
+      throw e;
     }
+    return v!==undefined ? v : fallback;
   },
   async set(key, value){
     try{ await sbSet(key, value); }
@@ -774,14 +775,16 @@ function origensLeadList(){
 async function loadState(){
   STATE.sellers = await DB.get('crm:sellers', SEED_DATA.sellers);
   STATE.services = await DB.get('crm:services', SEED_DATA.services);
-  STATE.meta = await DB.get('crm:meta', SEED_DATA.meta);
+  const metaDoBanco = await DB.get('crm:meta', undefined);
+  STATE.metaCarregadaDoBanco = metaDoBanco !== undefined;
+  STATE.meta = STATE.metaCarregadaDoBanco ? metaDoBanco : SEED_DATA.meta;
   STATE.leadEdits = await DB.get('crm:leadEdits', {});
   STATE.controleLeads = await DB.get('crm:controleLeads', []);
   STATE.followUps = await DB.get('crm:followUps', []);
   STATE.sales = [];
   STATE.recurrences = [];
   if(STATE.role==='gestor'){
-    STATE.costs = await DB.get('crm:costs', SEED_DATA.costs);
+    STATE.costs = await DB.get('crm:costs', []);
     await carregarVendasRecorrencias();
     for(const s of STATE.sellers){
       s.funilDiario = await DB.get('crm:funil:'+s.id, {});
@@ -1920,6 +1923,9 @@ async function applyCorrecaoDatasCustosProjetados(){
    esta parte e vai direto para os proprios dados. */
 async function runGestorMigrationsIfNeeded(){
   if(STATE.role!=='gestor') return;
+  // Sem o crm:meta real (com as flags de "já rodou"), estas migrações
+  // reescreveriam dados de produção com snapshots antigos. Nunca arriscar.
+  if(!STATE.metaCarregadaDoBanco) return;
   await applyCorrecaoDatasCustosProjetados();
   await applyHistoricalImport();
   await applyDedupSalesVsRecurrences();
@@ -1940,7 +1946,14 @@ async function loadAccessRequests(){
   STATE.accessRequests = data || [];
 }
 async function bootAfterLogin(){
-  await loadState();
+  try{ await loadState(); }
+  catch(e){
+    // Sem os dados reais não entra no painel (nem mostra números parciais).
+    console.error('Falha ao carregar dados', e);
+    renderLoginScreen('signin');
+    showErrorToast('não foi possível carregar os dados do servidor, nada foi alterado. Tente entrar de novo em instantes.');
+    return;
+  }
   await runGestorMigrationsIfNeeded();
   await loadAccessRequests();
   await loadAlertaDismissido();
