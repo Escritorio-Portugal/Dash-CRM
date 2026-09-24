@@ -1593,9 +1593,11 @@ function computeSellerStats(sellerId, filter){
   const seller = sellerById(sellerId) || {};
   const funil = sumFunilDiario(seller, filter);
   const temFunilDiario = Object.keys(seller.funilDiario||{}).length > 0;
-  const conversas = temFunilDiario ? funil.conversas : (seller.conversasIniciadas||0);
-  const novosContatos = temFunilDiario ? funil.leadsQualificados : (seller.novosContatos||0);
-  const fechamentosManual = seller.fechamentosManual||0;
+  // Totais manuais antigos (sem data) só valem para "Total histórico".
+  const tudo = !filter || filter.granularity==='all';
+  const conversas = temFunilDiario ? funil.conversas : (tudo ? (seller.conversasIniciadas||0) : 0);
+  const novosContatos = temFunilDiario ? funil.leadsQualificados : (tudo ? (seller.novosContatos||0) : 0);
+  const fechamentosManual = tudo ? (seller.fechamentosManual||0) : 0;
   const taxaConversao = conversas>0 ? (fechamentosManual||deals)/conversas : null;
   return {
     valorFaturado, valorPendente, comissao, deals, valorVendido,
@@ -1627,9 +1629,17 @@ function computeGlobalForPeriod(filter){
   // valor de contrato de TODA recorrência, mesmo as sem venda espelhada.
   const valorVendido = salesIn.filter(s=>!s.jaContabilizadoViaRecorrencia).reduce((a,s)=>a+(s.valorTotal||0),0)
                       + recsIn.reduce((a,r)=>a+(r.valorContrato||0),0);
-  const fechamentos = salesIn.length + recsIn.length;
+  // Venda-espelho e a recorrência dela são UM fechamento só.
+  const fechamentos = salesIn.filter(s=>!s.jaContabilizadoViaRecorrencia).length + recsIn.length;
+  // Conversas vêm só do funil diário do período. O total manual antigo
+  // (conversasIniciadas) só vale para "Total histórico"; num mês sem funil
+  // preenchido a taxa fica sem valor, em vez de usar um número inventado.
+  const tudo = !filter || filter.granularity==='all';
   let conversas = 0;
-  activeSellers().forEach(s=>{ conversas += sumFunilDiario(s, filter).conversas || s.conversasIniciadas||0; });
+  activeSellers().forEach(s=>{
+    const c = sumFunilDiario(s, filter).conversas;
+    conversas += c || (tudo && !Object.keys(s.funilDiario||{}).length ? (s.conversasIniciadas||0) : 0);
+  });
   const taxaConversao = conversas>0 ? fechamentos/conversas : null;
   const meta = STATE.meta.valorMeta || 0;
   return {
@@ -1873,7 +1883,9 @@ function ranking(filter){
 function computeVendasBreakdown(filter, sellerId){
   const salesIn = STATE.sales.filter(s=> (!sellerId || s.vendedorId===sellerId) && inPeriodOrAll(s.data, filter));
   const recsIn = STATE.recurrences.filter(r=> (!sellerId || r.vendedorId===sellerId) && inPeriodOrAll(r.dataVenda, filter));
-  const integrais = salesIn.filter(s=>s.pagamentoIntegral);
+  // Mesmo critério do card "Valor vendido": toda venda que não é espelho
+  // de uma recorrência (assim os dois subcards somam exatamente o card).
+  const integrais = salesIn.filter(s=>!s.jaContabilizadoViaRecorrencia);
   const valorIntegrais = integrais.reduce((a,s)=>a+(s.valorTotal||0),0);
   const valorRecorrencias = recsIn.reduce((a,r)=>a+(r.valorContrato||0),0);
   /* "Parcelas pagas no período" tem que olhar a DATA DO PAGAMENTO de
@@ -1894,7 +1906,7 @@ function renderVendasSubcards(filter, sellerId){
   const b = computeVendasBreakdown(filter, sellerId);
   return `
   <div class="cards" style="margin-top:-10px;">
-    <div class="card"><div class="lbl">Vendas integrais (pagas à vista)</div><div class="val">${fmtEUR(b.valorIntegrais)}</div><div class="sub">${b.nIntegrais} venda(s)</div></div>
+    <div class="card"><div class="lbl">Vendas avulsas (sem recorrência)</div><div class="val">${fmtEUR(b.valorIntegrais)}</div><div class="sub">${b.nIntegrais} venda(s)</div></div>
     <div class="card"><div class="lbl">Vendas recorrentes (contratado)</div><div class="val">${fmtEUR(b.valorRecorrencias)}</div><div class="sub">${b.nRecorrencias} contrato(s)</div></div>
     <div class="card"><div class="lbl">Parcelas pagas</div><div class="val good">${b.parcelasPagas}</div><div class="sub">pagas no período, de qualquer contrato</div></div>
     <div class="card"><div class="lbl">Parcelas em aberto</div><div class="val bad">${b.parcelasAbertas}</div><div class="sub">situação atual, ainda não pagas</div></div>
@@ -2747,7 +2759,7 @@ function renderOverview(){
     <div class="card"><div class="lbl">Faturamento recebido (caixa)</div><div class="val good" data-detalhe-card="faturado" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorFaturado)}</div><div class="sub">dinheiro que entrou no período, pode incluir parcelas de vendas de outros meses, por isso pode superar o "vendido"</div></div>
     <div class="card"><div class="lbl">Pendências (a receber)</div><div class="val bad" data-detalhe-card="pendente" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.valorPendente)}</div><div class="sub">tudo que falta receber (vendas + recorrências) de negócios originados no período</div></div>
     <div class="card"><div class="lbl">Recorrência em andamento</div><div class="val" data-detalhe-card="recorrencia" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(g.recorrenciaAtivaValor)}</div><div class="sub">${g.nRecsAbertas} contrato(s) com parcela pendente, só a parte das pendências que vem de recorrências (pode bater com o card ao lado quando não há venda integral pendente)</div></div>
-    <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${g.taxaConversao!==null ? fmtPct(g.taxaConversao) : '-'}</div><div class="sub">${g.taxaConversao!==null ? g.fechamentos+' fechamentos no período / '+g.conversas+' conversas totais' : 'informe conversas iniciadas por vendedor'}</div></div>
+    <div class="card"><div class="lbl">Taxa de conversão</div><div class="val">${g.taxaConversao!==null ? fmtPct(g.taxaConversao) : '-'}</div><div class="sub">${g.taxaConversao!==null ? g.fechamentos+' fechamentos no período / '+g.conversas+' conversas no funil' : 'sem funil diário preenchido neste período'}</div></div>
   </div>
   ${renderVendasSubcards(STATE.periodFilter, null)}
   ${renderChartsPanel()}
