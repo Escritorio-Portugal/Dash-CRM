@@ -46,3 +46,8 @@ Aguardar PHASE=REMEDIATION. Nada alterado em código, banco ou produção.
 - 34 testes de regressão (tests/audit), harness e E2E offline no Chrome.
 - Codex: 2 revisões aplicadas (DATA-001, custos fixos); revisão final da branch em curso.
 - Pendentes de decisão/autorização: FIN-005, FIN-009, CODE-004, CODE-007 (RLS), correções de dados.
+
+## 2026-09-24 — PUBLICADO
+- PR #1 aberto e mergeado com autorização explícita do usuário → main `4b6ae59`.
+- Vercel produção = main (diff do index.html servido); smoke em produção: login ok, 0 erros, 0 falhas de rede.
+- Banco: nenhuma escrita. Pendentes: correções de dados e mudanças de esquema (ver REMEDIATION_LOG.md).
