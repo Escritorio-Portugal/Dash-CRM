@@ -593,11 +593,13 @@ const DB = {
     }
     return v!==undefined ? v : fallback;
   },
+  // Erro de gravação também propaga: quem chamou não pode seguir como se
+  // tivesse gravado (antes o toast aparecia mas o fluxo mostrava "sucesso").
   async set(key, value){
     try{ await sbSet(key, value); }
     catch(e){
       console.error('Supabase set falhou', key, e);
-      showErrorToast('não consegui gravar no Supabase ('+key+'): '+e.message);
+      throw new Error('não consegui gravar no Supabase ('+key+'): '+e.message);
     }
   }
 };
@@ -1116,6 +1118,45 @@ async function persistRecorrencia(rec){
   const { error: eDelX } = await q;
   if(eDelX) throw eDelX;
 }
+/* Gravação segura: a tela só fica com a mudança se o banco aceitou. Se
+   falhar, desfaz o que foi mudado em memória e avisa, em vez de mostrar
+   um registo que não existe no banco (ou deixar um meio gravado). */
+async function gravarOuReverter(desfazer, gravar, msgErro){
+  try{ await gravar(); return true; }
+  catch(e){
+    try{ await desfazer(); }catch(_){}
+    showErrorToast((msgErro||'a alteração NÃO foi gravada')+' ('+((e&&e.message)||e)+'). Nada mudou, tente de novo.');
+    return false;
+  }
+}
+function snapshotObj(o){ return JSON.parse(JSON.stringify(o)); }
+function restaurarObj(alvo, snap){ Object.keys(alvo).forEach(k=>{ delete alvo[k]; }); Object.assign(alvo, snap); }
+async function criarVenda(venda){
+  STATE.sales.push(venda);
+  return gravarOuReverter(()=>{ STATE.sales = STATE.sales.filter(s=>s!==venda); }, ()=>persistVenda(venda), 'a venda NÃO foi gravada');
+}
+async function criarRecorrencia(rec){
+  STATE.recurrences.push(rec);
+  // persistRecorrencia grava a recorrência e depois as parcelas, em chamadas
+  // separadas; se as parcelas forem recusadas (ex.: colaborador sem
+  // permissão), a recorrência já gravada é apagada pra não ficar sem parcelas.
+  return gravarOuReverter(async ()=>{
+    STATE.recurrences = STATE.recurrences.filter(r=>r!==rec);
+    await supa.from('recorrencias').delete().eq('id', rec.id);
+  }, ()=>persistRecorrencia(rec), 'a recorrência NÃO foi gravada');
+}
+async function salvarAlteracao(obj, mutar, gravar, msgErro){
+  const snap = snapshotObj(obj);
+  mutar();
+  return gravarOuReverter(()=>restaurarObj(obj, snap), gravar, msgErro);
+}
+async function excluirRegistoNoBanco(tabela, id){
+  const { error, count } = await supa.from(tabela).delete({ count:'exact' }).eq('id', id);
+  if(error){ showErrorToast('não foi possível excluir ('+error.message+'). Nada mudou.'); return false; }
+  if(!count){ showErrorToast('o servidor não excluiu o registo (sem permissão ou já não existe). Recarregue a página.'); return false; }
+  return true;
+}
+function travarBotao(btn){ if(!btn || btn.disabled) return false; btn.disabled = true; return true; }
 async function persist(part, sellerId){
   if(part==='sellers'){
     // crm:sellers é partilhado e não guarda mais o funil de ninguém
@@ -2412,19 +2453,28 @@ function abrirPagamentoModal(recId, parcelaNumero){
     const data = document.getElementById('pgData').value || hoje;
     const aviso = document.getElementById('pgAviso');
     if(valor<=0){ aviso.textContent = 'Informe um valor maior que zero.'; aviso.style.display='block'; return; }
-    if(valor > st.valorPendente + 0.01){
-      aviso.textContent = `Esse valor é maior que o pendente do contrato (${fmtEUR(st.valorPendente)}), confirme se está certo antes de continuar, ou ajuste o valor.`;
+    const btnSave = document.getElementById('mSave');
+    if(valor > st.valorPendente + 0.01 && !btnSave.dataset.confirmouExcesso){
+      // Antes o aviso aparecia mas gravava no mesmo clique; agora exige confirmação.
+      aviso.textContent = `Esse valor é maior que o pendente do contrato (${fmtEUR(st.valorPendente)}). Confira; se estiver certo, clique de novo em "Confirmar mesmo assim".`;
       aviso.style.display='block';
+      btnSave.dataset.confirmouExcesso = '1';
+      btnSave.textContent = 'Confirmar mesmo assim';
+      return;
     }
-    if(personalizado){
-      if(!rec.pagamentosExtras) rec.pagamentosExtras = [];
-      rec.pagamentosExtras.push({ id:'pgx-'+Date.now(), data, valor });
-    } else {
-      const p = rec.parcelas.find(x=>x.numero===parcelaNumero);
-      if(!p) return;
-      p.pago = true; p.valor = valor; p.data = data;
-    }
-    await persistRecorrencia(rec); showSuccessToast('Pagamento registado com sucesso!'); closeModal(); renderAll();
+    if(!personalizado && !rec.parcelas.find(x=>x.numero===parcelaNumero)) return;
+    if(!travarBotao(btnSave)) return; // evita pagamento duplicado por duplo clique
+    const ok = await salvarAlteracao(rec, ()=>{
+      if(personalizado){
+        if(!rec.pagamentosExtras) rec.pagamentosExtras = [];
+        rec.pagamentosExtras.push({ id:'pgx-'+Date.now(), data, valor });
+      } else {
+        const p = rec.parcelas.find(x=>x.numero===parcelaNumero);
+        p.pago = true; p.valor = valor; p.data = data;
+      }
+    }, ()=>persistRecorrencia(rec), 'o pagamento NÃO foi gravado');
+    if(ok) showSuccessToast('Pagamento registado com sucesso!');
+    closeModal(); renderAll();
   };
 }
 /* Marca a parcela pendente mais antiga de uma recorrência como paga,
@@ -2434,8 +2484,8 @@ function abrirPagamentoModal(recId, parcelaNumero){
 async function marcarProximaParcelaComoPaga(rec){
   const p = rec.parcelas.find(x=>!x.pago);
   if(!p) return;
-  registrarPagamentoParcelas(rec, [p.numero], todayISO());
-  await persistRecorrencia(rec);
+  await salvarAlteracao(rec, ()=>registrarPagamentoParcelas(rec, [p.numero], todayISO()),
+    ()=>persistRecorrencia(rec), 'o pagamento de '+rec.cliente+' NÃO foi gravado');
 }
 function abrirPagamentoRecorrenciaModal(recId){
   const rec = STATE.recurrences.find(r=>r.id===recId);
@@ -2468,8 +2518,10 @@ function abrirPagamentoRecorrenciaModal(recId){
     const data = document.getElementById('pgData').value || hoje;
     const selecionadas = Array.from(document.querySelectorAll('.pgParcelaChk:checked')).map(el=>Number(el.value));
     if(!selecionadas.length){ alert('Selecione ao menos uma parcela.'); return; }
-    registrarPagamentoParcelas(rec, selecionadas, data); // grava também o valor de cada parcela
-    await persistRecorrencia(rec);
+    if(!travarBotao(btnSave)) return;
+    const ok = await salvarAlteracao(rec, ()=>registrarPagamentoParcelas(rec, selecionadas, data), // grava também o valor de cada parcela
+      ()=>persistRecorrencia(rec), 'o pagamento NÃO foi gravado');
+    if(ok) showSuccessToast('Pagamento registado com sucesso!');
     closeModal();
     renderAll();
   };
@@ -4396,46 +4448,37 @@ function linhasFinanceiras(filter){
    histórico); uma parcela ou entrada volta a ficar pendente; um pagamento
    personalizado é removido; um custo volta a ficar por pagar. */
 async function estornarLancamento(ref){
+  // Devolve true só se o banco aceitou; se recusar, a tela volta ao que era.
   if(ref.tipo==='venda'){
     const s = STATE.sales.find(x=>x.id===ref.saleId);
-    if(!s) return;
-    s.valorPago = 0;
-    await persistVenda(s);
-  } else if(ref.tipo==='entrada'){
-    const r = STATE.recurrences.find(x=>x.id===ref.recId);
-    if(!r) return;
-    congelarValoresParcelasPagas(r); // zerar a entrada mudaria o valor das parcelas já pagas
-    r.valorEntrada = 0;
-    await persistRecorrencia(r);
-  } else if(ref.tipo==='parcela'){
-    const r = STATE.recurrences.find(x=>x.id===ref.recId);
-    if(!r) return;
-    const p = r.parcelas.find(x=>x.numero===ref.numero);
-    if(!p) return;
-    p.pago = false; p.data = null; p.valor = null;
-    await persistRecorrencia(r);
-  } else if(ref.tipo==='extra'){
-    const r = STATE.recurrences.find(x=>x.id===ref.recId);
-    if(!r) return;
-    r.pagamentosExtras = (r.pagamentosExtras||[]).filter(e=>e.id!==ref.extraId);
-    await persistRecorrencia(r);
-  } else if(ref.tipo==='custoFixoExato'){
-    const c = STATE.costs.find(x=>x.id===ref.custoId);
-    if(!c) return;
-    c.pago = false; c.dataPagamento = null;
-    await persist('costs');
-  } else if(ref.tipo==='custoFixoMes'){
-    const c = STATE.costs.find(x=>x.id===ref.custoId);
-    if(!c || !c.pagoPorMes) return;
-    c.pagoPorMes[ref.mes] = {pago:false};
-    await persist('costs');
-  } else if(ref.tipo==='custoVariavel'){
-    const c = STATE.costs.find(x=>x.id===ref.custoId);
-    if(!c) return;
-    c.pago = false;
-    await persist('costs');
+    if(!s) return false;
+    return salvarAlteracao(s, ()=>{ s.valorPago = 0; }, ()=>persistVenda(s), 'o estorno NÃO foi gravado');
   }
+  if(ref.tipo==='entrada' || ref.tipo==='parcela' || ref.tipo==='extra'){
+    const r = STATE.recurrences.find(x=>x.id===ref.recId);
+    if(!r) return false;
+    if(ref.tipo==='parcela' && !r.parcelas.find(x=>x.numero===ref.numero)) return false;
+    return salvarAlteracao(r, ()=>{
+      if(ref.tipo==='entrada'){
+        congelarValoresParcelasPagas(r); // zerar a entrada mudaria o valor das parcelas já pagas
+        r.valorEntrada = 0;
+      } else if(ref.tipo==='parcela'){
+        const p = r.parcelas.find(x=>x.numero===ref.numero);
+        p.pago = false; p.data = null; p.valor = null;
+      } else {
+        r.pagamentosExtras = (r.pagamentosExtras||[]).filter(e=>e.id!==ref.extraId);
+      }
+    }, ()=>persistRecorrencia(r), 'o desfazer NÃO foi gravado');
+  }
+  const c = STATE.costs.find(x=>x.id===ref.custoId);
+  if(!c) return false;
+  const antes = JSON.stringify(STATE.costs);
+  if(ref.tipo==='custoFixoExato' || ref.tipo==='custoVariavel'){ c.pago = false; c.dataPagamento = null; }
+  else if(ref.tipo==='custoFixoMes'){ desmarcarCustoPago(c.id, ref.mes); }
+  else return false;
+  return gravarCustosOuReverter(antes);
 }
+
 function renderExtratoTab(){
   const data = STATE.extratoData || todayISO();
   const monthKey = data.slice(0,7);
@@ -4750,8 +4793,9 @@ function openQuickAddModal(initialTipo, forColaborador){
           honorarioBase: componentes.honorarioBase,
           iva: componentes.iva, txAdm: componentes.txAdm
         };
-        STATE.sales.push(novaVenda);
-        await persistVenda(novaVenda); showSuccessToast('Venda registada com sucesso!'); closeModal(); renderAll();
+        if(!travarBotao(document.getElementById('mSave'))) return; // evita venda duplicada por duplo clique
+        if(await criarVenda(novaVenda)) showSuccessToast('Venda registada com sucesso!');
+        closeModal(); renderAll();
       } else {
         const valorContrato = Number(document.getElementById('qValorContrato').value)||0;
         const valorEntrada = Number(document.getElementById('qEntrada').value)||0;
@@ -4767,8 +4811,9 @@ function openQuickAddModal(initialTipo, forColaborador){
           iva: componentes.iva, txAdm: componentes.txAdm,
           valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'-', parcelas, origemSheet:'manual'
         };
-        STATE.recurrences.push(novaRec);
-        await persistRecorrencia(novaRec); showSuccessToast('Recorrência criada com sucesso!'); closeModal(); renderAll();
+        if(!travarBotao(document.getElementById('mSave'))) return;
+        if(await criarRecorrencia(novaRec)) showSuccessToast('Recorrência criada com sucesso!');
+        closeModal(); renderAll();
       }
     };
   }
@@ -4933,11 +4978,12 @@ function openEditSaleModal(saleId){
       alert('Honorário base + IVA + taxa administrativa devem ser iguais ao valor total.'); return;
     }
     const vendedor = sellerById(vendedorId);
-    Object.assign(sale, {
+    if(!travarBotao(document.getElementById('mSave'))) return;
+    await salvarAlteracao(sale, ()=>Object.assign(sale, {
       cliente, servico, data, vendedorId, vendedorNome: vendedor?vendedor.nome:sale.vendedorNome,
       origem, formaPagamento, valorTotal, valorPago, pagamentoIntegral, honorarioBase, iva, txAdm
-    });
-    await persistVenda(sale); closeModal(); renderAll();
+    }), ()=>persistVenda(sale), 'a edição da venda NÃO foi gravada');
+    closeModal(); renderAll();
   };
 }
 
@@ -5021,13 +5067,16 @@ function openEditRecModal(recId){
     const vendedor = sellerById(vendedorId);
     // Congela o valor das parcelas já pagas antes de mudar contrato/entrada/
     // nº de parcelas, e recusa reduzir abaixo de uma parcela paga.
+    const snap = snapshotObj(rec);
     const r = aplicarEdicaoRecorrencia(rec, {
       cliente, servico, dataVenda: data || rec.dataVenda, vendedorId,
       vendedorNome: vendedor?vendedor.nome:rec.vendedorNome,
       valorContrato, valorEntrada, honorarioBase, iva, txAdm, formaPagamento, origem, isentoTaxaAdm, nParcelas: nParcelasNovo
     });
     if(r.erro){ alert(r.erro); return; }
-    await persistRecorrencia(rec); closeModal(); renderAll();
+    if(!travarBotao(document.getElementById('mSave'))) return;
+    await gravarOuReverter(()=>restaurarObj(rec, snap), ()=>persistRecorrencia(rec), 'a edição da recorrência NÃO foi gravada');
+    closeModal(); renderAll();
   };
 }
 
@@ -5098,8 +5147,9 @@ function openAddRecModal(forColaborador){
       txAdm: componentes.txAdm,
       valorContrato, vendedorId, vendedorNome: vendedor?vendedor.nome:'-', parcelas, origemSheet:'manual'
     };
-    STATE.recurrences.push(novaRec2);
-    await persistRecorrencia(novaRec2); showSuccessToast('Recorrência criada com sucesso!'); closeModal(); renderAll();
+    if(!travarBotao(document.getElementById('mSave'))) return;
+    if(await criarRecorrencia(novaRec2)) showSuccessToast('Recorrência criada com sucesso!');
+    closeModal(); renderAll();
   };
 }
 
@@ -5113,7 +5163,11 @@ function openConfirmModal({title, message, confirmLabel, onConfirm, danger}){
   document.getElementById('mClose').onclick = closeModal;
   document.getElementById('mCancel').onclick = closeModal;
   document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
-  document.getElementById('mOk').onclick = async ()=>{ await onConfirm(); closeModal(); };
+  const btnOk = document.getElementById('mOk');
+  btnOk.onclick = async ()=>{
+    if(!travarBotao(btnOk)) return; // evita executar a ação duas vezes
+    try{ await onConfirm(); } finally { closeModal(); }
+  };
 }
 
 function openServiceModal(existingId){
@@ -5357,7 +5411,10 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir venda', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a venda de <strong>${sale.cliente}</strong> (${fmtEUR(sale.valorTotal)}, ${fmtDate(sale.data)})? Esta ação não pode ser desfeita, use isto pra remover duplicatas.`,
-        onConfirm: async ()=>{ STATE.sales = STATE.sales.filter(s=>s.id!==saleId); await supa.from('vendas').delete().eq('id', saleId); showSuccessToast('Venda excluída.'); renderAll(); }
+        onConfirm: async ()=>{
+          if(!(await excluirRegistoNoBanco('vendas', saleId))) return; // só some da tela se o banco apagou
+          STATE.sales = STATE.sales.filter(s=>s.id!==saleId); showSuccessToast('Venda excluída.'); renderAll();
+        }
       });
     });
   });
@@ -5366,8 +5423,10 @@ function wireViewportEvents(){
     btn.addEventListener('click', async ()=>{
       const rec = STATE.recurrences.find(r=>r.id===btn.dataset.toggleIsento);
       if(!rec) return;
-      rec.isentoTaxaAdm = !rec.isentoTaxaAdm;
-      await persistRecorrencia(rec); renderAll();
+      // Isentar muda o valor padrão das parcelas: congela antes as já pagas.
+      await salvarAlteracao(rec, ()=>{ congelarValoresParcelasPagas(rec); rec.isentoTaxaAdm = !rec.isentoTaxaAdm; },
+        ()=>persistRecorrencia(rec), 'a alteração NÃO foi gravada');
+      renderAll();
     });
   });
 
@@ -5382,7 +5441,10 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir recorrência', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir a recorrência de <strong>${rec.cliente}</strong>? Esta ação não pode ser desfeita.`,
-        onConfirm: async ()=>{ STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); await supa.from('recorrencias').delete().eq('id', recId); showSuccessToast('Recorrência excluída.'); renderAll(); }
+        onConfirm: async ()=>{
+          if(!(await excluirRegistoNoBanco('recorrencias', recId))) return;
+          STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); showSuccessToast('Recorrência excluída.'); renderAll();
+        }
       });
     });
   });
@@ -5636,7 +5698,7 @@ function wireViewportEvents(){
         message: ehVenda
           ? `Isso vai estornar <strong>${desc}</strong>, o valor recebido volta a zero e a venda passa a aparecer como pendente (ela não desaparece do sistema). Tem a certeza?`
           : `Isso vai desfazer <strong>${desc}</strong>, voltando o valor a ficar em aberto. Tem a certeza?`,
-        onConfirm: async ()=>{ await estornarLancamento(ref); showSuccessToast(ehVenda ? 'Venda estornada.' : 'Lançamento desfeito.'); renderAll(); }
+        onConfirm: async ()=>{ if(await estornarLancamento(ref)) showSuccessToast(ehVenda ? 'Venda estornada.' : 'Lançamento desfeito.'); renderAll(); }
       });
     });
   });
