@@ -242,6 +242,15 @@ tr:hover td{background:#FBFBFA;}
 .rank-item.p1 .bar>span{background:linear-gradient(90deg,var(--gold),#755C13);}
 .rank-item .amt{width:100px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;}
 
+.perfis-grid,.vendedores-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,360px));gap:16px;justify-content:center;}
+.perfil-card{cursor:pointer;text-align:center;transition:transform .12s ease, border-color .12s ease;}
+.perfil-card:hover,.perfil-card:focus-visible{transform:translateY(-2px);border-color:var(--wine);outline:none;}
+.perfil-card .avatar-lg{width:56px;height:56px;border-radius:50%;background:var(--wine);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Source Serif 4',serif;font-size:20px;font-weight:700;margin:0 auto 8px;}
+.perfil-card h3{margin:0 0 2px;font-size:16px;}
+.perfil-card .perfil-metricas{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:14px 0 10px;text-align:left;font-size:12.5px;}
+.perfil-card .perfil-metricas span{color:var(--ink-soft);display:block;font-size:11px;}
+.perfil-card .perfil-cta{font-size:12.5px;font-weight:600;color:var(--wine);}
+.secao-titulo{text-align:center;margin:22px 0 12px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
 .seller-hero{display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;}
 .seller-hero .avatar-lg{width:56px;height:56px;border-radius:50%;background:var(--wine);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Source Serif 4',serif;font-size:20px;font-weight:700;flex-shrink:0;}
 .seller-hero h2{font-size:22px;}
@@ -3629,8 +3638,28 @@ function renderFollowUp(){
 }
 
 /* ===== Vendedores, visão macro do gestor (funil + campanhas por pessoa) ===== */
+/* Card de perfil de um vendedor (página Vendedores): números macro do
+   período; clicar abre o perfil completo, no mesmo período. */
+function renderPerfilVendedorCard(s, filter){
+  const st = computeSellerStats(s.id, filter);
+  return `
+  <section class="card perfil-card" data-abrir-perfil="${s.id}" role="button" tabindex="0" title="Abrir o perfil de ${s.nome}">
+    <div class="avatar-lg">${initials(s.nome)}</div>
+    <h3>${s.nome}</h3>
+    <div style="font-size:12px;color:var(--ink-soft);">${st.deals} fechamento(s) em ${periodLabelText(filter)}</div>
+    <div class="perfil-metricas">
+      <div><span>Faturamento (caixa)</span><strong>${fmtEUR(st.valorFaturado)}</strong></div>
+      <div><span>Valor vendido</span><strong>${fmtEUR(st.valorVendido)}</strong></div>
+      <div><span>Comissão</span><strong>${fmtEUR(st.comissao)}</strong></div>
+      <div><span>Pendente</span><strong>${fmtEUR(st.valorPendente)}</strong></div>
+      <div><span>Ticket médio</span><strong>${fmtEUR(st.ticketMedio)}</strong></div>
+      <div><span>Conversão</span><strong>${st.taxaConversao!==null ? fmtPct(st.taxaConversao) : 'sem funil'}</strong></div>
+    </div>
+    <div class="perfil-cta">Ver perfil completo →</div>
+  </section>`;
+}
 function renderVendedoresOverview(){
-  if(!STATE.leads.length && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData();
+  if(!STATE.leadsLoadedAt && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData(); // uma vez só: planilha vazia não pode virar busca infinita
   const filter = STATE.vendedoresFilter || {granularity:'month', anchor: todayISO().slice(0,7)};
   STATE.vendedoresFilter = filter;
   const vendedoresAtivos = activeSellers();
@@ -3638,8 +3667,13 @@ function renderVendedoresOverview(){
 
   return `
   ${renderGenericFilterBar('vendedoresFilter', ['all','month','week','day'], [])}
-  <div class="field-hint" style="margin:10px 0 16px;">Visão macro de cada vendedor no período: o funil diário que eles preenchem, e quantos leads de Controle de Campanhas estão sob a responsabilidade de cada um.</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;">
+  <div class="field-hint" style="margin:10px 0 6px;text-align:center;">Clique no perfil de um vendedor para abrir todos os dados dele (vendas, recorrências, comissão, pendências e evolução). Mais abaixo, o funil diário e os leads de campanha de cada um.</div>
+  <div class="secao-titulo">Perfis</div>
+  <div class="perfis-grid">
+    ${vendedoresAtivos.map(s=>renderPerfilVendedorCard(s, filter)).join('')}
+  </div>
+  <div class="secao-titulo">Funil diário e campanhas</div>
+  <div class="vendedores-grid">
     ${vendedoresAtivos.map(s=>{
       const funil = sumFunilDiario(s, filter);
       const leadsDele = leadsComEdicoes.filter(l=>l.responsavel===s.nome && inPeriodOrAll(l.data, filter));
@@ -3717,7 +3751,7 @@ function renderIndice(){
 }
 
 function renderControleCampanhas(){
-  if(!STATE.leads.length && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData();
+  if(!STATE.leadsLoadedAt && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData(); // uma vez só: planilha vazia não pode virar busca infinita
   if(STATE.leadsLoading && !STATE.leads.length){
     return `<section class="block"><div style="padding:60px 20px;text-align:center;color:var(--ink-soft);">🔄 A buscar a planilha de leads…</div></section>`;
   }
@@ -3865,7 +3899,7 @@ function renderMetricasCampanhas(leads){
 }
 
 function renderMetricas(){
-  if(!STATE.leads.length && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData();
+  if(!STATE.leadsLoadedAt && !STATE.leadsLoading && !STATE.leadsError) loadLeadsData(); // uma vez só: planilha vazia não pode virar busca infinita
 
   if(STATE.leadsLoading && !STATE.leads.length){
     return `<section class="block"><div style="padding:60px 20px;text-align:center;color:var(--ink-soft);">🔄 A buscar a planilha de leads…</div></section>`;
@@ -5576,6 +5610,15 @@ function wireViewportEvents(){
   };
   const btnAddSellerCfg = document.getElementById('btnAddSellerCfg');
   if(btnAddSellerCfg) btnAddSellerCfg.onclick = openAddSellerModal;
+  vp.querySelectorAll('[data-abrir-perfil]').forEach(card=>{
+    const abrir = ()=>{
+      STATE.selectedSellerId = card.dataset.abrirPerfil;
+      STATE.periodFilter = Object.assign({}, STATE.vendedoresFilter || STATE.periodFilter);
+      STATE.view = 'seller-detail'; renderAll(); window.scrollTo(0,0);
+    };
+    card.addEventListener('click', abrir);
+    card.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); abrir(); } });
+  });
   vp.querySelectorAll('[data-view-seller]').forEach(b=> b.addEventListener('click', ()=>{
     STATE.selectedSellerId = b.dataset.viewSeller; STATE.view = 'seller-detail'; renderAll();
   }));
