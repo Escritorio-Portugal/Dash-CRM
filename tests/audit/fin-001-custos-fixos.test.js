@@ -65,7 +65,7 @@ test('marcar pago guarda a data real (pago em atraso) e conta no mês do custo',
   assert.strictEqual(jul._dataPagamento, '2026-08-03');
   assert.strictEqual(ctx.computeCosts(mes('2026-07')).totalFixos, 1000);
   assert.strictEqual(ctx.computeCosts(mes('2026-08')).totalFixos, 0);
-  const extrato = ctx.linhasFinanceiras({ granularity:'day', anchor:'2026-08-03' }).filter(l => l.tipo === 'Custo fixo');
+  const extrato = ctx.linhasFinanceiras({ granularity:'day', anchor:'2026-08-03' }, { porPagamento:true }).filter(l => l.tipo === 'Custo fixo');
   assert.strictEqual(extrato.length, 1);
 });
 
@@ -123,4 +123,53 @@ test('editar o lançamento do próprio mês não pode movê-lo para outro mês',
   const r = ctx.salvarEdicaoCusto('cst-a', '2026-06', { nome:'ALUGUEL', valor:1000, categoria:'FIXO', vencimento:'2026-09-05' });
   assert.ok(r.erro);
   assert.strictEqual(ctx.STATE.costs[0].vencimento, '2026-06-05');
+});
+
+// --- Casos levantados na revisão do Codex (d578528) ---
+const MODELO_E_NOVO_VALOR = [
+  { id:'jan', nome:'ALUGUEL', valor:1000, categoria:'FIXO', vencimento:'2026-01-05', pago:true, dataPagamento:'2026-01-05' },
+  { id:'abr', nome:'ALUGUEL', valor:1200, categoria:'FIXO', vencimento:'2026-04-05', pago:false },
+];
+
+test('excluir o lançamento no próprio mês interrompe a repetição (não ressuscita o anterior)', () => {
+  const ctx = tryLoad(MODELO_E_NOVO_VALOR);
+  const r = ctx.excluirCusto('abr', '2026-04');
+  assert.ok(r.ok);
+  assert.strictEqual(ctx.custosFixosDoMes('2026-03').length, 1);
+  assert.strictEqual(ctx.custosFixosDoMes('2026-04').length, 0);
+  assert.strictEqual(ctx.custosFixosDoMes('2026-06').length, 0);
+});
+
+test('excluir um duplicado do mês não interrompe o custo', () => {
+  const ctx = tryLoad([...MODELO_E_NOVO_VALOR, { id:'abr2', nome:'ALUGUEL', valor:1200, categoria:'FIXO', vencimento:'2026-04-05', pago:false }]);
+  ctx.excluirCusto('abr2', '2026-04');
+  assert.strictEqual(ctx.custosFixosDoMes('2026-04').length, 1);
+  assert.strictEqual(ctx.custosFixosDoMes('2026-05').length, 1);
+});
+
+test('renomear uma repetição não deixa o nome antigo a repetir junto', () => {
+  const ctx = tryLoad(SIMPLES);
+  ctx.salvarEdicaoCusto('cst-a', '2026-08', { nome:'RENDA', valor:1000, categoria:'FIXO', vencimento:'2026-08-05' });
+  const set = ctx.custosFixosDoMes('2026-09').map(c=>c.nome);
+  assert.strictEqual(JSON.stringify(set), '["RENDA"]');
+  assert.strictEqual(JSON.stringify(ctx.custosFixosDoMes('2026-07').map(c=>c.nome)), '["ALUGUEL"]');
+});
+
+test('card = soma dos pagos da lista também em semana, dia e total', () => {
+  const ctx = tryLoad(REAIS);
+  const filtros = [ {granularity:'week', anchor:'2026-08-10'}, {granularity:'day', anchor:'2026-08-12'}, {granularity:'all'} ];
+  for(const f of filtros){
+    const c = ctx.computeCosts(f);
+    const lista = c.fixos.filter(x=>x.pago).reduce((a,x)=>a+(x._valorPago!=null?x._valorPago:x.valor),0);
+    assert.strictEqual(c.totalFixos, lista, JSON.stringify(f));
+  }
+});
+
+test('custo pago com atraso: card do mês de referência; Extrato na data real', () => {
+  const ctx = tryLoad(SIMPLES);
+  ctx.marcarCustoPago('cst-a', '2026-07', '2026-08-03');
+  const semana = { granularity:'week', anchor:'2026-08-03' };
+  assert.strictEqual(ctx.computeCosts(semana).totalFixos, 0); // o custo é de julho
+  const extrato = ctx.linhasFinanceiras({ granularity:'day', anchor:'2026-08-03' }, { porPagamento:true }).filter(l=>l.tipo==='Custo fixo');
+  assert.strictEqual(extrato.length, 1);
 });

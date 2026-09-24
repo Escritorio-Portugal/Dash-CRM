@@ -1797,7 +1797,9 @@ function salvarEdicaoCusto(costId, mes, campos){
     const reg = registoPagamentoNoMes(c, mes);
     const novo = { id:novoIdCusto(), nome, valor, categoria, vencimento, pago:!!reg.pago, dataPagamento: reg.pago ? reg.data : null };
     if(c.pagoPorMes && c.pagoPorMes[mes]!=null) delete c.pagoPorMes[mes];
-    if(categoria!=='FIXO') c.fimEm = mes; // deixou de ser fixo a partir deste mês
+    // Mudou de nome ou deixou de ser fixo: o nome antigo para de repetir aqui
+    // (senão os dois ficariam a repetir juntos).
+    if(categoria!=='FIXO' || normNomeCusto(nome)!==normNomeCusto(c.nome)) c.fimEm = mes;
     STATE.costs.push(novo);
     return { ok:true, id:novo.id };
   }
@@ -1826,6 +1828,18 @@ function excluirCusto(costId, mes){
     return { erro:'Este custo tem pagamentos registados em meses seguintes ('+pagosDepois.join(', ')+'). Para não apagar esse histórico, exclua-o a partir do mês seguinte ao último pagamento.' };
   }
   STATE.costs = STATE.costs.filter(x=>x.id!==costId);
+  // Excluir o lançamento do próprio mês também interrompe a repetição: sem
+  // isto, um lançamento mais antigo com o mesmo nome voltaria a repetir a
+  // partir deste mês. (Se ainda houver outro lançamento do mesmo nome neste
+  // mês, era só um duplicado: o custo continua.)
+  if(c.categoria==='FIXO' && mesOrigem){
+    const mesmoNome = STATE.costs.filter(x=>x.categoria==='FIXO' && x.vencimento && normNomeCusto(x.nome)===normNomeCusto(c.nome));
+    if(!mesmoNome.some(x=>mesDe(x.vencimento)===mesOrigem)){
+      const anteriores = mesmoNome.filter(x=>mesDe(x.vencimento) < mesOrigem).sort((a,b)=>a.vencimento.localeCompare(b.vencimento));
+      const base = anteriores[anteriores.length-1];
+      if(base && (!base.fimEm || base.fimEm > mesOrigem)) base.fimEm = mesOrigem;
+    }
+  }
   return { ok:true, modo:'apagado' };
 }
 /* Custos fixos do mês atual, vencidos e ainda pendentes, mostrados como
@@ -1843,10 +1857,15 @@ function computeCosts(filter){
   let list;
   if(filter && filter.granularity==='month'){
     const monthKey = filter.anchor.slice(0,7);
-    const variaveisDoMes = STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.vencimento && c.vencimento.slice(0,7)===monthKey);
+    const variaveisDoMes = STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && mesDe(c.vencimento || c.dataPagamento)===monthKey);
     list = [...custosFixosDoMes(monthKey), ...variaveisDoMes];
   } else {
-    list = STATE.costs.filter(c=>inPeriodOrAll(c.vencimento, filter));
+    // Mesmo critério dos cards: repetições de cada mês do período (pelo
+    // vencimento projetado) + variáveis pela data de referência.
+    const fixos = [];
+    mesesDeCompetencia(filter).forEach(mk=>custosFixosDoMes(mk).forEach(c=>{ if(inPeriodOrAll(c.vencimento, filter)) fixos.push(c); }));
+    const variaveis = STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && inPeriodOrAll(c.vencimento || c.dataPagamento, filter));
+    list = [...fixos, ...variaveis];
   }
   const fixos = list.filter(c=>c.categoria==='FIXO');
   const variaveis = list.filter(c=>c.categoria==='VARIÁVEL');
@@ -2680,7 +2699,7 @@ function renderSaldoEEvolucaoCharts(){
   const todas = linhasFinanceiras({granularity:'all'});
   const porMes = {};
   todas.forEach(l=>{
-    const mk = (l.data||'').slice(0,7);
+    const mk = (l.sinal<0 && l.competencia) ? l.competencia : (l.data||'').slice(0,7); // custos no mês a que se referem, igual aos cards
     if(!mk) return;
     if(!porMes[mk]) porMes[mk] = {entrou:0, saiu:0};
     if(l.sinal>0) porMes[mk].entrou += l.valor; else porMes[mk].saiu += l.valor;
@@ -4371,7 +4390,7 @@ function renderFinanceiro(){
   const avisoEstimados = estimados.length ? `<div class="field-hint" style="margin:0 0 14px;border-left:3px solid var(--bad);padding-left:10px;">⚠️ <strong>${estimados.length} parcela(s)</strong> deste período foram marcadas como pagas <strong>sem valor registado</strong>. O recebido inclui <strong>${fmtEUR(estimados.reduce((a,e)=>a+e.valor,0))}</strong> estimados pelo valor padrão do contrato (veja "valor estimado" no Registro). Confira com o extrato bancário.</div>` : '';
   return `
   ${renderGenericFilterBar('financeiroFilter', ['all','month','week','day'], months)}
-  <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado), só lance um novo se o valor mudar naquele mês específico. Custos <strong>variáveis</strong> nunca repetem: contam só no mês exato em que foram lançados, e zeram sozinhos no mês seguinte. Os cards abaixo mostram só o que já foi <strong>efetivamente pago</strong> no período (mesmo critério do Resumo, Extrato e Registro), as abas "Custos fixos"/"Custos variáveis" mostram todo o lançamento, pago ou ainda pendente.</div>
+  <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado). Para mudar o valor a partir de um mês, edite a repetição desse mês; <strong>excluir</strong> num mês interrompe a repetição dali em diante, sem mexer nos meses anteriores. Ao marcar como pago, informe a <strong>data real do pagamento</strong>. Custos <strong>variáveis</strong> nunca repetem. Os cards somam exatamente os custos marcados como pagos na lista do mês (mesmo que pagos depois do vencimento); o Extrato do dia mostra cada pagamento na data em que foi feito.</div>
   <div class="cards">
     <div class="card"><div class="lbl">Custos fixos pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val" data-detalhe-card="custosFixos" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(costs.totalFixos)}</div></div>
     <div class="card"><div class="lbl">Custos variáveis pagos${monthKeyAtual?' ('+monthLabel(monthKeyAtual)+')':''}</div><div class="val" data-detalhe-card="custosVariaveis" data-detalhe-filtro="financeiro" style="cursor:pointer;text-decoration:underline dotted;" title="Clique para ver de onde vem">${fmtEUR(costs.totalVariaveis)}</div></div>
@@ -4414,7 +4433,8 @@ function renderCostsTab(list, tab, monthKeyAtual){
 /* Lista unificada de movimentações financeiras num período qualquer, usada
    tanto no Extrato do dia (período = 1 dia) quanto no Registro (qualquer
    período). Cada linha já vem com emoji, categoria e sinal (+/-) prontos. */
-function linhasFinanceiras(filter){
+function linhasFinanceiras(filter, opts){
+  const porPagamento = !!(opts && opts.porPagamento); // Extrato do dia: custos na data real do pagamento
   const linhas = [];
   STATE.sales.filter(s=>!s.jaContabilizadoViaRecorrencia && (s.valorPago||0)>0 && inPeriodOrAll(s.data, filter)).forEach(s=>{
     linhas.push({ data:s.data, emoji:'💳', tipo:'Venda integral', categoria:'Receita', cliente:s.cliente, vendedor:s.vendedorNome, forma:s.formaPagamento||'-', valor:s.valorPago, sinal:1, _ref:{tipo:'venda', saleId:s.id} });
@@ -4436,21 +4456,24 @@ function linhasFinanceiras(filter){
     });
   });
   // Custos fixos: exatamente os mesmos itens da lista de Custos fixos
-  // (custosFixosDoMes). No filtro mensal conta o mês A QUE O CUSTO SE
-  // REFERE (bate com a lista, mesmo pago com atraso); em dia/semana conta
-  // a data real do pagamento (Extrato do dia).
+  // (custosFixosDoMes). Cards, lista, Resumo, Registro e gráfico contam
+  // pela COMPETÊNCIA (o vencimento do mês a que o custo se refere, bate com
+  // a lista mesmo pago com atraso); o Extrato do dia conta pela data real.
   const porMes = filter && filter.granularity==='month';
-  mesesDeCompetencia(filter).forEach(mk=>{
+  mesesDeCompetencia(porPagamento ? {granularity:'all'} : filter).forEach(mk=>{
     custosFixosDoMes(mk).filter(c=>c.pago).forEach(c=>{
-      if(porMes ? mk!==filter.anchor.slice(0,7) : !inPeriodOrAll(c._dataPagamento, filter)) return;
+      const dentro = porPagamento ? inPeriodOrAll(c._dataPagamento, filter)
+        : porMes ? mk===filter.anchor.slice(0,7) : inPeriodOrAll(c.vencimento, filter);
+      if(!dentro) return;
       linhas.push({ data:c._dataPagamento, competencia:mk, emoji:'🏠', tipo:'Custo fixo', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c._valorPago, sinal:-1,
         _ref: c._projetado ? {tipo:'custoFixoMes', custoId:c.id, mes:mk} : {tipo:'custoFixoExato', custoId:c.id} });
     });
   });
-  STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.pago && c.vencimento).forEach(c=>{
+  STATE.costs.filter(c=>c.categoria==='VARIÁVEL' && c.pago && (c.vencimento || c.dataPagamento)).forEach(c=>{
     const data = c.dataPagamento || c.vencimento;
-    if(porMes ? mesDe(c.vencimento)!==filter.anchor.slice(0,7) : !inPeriodOrAll(data, filter)) return;
-    linhas.push({ data, competencia:mesDe(c.vencimento), emoji:'📦', tipo:'Custo variável', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1, _ref:{tipo:'custoVariavel', custoId:c.id} });
+    const ref = c.vencimento || c.dataPagamento;
+    if(!inPeriodOrAll(porPagamento ? data : ref, filter)) return;
+    linhas.push({ data, competencia:mesDe(ref), emoji:'📦', tipo:'Custo variável', categoria:'Despesa', cliente:c.nome, vendedor:'-', forma:'-', valor:c.valor, sinal:-1, _ref:{tipo:'custoVariavel', custoId:c.id} });
   });
   return linhas.sort((a,b)=> (b.data||'').localeCompare(a.data||''));
 }
@@ -4495,7 +4518,7 @@ function renderExtratoTab(){
   const data = STATE.extratoData || todayISO();
   const monthKey = data.slice(0,7);
   const filtroDia = {granularity:'day', anchor:data};
-  let linhas = linhasFinanceiras(filtroDia);
+  let linhas = linhasFinanceiras(filtroDia, { porPagamento:true });
   // pendências (ainda não pagas) com vencimento nesse dia, mostradas à parte
   const pendentes = [];
   custosFixosDoMes(monthKey).forEach(c=>{
