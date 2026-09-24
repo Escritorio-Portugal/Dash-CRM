@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Verificação completa: sintaxe do <script> do index.html + testes de regressão.
 # Uso: bash tests/audit/check.sh
-set -e
+set -eo pipefail
 cd "$(dirname "$0")/../.."
 node -e '
 const h=require("fs").readFileSync("index.html","utf8");

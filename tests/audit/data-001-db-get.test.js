@@ -26,12 +26,12 @@ test('chave ausente devolve fallback sem gravar nada no banco', async () => {
   assert.deepStrictEqual(writes, []);
 });
 
-test('migrações JS não correm se crm:meta não veio do banco', async () => {
+test('migrações JS nunca correm, nem com crm:meta presente sem flags', async () => {
   const chamadas = [];
   const fns = ['applyCorrecaoDatasCustosProjetados','applyHistoricalImport','applyDedupSalesVsRecurrences','applyJulhoUpdate',
     'applyLarissaIndividualJuly','applyReconciliacaoMaioJunho2026','applyDedupCustos2026','applyCorrigeEntradaRecorrencias2026',
     'applyFormaPagamentoRecorrencias2026','applyRemoveStaleLeandroRecorrencia','applyReconciliacaoJulho2026v2','applyReconciliacaoJulho2026v3'];
-  const globals = { STATE: { role: 'gestor', meta: {}, metaCarregadaDoBanco: false } };
+  const globals = { STATE: { role: 'gestor', meta: {}, } };
   fns.forEach(f => globals[f] = async () => chamadas.push(f));
   const ctx = load(['runGestorMigrationsIfNeeded'], globals);
   await ctx.runGestorMigrationsIfNeeded();
