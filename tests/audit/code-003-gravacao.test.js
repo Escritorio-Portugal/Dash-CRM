@@ -26,12 +26,12 @@ test('venda nova que falha ao gravar não fica na tela', async () => {
   assert.deepStrictEqual(ctx.STATE.sales.map(s=>s.id), ['v1']);
 });
 
-test('recorrência nova com parcelas recusadas é desfeita no banco e na tela', async () => {
+test('recorrência nova recusada pelo banco não fica na tela (gravação única, nada a apagar)', async () => {
   const { ctx, apagados } = mk({ falhaRec:true });
   const ok = await ctx.criarRecorrencia({ id:'r1', parcelas:[] });
   assert.strictEqual(ok, false);
   assert.strictEqual(ctx.STATE.recurrences.length, 0);
-  assert.ok(apagados.includes('recorrencias:r1'));
+  assert.strictEqual(apagados.length, 0); // salvar_recorrencia é uma transação: nada ficou gravado
 });
 
 test('edição que falha volta os campos ao valor anterior', async () => {
