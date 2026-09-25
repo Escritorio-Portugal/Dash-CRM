@@ -4898,8 +4898,8 @@ function openQuickAddModal(initialTipo, forColaborador){
       matchedService = serviceByName(qServico.value);
       const prev = document.getElementById('qServicoPreview');
       if(matchedService){
-        if(tipo==='integral'){ document.getElementById('qValorPago').value = matchedService.honorarioFinal; }
-        else { document.getElementById('qValorContrato').value = matchedService.honorarioFinal; }
+        if(tipo==='integral'){ document.getElementById('qValorPago').value = (Number(matchedService.honorarioFinal)||0).toFixed(2); }
+        else { document.getElementById('qValorContrato').value = (Number(matchedService.honorarioFinal)||0).toFixed(2); }
         prev.innerHTML = `Honorário base: <strong>${fmtEUR(matchedService.honorarioBase)}</strong> · IVA: ${fmtEUR(matchedService.iva)} · Taxa adm.: ${fmtEUR(matchedService.txAdm)}`;
       } else {
         prev.textContent = 'Serviço não cadastrado no catálogo, será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
@@ -5251,7 +5251,7 @@ function openAddRecModal(forColaborador){
     matchedService = serviceByName(rServico.value);
     const prev = document.getElementById('rServicoPreview');
     if(matchedService){
-      document.getElementById('rValor').value = matchedService.honorarioFinal;
+      document.getElementById('rValor').value = (Number(matchedService.honorarioFinal)||0).toFixed(2);
       prev.innerHTML = `Honorário base: <strong>${fmtEUR(matchedService.honorarioBase)}</strong> · IVA: ${fmtEUR(matchedService.iva)} · Taxa adm.: ${fmtEUR(matchedService.txAdm)}`;
     } else {
       prev.textContent = 'Serviço não cadastrado no catálogo, será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
