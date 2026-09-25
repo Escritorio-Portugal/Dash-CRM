@@ -181,3 +181,12 @@ test('renomear o lançamento no próprio mês também interrompe o modelo anteri
   assert.strictEqual(JSON.stringify(ctx.custosFixosDoMes('2026-06').map(c=>c.nome)), '["RENDA"]');
   assert.strictEqual(JSON.stringify(ctx.custosFixosDoMes('2026-03').map(c=>c.nome)), '["ALUGUEL"]');
 });
+
+test('repetição paga adiantado (mês futuro) aparece no Extrato do dia do pagamento e no Total', () => {
+  const ctx = tryLoad([{ id:'c1', nome:'ALUGUEL', valor:100, categoria:'FIXO', vencimento:'2026-01-05', pago:true, dataPagamento:'2026-01-05',
+    pagoPorMes:{ '2099-03':{ pago:true, data:'2026-01-20', valor:100 } } }]);
+  const dia = ctx.linhasFinanceiras({ granularity:'day', anchor:'2026-01-20' }, { porPagamento:true });
+  assert.strictEqual(dia.filter(l => l.tipo==='Custo fixo').length, 1);
+  const total = ctx.linhasFinanceiras({ granularity:'all' }).filter(l => l.tipo==='Custo fixo').reduce((a,l)=>a+l.valor,0);
+  assert.strictEqual(total, 200);
+});

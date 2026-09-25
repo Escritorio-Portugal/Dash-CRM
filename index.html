@@ -1166,6 +1166,13 @@ async function excluirRegistoNoBanco(tabela, id){
   if(!count){ showErrorToast('o servidor não excluiu o registo (sem permissão ou já não existe). Recarregue a página.'); return false; }
   return true;
 }
+/* Configurações/leads/follow-up (app_state): muda o STATE e grava; se o
+   banco recusar, as chaves do STATE voltam ao que eram antes. */
+async function mudarEGravar(chaves, mutar, part, sellerId, msgErro){
+  const snap = chaves.map(k=>[k, snapshotObj(STATE[k])]);
+  mutar();
+  return gravarOuReverter(()=>{ snap.forEach(([k,v])=>{ STATE[k] = v; }); }, ()=>persist(part, sellerId), msgErro);
+}
 function travarBotao(btn){ if(!btn || btn.disabled) return false; btn.disabled = true; return true; }
 async function persist(part, sellerId){
   if(part==='sellers'){
@@ -1780,7 +1787,9 @@ function mesesDeCompetencia(filter){
   if(filter && filter.granularity==='month') return [filter.anchor.slice(0,7)];
   const vencs = STATE.costs.filter(c=>c.categoria==='FIXO' && c.vencimento).map(c=>mesDe(c.vencimento)).sort();
   if(!vencs.length) return [];
-  let fim = [todayISO().slice(0,7), vencs[vencs.length-1], filter && filter.anchor ? filter.anchor.slice(0,7) : ''].sort().pop();
+  // inclui meses de repetições já pagas adiantado (senão somem do Extrato/Total)
+  const pagosAdiantado = STATE.costs.filter(c=>c.categoria==='FIXO').flatMap(c=>Object.keys(c.pagoPorMes||{}).filter(mk=>costPagoNoMes(c, mk)));
+  let fim = [todayISO().slice(0,7), vencs[vencs.length-1], filter && filter.anchor ? filter.anchor.slice(0,7) : '', ...pagosAdiantado].sort().pop();
   const out = [];
   let [y,m] = vencs[0].split('-').map(Number);
   while(true){
@@ -3500,9 +3509,11 @@ function abrirNovoLeadManualModal(leadId){
       responsavel: document.getElementById('clResponsavel').value,
       followUp: document.getElementById('clFollowUp').value==='sim'
     };
-    if(editando){ Object.assign(editando, dados); }
-    else { STATE.controleLeads.push({ id:'cl-'+Date.now(), ...dados }); }
-    await persist('controleLeads'); showSuccessToast('Lead salvo com sucesso!'); closeModal(); renderAll();
+    const ok = await mudarEGravar(['controleLeads'], ()=>{
+      if(editando){ Object.assign(editando, dados); }
+      else { STATE.controleLeads.push({ id:'cl-'+Date.now(), ...dados }); }
+    }, 'controleLeads', null, 'o lead NÃO foi gravado');
+    if(ok) showSuccessToast('Lead salvo com sucesso!'); closeModal(); renderAll();
   };
 }
 function renderControleLeads(){
@@ -3576,14 +3587,15 @@ function abrirNovoFollowUpModal(){
   document.getElementById('mSave').onclick = async ()=>{
     const nome = document.getElementById('fuNome').value.trim();
     if(!nome){ alert('Informe o nome do lead.'); return; }
-    STATE.followUps.push({
+    const nova = {
       id:'fu-'+Date.now(), nome, dataPrimeiroContato: document.getElementById('fuData').value||todayISO(),
       servico: document.getElementById('fuServico').value.trim(),
       valorProposta: Number(document.getElementById('fuValor').value)||0,
       responsavel: document.getElementById('fuResponsavel').value,
       registros: []
-    });
-    await persist('followUps'); showSuccessToast('Ficha de follow-up criada!'); closeModal(); renderAll();
+    };
+    const ok = await mudarEGravar(['followUps'], ()=>{ STATE.followUps.push(nova); }, 'followUps', null, 'a ficha de follow-up NÃO foi gravada');
+    if(ok) showSuccessToast('Ficha de follow-up criada!'); closeModal(); renderAll();
   };
 }
 function abrirRegistroContatoModal(followUpId){
@@ -3605,8 +3617,9 @@ function abrirRegistroContatoModal(followUpId){
   document.getElementById('mSave').onclick = async ()=>{
     const resposta = document.getElementById('rcResposta').value;
     if(!resposta){ alert('Selecione a resposta do lead.'); return; }
-    ficha.registros.push({ id:'reg-'+Date.now(), data: document.getElementById('rcData').value||todayISO(), resposta, obs: document.getElementById('rcObs').value.trim() });
-    await persist('followUps');
+    const registo = { id:'reg-'+Date.now(), data: document.getElementById('rcData').value||todayISO(), resposta, obs: document.getElementById('rcObs').value.trim() };
+    const ok = await mudarEGravar(['followUps'], ()=>{ ficha.registros.push(registo); }, 'followUps', null, 'o contato NÃO foi gravado');
+    if(!ok){ closeModal(); renderAll(); return; }
     showSuccessToast('Contato registado com sucesso!');
     abrirDetalheFollowUpModal(followUpId);
   };
@@ -4767,8 +4780,10 @@ function openMetaModal(){
   document.getElementById('mCancel').onclick = closeModal;
   document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
   document.getElementById('mSave').onclick = async ()=>{
-    STATE.meta.valorMeta = Number(document.getElementById('mValorMeta').value)||0;
-    await persist('meta'); closeModal(); renderAll();
+    const valor = Number(document.getElementById('mValorMeta').value);
+    if(!(valor >= 0) || document.getElementById('mValorMeta').value===''){ alert('Informe o valor da meta.'); return; }
+    await mudarEGravar(['meta'], ()=>{ STATE.meta.valorMeta = valor; }, 'meta', null, 'a meta NÃO foi gravada');
+    closeModal(); renderAll();
   };
 }
 
@@ -4789,8 +4804,8 @@ function openAddSellerModal(){
   document.getElementById('mSave').onclick = async ()=>{
     const nome = document.getElementById('sNome').value.trim();
     if(!nome){ alert('Informe o nome do vendedor.'); return; }
-    STATE.sellers.push({id, nome, ativo:true, conversasIniciadas:0, novosContatos:0, fechamentosManual:0, salarioFixo:0});
-    await persist('sellers'); closeModal(); renderAll();
+    await mudarEGravar(['sellers'], ()=>{ STATE.sellers.push({id, nome, ativo:true, conversasIniciadas:0, novosContatos:0, fechamentosManual:0, salarioFixo:0}); }, 'sellers', null, 'o vendedor NÃO foi gravado');
+    closeModal(); renderAll();
   };
 }
 
@@ -5302,12 +5317,15 @@ function openServiceModal(existingId){
     const iva = Number(document.getElementById('svIva').value)||0;
     const tx = Number(document.getElementById('svTx').value)||0;
     const honorarioFinal = base+iva+tx;
-    if(existing){
-      Object.assign(existing, {nome, honorarioBase:base, iva, txAdm:tx, honorarioFinal});
-    } else {
-      STATE.services.push({id:'srv-'+Date.now(), nome, honorarioBase:base, iva, txAdm:tx, honorarioFinal});
-    }
-    await persist('services'); closeModal(); renderAll();
+    await mudarEGravar(['services'], ()=>{
+      const alvo = existing && STATE.services.find(x=>x.id===existing.id);
+      if(alvo){
+        Object.assign(alvo, {nome, honorarioBase:base, iva, txAdm:tx, honorarioFinal});
+      } else {
+        STATE.services.push({id:'srv-'+Date.now(), nome, honorarioBase:base, iva, txAdm:tx, honorarioFinal});
+      }
+    }, 'services', null, 'o serviço NÃO foi gravado');
+    closeModal(); renderAll();
   };
 }
 
@@ -5591,13 +5609,15 @@ function wireViewportEvents(){
       const funilSellerId = (STATE.view==='my-panel' || STATE.view==='my-funil') ? STATE.myOwnSellerId : STATE.selectedSellerId;
       const s = sellerById(funilSellerId);
       if(!s) return;
-      if(!s.funilDiario) s.funilDiario = {};
       const date = input.dataset.fdate, col = input.dataset.fcol;
-      if(!s.funilDiario[date]) s.funilDiario[date] = {};
       const val = Number(input.value)||0;
+      const antes = snapshotObj(s.funilDiario||{});
+      if(!s.funilDiario) s.funilDiario = {};
+      if(!s.funilDiario[date]) s.funilDiario[date] = {};
       if(val===0) delete s.funilDiario[date][col]; else s.funilDiario[date][col] = val;
       if(Object.keys(s.funilDiario[date]).length===0) delete s.funilDiario[date];
-      await persist('funil', s.id); renderAll();
+      await gravarOuReverter(()=>{ s.funilDiario = antes; }, ()=>persist('funil', s.id), 'o funil NÃO foi gravado');
+      renderAll();
     });
   });
 
@@ -5609,9 +5629,9 @@ function wireViewportEvents(){
         openConfirmModal({
           title:'Desativar vendedor', danger:true, confirmLabel:'Desativar',
           message:`<strong>${s.nome}</strong> deixará de aparecer no ranking e na lista ativa. O histórico de vendas e recorrências é mantido e pode ser reativado a qualquer momento.`,
-          onConfirm: async ()=>{ s.ativo=false; await persist('sellers'); renderAll(); }
+          onConfirm: async ()=>{ await mudarEGravar(['sellers'], ()=>{ const x = sellerById(s.id); if(x) x.ativo=false; }, 'sellers', null, 'o vendedor NÃO foi desativado'); renderAll(); }
         });
-      } else { s.ativo = true; persist('sellers').then(renderAll); }
+      } else { mudarEGravar(['sellers'], ()=>{ s.ativo = true; }, 'sellers', null, 'o vendedor NÃO foi reativado').then(renderAll); }
     };
   }
 
@@ -5624,13 +5644,18 @@ function wireViewportEvents(){
     openConfirmModal({
       title:'Excluir serviço', danger:true, confirmLabel:'Excluir',
       message:'Tem a certeza? Vendas e recorrências já criadas não serão afetadas.',
-      onConfirm: async ()=>{ STATE.services = STATE.services.filter(s=>s.id!==b.dataset.delService); await persist('services'); renderAll(); }
+      onConfirm: async ()=>{ await mudarEGravar(['services'], ()=>{ STATE.services = STATE.services.filter(s=>s.id!==b.dataset.delService); }, 'services', null, 'o serviço NÃO foi excluído'); renderAll(); }
     });
   }));
   const btnSaveComissao = document.getElementById('btnSaveComissao');
   if(btnSaveComissao) btnSaveComissao.onclick = async ()=>{
-    STATE.meta.taxaComissao = (Number(document.getElementById('cfgTaxaComissao').value)||0)/100;
-    await persist('meta'); renderAll();
+    const bruto = document.getElementById('cfgTaxaComissao').value.trim().replace(',', '.');
+    const pct = Number(bruto);
+    if(bruto==='' || !Number.isFinite(pct) || pct<0 || pct>100){ alert('Informe o percentual de comissão (de 0 a 100).'); return; }
+    if(pct===0 && !confirm('Comissão de 0%: nenhum vendedor recebe comissão. Confirmar?')) return;
+    const ok = await mudarEGravar(['meta'], ()=>{ STATE.meta.taxaComissao = pct/100; }, 'meta', null, 'a regra de comissão NÃO foi gravada');
+    if(ok) showSuccessToast('Regra de comissão guardada.');
+    renderAll();
   };
   const btnAddSellerCfg = document.getElementById('btnAddSellerCfg');
   if(btnAddSellerCfg) btnAddSellerCfg.onclick = openAddSellerModal;
@@ -5652,9 +5677,9 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Desativar vendedor', danger:true, confirmLabel:'Desativar',
         message:`<strong>${s.nome}</strong> deixará de aparecer no ranking e na lista ativa. O histórico é mantido e pode ser reativado a qualquer momento.`,
-        onConfirm: async ()=>{ s.ativo=false; await persist('sellers'); renderAll(); }
+        onConfirm: async ()=>{ await mudarEGravar(['sellers'], ()=>{ const x = sellerById(s.id); if(x) x.ativo=false; }, 'sellers', null, 'o vendedor NÃO foi desativado'); renderAll(); }
       });
-    } else { s.ativo = true; persist('sellers').then(renderAll); }
+    } else { mudarEGravar(['sellers'], ()=>{ s.ativo = true; }, 'sellers', null, 'o vendedor NÃO foi reativado').then(renderAll); }
   }));
   const btnAddFormaPagamento = document.getElementById('btnAddFormaPagamento');
   if(btnAddFormaPagamento) btnAddFormaPagamento.onclick = async ()=>{
@@ -5663,14 +5688,12 @@ function wireViewportEvents(){
     if(!val) return;
     const lista = formasPagamentoList();
     if(!lista.includes(val)){
-      STATE.meta.formasPagamento = [...lista, val];
-      await persist('meta'); renderAll();
+      await mudarEGravar(['meta'], ()=>{ STATE.meta.formasPagamento = [...lista, val]; }, 'meta', null, 'a forma de pagamento NÃO foi gravada'); renderAll();
     }
   };
   vp.querySelectorAll('[data-del-forma-pagamento]').forEach(b=> b.addEventListener('click', async ()=>{
     const val = b.dataset.delFormaPagamento;
-    STATE.meta.formasPagamento = formasPagamentoList().filter(f=>f!==val);
-    await persist('meta'); renderAll();
+    await mudarEGravar(['meta'], ()=>{ STATE.meta.formasPagamento = formasPagamentoList().filter(f=>f!==val); }, 'meta', null, 'a forma de pagamento NÃO foi removida'); renderAll();
   }));
 
   const btnAddOrigemLead = document.getElementById('btnAddOrigemLead');
@@ -5680,14 +5703,12 @@ function wireViewportEvents(){
     if(!val) return;
     const lista = origensLeadList();
     if(!lista.includes(val)){
-      STATE.meta.origensLead = [...lista, val];
-      await persist('meta'); renderAll();
+      await mudarEGravar(['meta'], ()=>{ STATE.meta.origensLead = [...lista, val]; }, 'meta', null, 'a origem NÃO foi gravada'); renderAll();
     }
   };
   vp.querySelectorAll('[data-del-origem-lead]').forEach(b=> b.addEventListener('click', async ()=>{
     const val = b.dataset.delOrigemLead;
-    STATE.meta.origensLead = origensLeadList().filter(o=>o!==val);
-    await persist('meta'); renderAll();
+    await mudarEGravar(['meta'], ()=>{ STATE.meta.origensLead = origensLeadList().filter(o=>o!==val); }, 'meta', null, 'a origem NÃO foi removida'); renderAll();
   }));
 
   // Financeiro
@@ -5843,7 +5864,7 @@ function wireViewportEvents(){
       openConfirmModal({
         title:'Excluir lead', danger:true, confirmLabel:'Excluir',
         message:`Tem a certeza que deseja excluir o lead <strong>${lead.nome}</strong>?`,
-        onConfirm: async ()=>{ STATE.controleLeads = STATE.controleLeads.filter(l=>l.id!==lead.id); await persist('controleLeads'); renderAll(); }
+        onConfirm: async ()=>{ await mudarEGravar(['controleLeads'], ()=>{ STATE.controleLeads = STATE.controleLeads.filter(l=>l.id!==lead.id); }, 'controleLeads', null, 'o lead NÃO foi excluído'); renderAll(); }
       });
     });
   });
@@ -5869,13 +5890,16 @@ function wireViewportEvents(){
     const ev = el.tagName==='SELECT' ? 'change' : 'blur';
     el.addEventListener(ev, async ()=>{
       const key = el.dataset.leadKey, campo = el.dataset.leadField;
+      const valor = el.value;
+      const antes = snapshotObj(STATE.leadEdits);
       if(!STATE.leadEdits[key]) STATE.leadEdits[key] = {};
-      STATE.leadEdits[key][campo] = el.value;
+      STATE.leadEdits[key][campo] = valor;
       if(el.tagName==='SELECT'){
         const cor = corFriaParaTexto(el.value);
         el.style.background = cor.bg; el.style.color = cor.fg; el.style.borderColor = cor.bg;
       }
-      await persist('leadEdits');
+      const ok = await gravarOuReverter(()=>{ STATE.leadEdits = antes; }, ()=>persist('leadEdits'), 'a alteração do lead NÃO foi gravada');
+      if(!ok) renderAll();
     });
   });
   if(extratoDataInput) extratoDataInput.addEventListener('change', ()=>{ STATE.extratoData = extratoDataInput.value; renderAll(); });
