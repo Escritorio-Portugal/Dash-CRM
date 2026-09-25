@@ -13,7 +13,7 @@
   --bg:#EEF0EE; --surface:#FFFFFF; --surface-2:#F5F6F4;
   --ink:#1C2430; --ink-soft:#5B6570; --line:#DCDFDA;
   --wine:#520225; --wine-2:#67203F; --wine-line:#864E66;
-  --gold:#BB8E1D; --gold-soft:#F7F1E4;
+  --gold:#b18821; --gold-soft:#F7F1E4;
   --good:#2E7D5B; --good-soft:#DFF0E6;
   --bad:#B0503B; --bad-soft:#F5E0DA;
   --radius:10px; --shadow:0 1px 2px rgba(28,36,48,.06), 0 8px 24px -12px rgba(28,36,48,.12);
@@ -1168,10 +1168,23 @@ async function excluirRegistoNoBanco(tabela, id){
 }
 /* Configurações/leads/follow-up (app_state): muda o STATE e grava; se o
    banco recusar, as chaves do STATE voltam ao que eram antes. */
-async function mudarEGravar(chaves, mutar, part, sellerId, msgErro){
-  const snap = chaves.map(k=>[k, snapshotObj(STATE[k])]);
-  mutar();
-  return gravarOuReverter(()=>{ snap.forEach(([k,v])=>{ STATE[k] = v; }); }, ()=>persist(part, sellerId), msgErro);
+/* Gravações da mesma chave do STATE correm UMA DE CADA VEZ: a mudança
+   seguinte só é aplicada depois de a anterior terminar. Assim, se uma falhar
+   e voltar atrás, não apaga outra mudança feita entretanto (nem grava no
+   banco um valor que a tela disse que não foi gravado). */
+const _filaGravacao = {};
+function enfileirarGravacao(chave, fn){
+  const anterior = _filaGravacao[chave] || Promise.resolve();
+  const atual = anterior.catch(()=>{}).then(fn);
+  _filaGravacao[chave] = atual;
+  return atual;
+}
+function mudarEGravar(chaves, mutar, part, sellerId, msgErro){
+  return enfileirarGravacao(chaves.join(','), ()=>{
+    const snap = chaves.map(k=>[k, snapshotObj(STATE[k])]);
+    mutar();
+    return gravarOuReverter(()=>{ snap.forEach(([k,v])=>{ STATE[k] = v; }); }, ()=>persist(part, sellerId), msgErro);
+  });
 }
 function travarBotao(btn){ if(!btn || btn.disabled) return false; btn.disabled = true; return true; }
 async function persist(part, sellerId){
@@ -5611,12 +5624,16 @@ function wireViewportEvents(){
       if(!s) return;
       const date = input.dataset.fdate, col = input.dataset.fcol;
       const val = Number(input.value)||0;
-      const antes = snapshotObj(s.funilDiario||{});
-      if(!s.funilDiario) s.funilDiario = {};
-      if(!s.funilDiario[date]) s.funilDiario[date] = {};
-      if(val===0) delete s.funilDiario[date][col]; else s.funilDiario[date][col] = val;
-      if(Object.keys(s.funilDiario[date]).length===0) delete s.funilDiario[date];
-      await gravarOuReverter(()=>{ s.funilDiario = antes; }, ()=>persist('funil', s.id), 'o funil NÃO foi gravado');
+      await enfileirarGravacao('sellers', ()=>{
+        const alvo = sellerById(s.id);
+        if(!alvo) return false;
+        const antes = snapshotObj(alvo.funilDiario||{});
+        if(!alvo.funilDiario) alvo.funilDiario = {};
+        if(!alvo.funilDiario[date]) alvo.funilDiario[date] = {};
+        if(val===0) delete alvo.funilDiario[date][col]; else alvo.funilDiario[date][col] = val;
+        if(Object.keys(alvo.funilDiario[date]).length===0) delete alvo.funilDiario[date];
+        return gravarOuReverter(()=>{ alvo.funilDiario = antes; }, ()=>persist('funil', alvo.id), 'o funil NÃO foi gravado');
+      });
       renderAll();
     });
   });
@@ -5891,14 +5908,14 @@ function wireViewportEvents(){
     el.addEventListener(ev, async ()=>{
       const key = el.dataset.leadKey, campo = el.dataset.leadField;
       const valor = el.value;
-      const antes = snapshotObj(STATE.leadEdits);
-      if(!STATE.leadEdits[key]) STATE.leadEdits[key] = {};
-      STATE.leadEdits[key][campo] = valor;
       if(el.tagName==='SELECT'){
         const cor = corFriaParaTexto(el.value);
         el.style.background = cor.bg; el.style.color = cor.fg; el.style.borderColor = cor.bg;
       }
-      const ok = await gravarOuReverter(()=>{ STATE.leadEdits = antes; }, ()=>persist('leadEdits'), 'a alteração do lead NÃO foi gravada');
+      const ok = await mudarEGravar(['leadEdits'], ()=>{
+        if(!STATE.leadEdits[key]) STATE.leadEdits[key] = {};
+        STATE.leadEdits[key][campo] = valor;
+      }, 'leadEdits', null, 'a alteração do lead NÃO foi gravada');
       if(!ok) renderAll();
     });
   });
