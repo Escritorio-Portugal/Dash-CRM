@@ -4458,7 +4458,7 @@ function renderFinanceiro(){
   const tax = computeTaxes(filter);
   const lucro = computeLucro(filter);
   const estimados = buildEvents().filter(e=>e.estimado && inPeriodOrAll(e.date, filter));
-  const avisoEstimados = estimados.length ? `<div class="field-hint" style="margin:0 0 14px;border-left:3px solid var(--bad);padding-left:10px;">⚠️ <strong>${estimados.length} parcela(s)</strong> deste período foram marcadas como pagas <strong>sem valor registado</strong>. O recebido inclui <strong>${fmtEUR(estimados.reduce((a,e)=>a+e.valor,0))}</strong> estimados pelo valor padrão do contrato (veja "valor estimado" no Registro). Confira com o extrato bancário.</div>` : '';
+  const avisoEstimados = estimados.length ? `<div class="field-hint" style="margin:0 0 14px;border-left:3px solid var(--bad);padding-left:10px;">⚠️ <button type="button" class="btn sm" data-abrir-estimados style="margin-right:6px;">${estimados.length} parcela(s)</button> deste período foram marcadas como pagas <strong>sem valor registado</strong>. O recebido inclui <strong>${fmtEUR(estimados.reduce((a,e)=>a+e.valor,0))}</strong> estimados pelo valor padrão do contrato. Clique no botão para ver quais são e registar o valor real ou desmarcar o pagamento.</div>` : '';
   return `
   ${renderGenericFilterBar('financeiroFilter', ['all','month','week','day'], months)}
   <div class="field-hint" style="margin:14px 0;">Custos <strong>fixos</strong> repetem automaticamente todo mês (usando o valor mais recente lançado). Para mudar o valor a partir de um mês, edite a repetição desse mês; <strong>excluir</strong> num mês interrompe a repetição dali em diante, sem mexer nos meses anteriores. Ao marcar como pago, informe a <strong>data real do pagamento</strong>. Custos <strong>variáveis</strong> nunca repetem. Os cards somam exatamente os custos marcados como pagos na lista do mês (mesmo que pagos depois do vencimento); o Extrato do dia mostra cada pagamento na data em que foi feito.</div>
@@ -5321,6 +5321,82 @@ async function gravarCustosOuReverter(snapshotAntes){
     return false;
   }
 }
+/* Parcelas marcadas como pagas SEM valor registado (o sistema mostra o
+   valor padrão do contrato como estimativa). Por padrão: as do período do
+   Financeiro; opcionalmente todas, incluindo as pagas sem data. */
+function parcelasPagasSemValor(filter, todas){
+  const out = [];
+  STATE.recurrences.forEach(r=>{
+    const st = recStatus(r);
+    r.parcelas.forEach(p=>{
+      if(!parcelaComValorEstimado(p)) return;
+      if(!todas && !(p.data && inPeriodOrAll(p.data, filter))) return;
+      out.push({ rec:r, parcela:p, estimado:valorEfetivoParcela(p, st) });
+    });
+  });
+  return out.sort((a,b)=>(a.parcela.data||'9999').localeCompare(b.parcela.data||'9999') || a.rec.cliente.localeCompare(b.rec.cliente) || a.parcela.numero-b.parcela.numero);
+}
+function abrirParcelasSemValorModal(todas){
+  const filter = STATE.financeiroFilter;
+  const itens = parcelasPagasSemValor(filter, !!todas);
+  const linhas = itens.map(({rec, parcela, estimado})=>`
+        <tr>
+          <td><strong>${rec.cliente}</strong><div style="font-size:11px;color:var(--ink-soft);">${rec.vendedorNome||'-'}${rec.servico?' · '+rec.servico:''}</div></td>
+          <td>Parcela ${parcela.numero}/${rec.nParcelas}</td>
+          <td>${parcela.data ? fmtDate(parcela.data) : '<span class="chip bad">sem data</span>'}</td>
+          <td>${fmtEUR(estimado)}</td>
+          <td><input type="number" step="0.01" min="0.01" data-sv-valor="${rec.id}|${parcela.numero}" placeholder="${estimado.toFixed(2)}" style="width:110px;"></td>
+          <td style="white-space:nowrap;">
+            <button class="btn gold sm" data-sv-gravar="${rec.id}|${parcela.numero}">Gravar valor</button>
+            <button class="btn ghost sm" data-sv-desmarcar="${rec.id}|${parcela.numero}">Desmarcar pagamento</button>
+          </td>
+        </tr>`).join('');
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:980px;">
+    <div class="modal-head"><h3>Parcelas pagas sem valor registado (${itens.length})</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:12px;">Estas parcelas estão marcadas como pagas, mas ninguém registou quanto foi recebido; o sistema conta o <strong>valor padrão do contrato</strong> (coluna "Estimado"). Para cada uma: informe o <strong>valor real recebido</strong> e grave, ou <strong>desmarque o pagamento</strong> se ela não foi paga (volta a ficar em aberto).</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:12px;"><input type="checkbox" id="svTodas" ${todas?'checked':''}> Mostrar todas (todos os períodos, incluindo as pagas sem data)</label>
+      ${itens.length ? `<div style="max-height:60vh;overflow:auto;"><table>
+        <thead><tr><th>Cliente</th><th>Parcela</th><th>Pago em</th><th>Estimado</th><th>Valor real (€)</th><th></th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table></div>` : `<div class="field-hint">Nenhuma parcela paga sem valor registado${todas?'':' neste período'}.</div>`}
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Fechar</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
+  document.getElementById('svTodas').addEventListener('change', e=> abrirParcelasSemValorModal(e.target.checked));
+  const achar = chave=>{
+    const [recId, num] = chave.split('|');
+    const rec = STATE.recurrences.find(r=>r.id===recId);
+    const parcela = rec && rec.parcelas.find(p=>p.numero===Number(num));
+    return { rec, parcela };
+  };
+  const depois = ()=>{ renderAll(); abrirParcelasSemValorModal(todas); };
+  document.querySelectorAll('#modalRoot [data-sv-gravar]').forEach(btn=> btn.addEventListener('click', async ()=>{
+    const chave = btn.dataset.svGravar;
+    const { rec, parcela } = achar(chave);
+    if(!rec || !parcela || !parcelaComValorEstimado(parcela)){ showErrorToast('essa parcela mudou entretanto, recarregue a lista.'); depois(); return; }
+    const input = document.querySelector(`#modalRoot [data-sv-valor="${chave}"]`);
+    const valor = Number(String(input.value).replace(',', '.'));
+    if(!(valor > 0)){ alert('Informe o valor real recebido (maior que zero).'); input.focus(); return; }
+    if(!travarBotao(btn)) return;
+    const ok = await salvarAlteracao(rec, ()=>{ parcela.valor = arred4(valor); }, ()=>persistRecorrencia(rec), 'o valor da parcela NÃO foi gravado');
+    if(ok) showSuccessToast(`Parcela ${parcela.numero} de ${rec.cliente}: ${fmtEUR(valor)} registado.`);
+    depois();
+  }));
+  document.querySelectorAll('#modalRoot [data-sv-desmarcar]').forEach(btn=> btn.addEventListener('click', async ()=>{
+    const { rec, parcela } = achar(btn.dataset.svDesmarcar);
+    if(!rec || !parcela || !parcelaComValorEstimado(parcela)){ showErrorToast('essa parcela mudou entretanto, recarregue a lista.'); depois(); return; }
+    if(!confirm(`Desmarcar o pagamento da parcela ${parcela.numero} de ${rec.cliente}? Ela volta a ficar em aberto e sai do recebido.`)) return;
+    if(!travarBotao(btn)) return;
+    const ok = await salvarAlteracao(rec, ()=>{ parcela.pago = false; parcela.data = null; parcela.valor = null; }, ()=>persistRecorrencia(rec), 'o desfazer da parcela NÃO foi gravado');
+    if(ok) showSuccessToast(`Parcela ${parcela.numero} de ${rec.cliente} voltou a ficar em aberto.`);
+    depois();
+  }));
+}
 /* Registar o pagamento de um custo com a data REAL em que foi pago
    (padrão: hoje), mesmo que seja depois do vencimento. */
 function abrirPagamentoCustoModal(costId, mes){
@@ -5445,6 +5521,8 @@ function wireViewportEvents(){
   vp.querySelectorAll('[data-paidmonth]').forEach(b=>{
     b.addEventListener('click', ()=>{ STATE.paidMonthFilter = b.dataset.paidmonth; renderAll(); });
   });
+
+  vp.querySelectorAll('[data-abrir-estimados]').forEach(b=> b.addEventListener('click', ()=> abrirParcelasSemValorModal(false)));
 
   vp.querySelectorAll('[data-parcela]').forEach(dot=>{
     dot.addEventListener('click', async ()=>{
