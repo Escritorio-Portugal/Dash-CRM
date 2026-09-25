@@ -5360,7 +5360,7 @@ function abrirParcelasSemValorModal(todas){
       ${itens.length ? `<div style="max-height:60vh;overflow:auto;"><table>
         <thead><tr><th>Cliente</th><th>Parcela</th><th>Pago em</th><th>Estimado</th><th>Valor real (€)</th><th></th></tr></thead>
         <tbody>${linhas}</tbody>
-      </table></div>` : '<div class="field-hint">Nenhuma parcela paga sem valor registado ${todas?"":"neste período"}.</div>'}
+      </table></div>` : `<div class="field-hint">Nenhuma parcela paga sem valor registado${todas?'':' neste período'}.</div>`}
     </div>
     <div class="modal-foot"><button class="btn ghost" id="mCancel">Fechar</button></div>
   </div></div>`;
