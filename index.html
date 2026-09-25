@@ -1102,30 +1102,17 @@ async function persistVenda(sale){
   const { error } = await supa.from('vendas').upsert(vendaToRow(sale));
   if(error) throw error;
 }
+/* Recorrência + parcelas + pagamentos personalizados numa ÚNICA transação
+   no banco (função salvar_recorrencia, migração de 24/09/2026): ou grava
+   tudo, ou nada. Antes eram 5 chamadas separadas e uma falha no meio
+   deixava a recorrência gravada sem parcelas (ou só metade da mudança). */
 async function persistRecorrencia(rec){
-  const { error: eRec } = await supa.from('recorrencias').upsert(recToRow(rec));
-  if(eRec) throw eRec;
-
-  const parcelaRows = rec.parcelas.map(p=>({
-    recorrencia_id: rec.id, numero: p.numero, data: p.data||null, pago: !!p.pago, valor: p.valor!=null ? p.valor : null
-  }));
-  if(parcelaRows.length){
-    const { error: eP } = await supa.from('parcelas').upsert(parcelaRows);
-    if(eP) throw eP;
-  }
-  const { error: eDelP } = await supa.from('parcelas').delete().eq('recorrencia_id', rec.id).gt('numero', rec.nParcelas||1);
-  if(eDelP) throw eDelP;
-
-  const extraRows = (rec.pagamentosExtras||[]).map(ex=>({ id: ex.id, recorrencia_id: rec.id, data: ex.data, valor: ex.valor||0 }));
-  if(extraRows.length){
-    const { error: eX } = await supa.from('pagamentos_extras').upsert(extraRows);
-    if(eX) throw eX;
-  }
-  const idsAtuais = (rec.pagamentosExtras||[]).map(ex=>ex.id);
-  let q = supa.from('pagamentos_extras').delete().eq('recorrencia_id', rec.id);
-  if(idsAtuais.length) q = q.not('id', 'in', `(${idsAtuais.map(id=>'"'+id+'"').join(',')})`);
-  const { error: eDelX } = await q;
-  if(eDelX) throw eDelX;
+  const { error } = await supa.rpc('salvar_recorrencia', {
+    p_rec: recToRow(rec),
+    p_parcelas: rec.parcelas.map(p=>({ numero: p.numero, data: p.data||null, pago: !!p.pago, valor: p.valor!=null ? p.valor : null })),
+    p_extras: (rec.pagamentosExtras||[]).map(ex=>({ id: ex.id, data: ex.data, valor: ex.valor||0 }))
+  });
+  if(error) throw error;
 }
 /* Gravação segura: a tela só fica com a mudança se o banco aceitou. Se
    falhar, desfaz o que foi mudado em memória e avisa, em vez de mostrar
@@ -1146,14 +1133,9 @@ async function criarVenda(venda){
 }
 async function criarRecorrencia(rec){
   STATE.recurrences.push(rec);
-  // persistRecorrencia grava a recorrência e depois as parcelas, em chamadas
-  // separadas; se as parcelas forem recusadas (ex.: colaborador sem
-  // permissão), a recorrência já gravada é apagada pra não ficar sem parcelas.
-  return gravarOuReverter(async ()=>{
-    STATE.recurrences = STATE.recurrences.filter(r=>r!==rec);
-    const { error } = await supa.from('recorrencias').delete().eq('id', rec.id);
-    if(error) showErrorToast('a recorrência de '+rec.cliente+' pode ter ficado gravada SEM parcelas, avise o gestor ('+error.message+').');
-  }, ()=>persistRecorrencia(rec), 'a recorrência NÃO foi gravada');
+  // A gravação é uma transação só: se falhar, nada ficou no banco.
+  return gravarOuReverter(()=>{ STATE.recurrences = STATE.recurrences.filter(r=>r!==rec); },
+    ()=>persistRecorrencia(rec), 'a recorrência NÃO foi gravada');
 }
 async function salvarAlteracao(obj, mutar, gravar, msgErro){
   const snap = snapshotObj(obj);
