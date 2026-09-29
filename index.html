@@ -1168,6 +1168,17 @@ function mudarEGravar(chaves, mutar, part, sellerId, msgErro){
     return gravarOuReverter(()=>{ snap.forEach(([k,v])=>{ STATE[k] = v; }); }, ()=>persist(part, sellerId), msgErro);
   });
 }
+/* Mesmas regras que o banco aplica (migração 20260929): datas de lançamento
+   entre o início do escritório e hoje; pagamento nunca antes da venda. Avisar
+   aqui evita que a pessoa só descubra o erro quando o banco recusar. */
+const INICIO_LANCAMENTOS = '2026-01-01';
+function erroDataLancamento(data, rotulo, dataVenda){
+  if(!data) return rotulo+' é obrigatória.';
+  if(data < INICIO_LANCAMENTOS) return rotulo+' ('+fmtDate(data)+') é anterior a '+fmtDate(INICIO_LANCAMENTOS)+': confira o ano.';
+  if(data > toLocalISODate(new Date(Date.now()+86400000))) return rotulo+' ('+fmtDate(data)+') está no futuro.';
+  if(dataVenda && data < dataVenda) return rotulo+' ('+fmtDate(data)+') é anterior à data da venda ('+fmtDate(dataVenda)+').';
+  return null;
+}
 function travarBotao(btn){ if(!btn || btn.disabled) return false; btn.disabled = true; return true; }
 async function persist(part, sellerId){
   if(part==='sellers'){
@@ -2241,6 +2252,8 @@ async function bootAfterLogin(){
   await loadAlertaDismissido();
   startLiveDateWatcher();
   enterApp();
+  // verificação dos lançamentos em segundo plano: não atrasa a entrada no painel
+  if(STATE.role==='gestor') carregarSegurancaDados().then(()=>{ if(STATE.seguranca && STATE.seguranca.recentes && STATE.seguranca.recentes.length) renderAll(); });
 }
 /* Mantém o sistema "vivo": se a aba ficar aberta e a data virar (meia-noite,
    troca de mês), os filtros que estavam acompanhando "hoje"/"este mês"
@@ -2535,6 +2548,8 @@ function abrirPagamentoModal(recId, parcelaNumero){
     const data = document.getElementById('pgData').value || hoje;
     const aviso = document.getElementById('pgAviso');
     if(valor<=0){ aviso.textContent = 'Informe um valor maior que zero.'; aviso.style.display='block'; return; }
+    const erroDataPg = erroDataLancamento(data, 'A data do pagamento', rec.dataVenda);
+    if(erroDataPg){ aviso.textContent = erroDataPg; aviso.style.display='block'; return; }
     const btnSave = document.getElementById('mSave');
     if(valor > st.valorPendente + 0.01 && !btnSave.dataset.confirmouExcesso){
       // Antes o aviso aparecia mas gravava no mesmo clique; agora exige confirmação.
@@ -2600,6 +2615,8 @@ function abrirPagamentoRecorrenciaModal(recId){
     const data = document.getElementById('pgData').value || hoje;
     const selecionadas = Array.from(document.querySelectorAll('.pgParcelaChk:checked')).map(el=>Number(el.value));
     if(!selecionadas.length){ alert('Selecione ao menos uma parcela.'); return; }
+    const erroDataPg = erroDataLancamento(data, 'A data do pagamento', rec.dataVenda);
+    if(erroDataPg){ alert(erroDataPg); return; }
     if(!travarBotao(btnSave)) return;
     const ok = await salvarAlteracao(rec, ()=>registrarPagamentoParcelas(rec, selecionadas, data), // grava também o valor de cada parcela
       ()=>persistRecorrencia(rec), 'o pagamento NÃO foi gravado');
@@ -2819,6 +2836,7 @@ function renderOverview(){
   const g = computeGlobalForPeriod(STATE.periodFilter);
   const rk = ranking(STATE.periodFilter).slice(0,3);
   return `
+  ${renderAlertaSeguranca()}
   ${renderAlertaAtraso()}
   <div class="quick-actions">
     <button class="btn gold" id="btnQuickSale">+ Adicionar venda</button>
@@ -4356,9 +4374,11 @@ function renderConfig(){
     <button data-ctab="comissao" class="${tab==='comissao'?'active':''}">Regras de comissão</button>
     <button data-ctab="vendedores" class="${tab==='vendedores'?'active':''}">Vendedores</button>
     <button data-ctab="pagamentos" class="${tab==='pagamentos'?'active':''}">Pagamentos e origens</button>
+    <button data-ctab="seguranca" class="${tab==='seguranca'?'active':''}">Segurança dos dados${STATE.seguranca && STATE.seguranca.criticos ? ` (${STATE.seguranca.criticos})` : ''}</button>
     <button data-ctab="acesso" class="${tab==='acesso'?'active':''}">Solicitações de acesso${STATE.accessRequests.length?` (${STATE.accessRequests.length})`:''}</button>
   </div>
   <div style="margin-top:18px;">
+  ${tab==='seguranca' ? renderSegurancaDados() : ''}
   ${tab==='acesso' ? `
   <section class="block">
     <div class="block-head"><h3>Pedidos de acesso pendentes (${STATE.accessRequests.length})</h3><span class="hint">quem pediu acesso pela tela de login, aguardando aprovação</span></div>
@@ -4452,6 +4472,62 @@ function renderConfig(){
     </div>
   </section>` : ''}
   </div>`;
+}
+
+/* =========================================================
+   SEGURANÇA DOS DADOS (gestor)
+   O banco guarda o histórico de toda inclusão/alteração/exclusão, recusa
+   lançamentos novos com erro e não deixa apagar muitos de uma vez (migração
+   20260929). Aqui o gestor vê o que o verificador encontrou e restaura
+   lançamentos excluídos.
+   ========================================================= */
+async function carregarSegurancaDados(){
+  if(STATE.role!=='gestor') return;
+  STATE.seguranca = Object.assign(STATE.seguranca||{}, { carregando:true, erro:null });
+  try{
+    const [{ data:regras, error:e1 }, { data:exclusoes, error:e2 }] = await Promise.all([
+      supa.rpc('verificar_integridade'), supa.rpc('listar_exclusoes', { p_dias:30 })
+    ]);
+    if(e1) throw e1; if(e2) throw e2;
+    const semanaPassada = Date.now() - 7*86400000;
+    const recentes = (regras||[]).filter(r=>r.gravidade==='crítica')
+      .flatMap(r=>(r.itens||[]).filter(i=>i.alterado && new Date(i.alterado).getTime() > semanaPassada).map(i=>Object.assign({ regra:r.descricao }, i)));
+    STATE.seguranca = { carregando:false, erro:null, em:new Date(), regras:regras||[], exclusoes:exclusoes||[],
+      criticos:(regras||[]).filter(r=>r.gravidade==='crítica').reduce((a,r)=>a+r.qtd,0), recentes };
+  }catch(e){
+    STATE.seguranca = Object.assign(STATE.seguranca||{}, { carregando:false, erro:(e&&e.message)||String(e) });
+  }
+}
+function renderAlertaSeguranca(){
+  const sg = STATE.seguranca;
+  if(STATE.role!=='gestor' || !sg || !sg.recentes || !sg.recentes.length) return '';
+  return `<div class="field-hint" style="margin:0 0 14px;border-left:3px solid var(--bad);padding-left:10px;">⚠️ <strong>${sg.recentes.length} lançamento(s) alterado(s) nos últimos 7 dias com erro crítico</strong> (ex.: ${sg.recentes[0].cliente}, ${sg.recentes[0].regra.toLowerCase()}). <button type="button" class="btn sm" data-ir-seguranca>Ver em Segurança dos dados</button></div>`;
+}
+function renderSegurancaDados(){
+  const sg = STATE.seguranca || {};
+  const cor = g => g==='crítica' ? 'bad' : g==='média' ? 'gold' : 'neutral';
+  const linhasRegras = (sg.regras||[]).filter(r=>r.codigo!=='HIST-01').map(r=>`
+      <details style="border-bottom:1px solid var(--line);padding:10px 20px;">
+        <summary style="cursor:pointer;display:flex;gap:10px;align-items:center;"><span class="chip ${cor(r.gravidade)}">${r.gravidade}</span><strong>${r.qtd}</strong> ${r.descricao}</summary>
+        <table style="margin-top:8px;"><thead><tr><th>Cliente</th><th>Data</th><th>Detalhe</th><th>Registo</th></tr></thead>
+        <tbody>${(r.itens||[]).map(i=>`<tr><td>${i.cliente||'-'}</td><td>${i.data?fmtDate(String(i.data).slice(0,10)):'-'}</td><td>${i.detalhe||''}</td><td style="font-size:11px;color:var(--ink-soft);">${i.id}</td></tr>`).join('')}</tbody></table>
+      </details>`).join('');
+  const linhasExcl = (sg.exclusoes||[]).map(x=>`<tr><td>${new Date(x.em).toLocaleString('pt-PT')}</td><td>${x.tipo}</td><td><strong>${x.cliente||'-'}</strong></td><td>${x.data?fmtDate(x.data):'-'}</td><td class="tnum">${fmtEUR(x.valor)}</td><td>${x.parcelas_pagas?x.parcelas_pagas+' parcela(s) paga(s)':''}</td><td>${x.quem}</td><td><button class="btn gold sm" data-restaurar="${x.id}">Restaurar</button></td></tr>`).join('');
+  return `
+  <section class="block">
+    <div class="block-head"><h3>Verificação dos lançamentos</h3><button class="btn gold sm" id="btnVerificarDados" ${sg.carregando?'disabled':''}>${sg.carregando?'A verificar…':'Verificar agora'}</button></div>
+    <div class="field-hint" style="padding:12px 20px 0;">
+      O banco agora protege os lançamentos em três camadas: <strong>recusa</strong> lançamentos novos ou alterados com erro (data fora de ${fmtDate(INICIO_LANCAMENTOS)} a hoje, pagamento antes da venda, parcela paga sem data, recebido maior que o total); <strong>guarda o histórico</strong> de toda inclusão, alteração e exclusão (quem, quando, antes e depois); e <strong>não deixa apagar</strong> vários lançamentos de uma vez nem esvaziar custos, serviços ou vendedores.
+      Esta verificação procura erros que já estão na base. ${sg.em?'Última verificação: '+sg.em.toLocaleString('pt-PT')+'.':''}
+    </div>
+    ${sg.erro ? `<div class="empty" style="color:var(--bad);">Não foi possível verificar: ${sg.erro}</div>`
+      : !sg.regras ? `<div class="empty">Clique em "Verificar agora".</div>`
+      : linhasRegras ? linhasRegras : `<div class="empty">✅ Nenhum erro encontrado nos lançamentos.</div>`}
+  </section>
+  <section class="block">
+    <div class="block-head"><h3>Lançamentos excluídos (últimos 30 dias)</h3><span class="hint">excluir não apaga para sempre: dá para restaurar com as parcelas e pagamentos</span></div>
+    ${linhasExcl ? `<table><thead><tr><th>Excluído em</th><th>Tipo</th><th>Cliente</th><th>Data</th><th>Valor</th><th></th><th>Quem</th><th></th></tr></thead><tbody>${linhasExcl}</tbody></table>` : `<div class="empty">Nenhuma exclusão nos últimos 30 dias.</div>`}
+  </section>`;
 }
 
 /* =========================================================
@@ -4563,7 +4639,7 @@ async function estornarLancamento(ref){
   if(ref.tipo==='venda'){
     const s = STATE.sales.find(x=>x.id===ref.saleId);
     if(!s) return false;
-    return salvarAlteracao(s, ()=>{ s.valorPago = 0; }, ()=>persistVenda(s), 'o estorno NÃO foi gravado');
+    return salvarAlteracao(s, ()=>{ s.valorPago = 0; s.pagamentoIntegral = false; }, ()=>persistVenda(s), 'o estorno NÃO foi gravado');
   }
   if(ref.tipo==='entrada' || ref.tipo==='parcela' || ref.tipo==='extra'){
     const r = STATE.recurrences.find(x=>x.id===ref.recId);
@@ -4893,6 +4969,8 @@ function openQuickAddModal(initialTipo, forColaborador){
       const vendedor = sellerById(vendedorId);
       const origem = document.getElementById('qOrigem').value;
       if(!cliente){ alert('Informe o nome do cliente.'); return; }
+      const erroData = erroDataLancamento(data, 'A data');
+      if(erroData){ alert(erroData); return; }
 
       if(tipo==='integral'){
         const valorPago = Number(document.getElementById('qValorPago').value)||0;
@@ -5086,6 +5164,7 @@ function openEditSaleModal(saleId){
     const iva = Number(document.getElementById('esIva').value)||0;
     const txAdm = Number(document.getElementById('esTx').value)||0;
     if(!cliente || !data){ alert('Preencha ao menos cliente e data.'); return; }
+    if(data !== sale.data){ const erroData = erroDataLancamento(data, 'A data da venda'); if(erroData){ alert(erroData); return; } }
     if(valorPago > valorTotal){ alert('O valor recebido não pode ser maior que o valor total.'); return; }
     if(!componentesFinanceirosConferem(valorTotal, honorarioBase, iva, txAdm)){
       alert('Honorário base + IVA + taxa administrativa devem ser iguais ao valor total.'); return;
@@ -5173,6 +5252,12 @@ function openEditRecModal(recId){
     const isentoTaxaAdm = document.getElementById('erIsentoTx').checked;
     const nParcelasNovo = Number(document.getElementById('erParcelas').value)||1;
     if(!cliente || !valorContrato){ alert('Preencha ao menos cliente e valor do contrato.'); return; }
+    if(data !== rec.dataVenda){
+      const erroData = erroDataLancamento(data, 'A data da venda');
+      if(erroData){ alert(erroData); return; }
+      const pagaAntes = rec.parcelas.find(p=>p.pago && p.data && p.data < data);
+      if(pagaAntes){ alert('A parcela '+pagaAntes.numero+' foi paga em '+fmtDate(pagaAntes.data)+', antes da nova data da venda. Corrija primeiro a data dessa parcela.'); return; }
+    }
     if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
     if(!componentesFinanceirosConferem(valorContrato, honorarioBase, iva, txAdm)){
       alert('Honorário base + IVA + taxa administrativa devem ser iguais ao valor do contrato.'); return;
@@ -5632,7 +5717,26 @@ function wireViewportEvents(){
   }
 
   // Configurações
-  vp.querySelectorAll('[data-ctab]').forEach(b=> b.addEventListener('click', ()=>{ STATE.configTab=b.dataset.ctab; renderAll(); }));
+  vp.querySelectorAll('[data-ctab]').forEach(b=> b.addEventListener('click', async ()=>{
+    STATE.configTab=b.dataset.ctab; renderAll();
+    if(b.dataset.ctab==='seguranca'){ await carregarSegurancaDados(); renderAll(); } // sempre a situação atual
+  }));
+  vp.querySelectorAll('[data-ir-seguranca]').forEach(b=> b.addEventListener('click', async ()=>{ STATE.view='config'; STATE.configTab='seguranca'; renderAll(); await carregarSegurancaDados(); renderAll(); }));
+  const btnVerificarDados = document.getElementById('btnVerificarDados');
+  if(btnVerificarDados) btnVerificarDados.onclick = async ()=>{ STATE.seguranca = Object.assign(STATE.seguranca||{}, { carregando:true }); renderAll(); await carregarSegurancaDados(); renderAll(); };
+  vp.querySelectorAll('[data-restaurar]').forEach(b=> b.addEventListener('click', ()=>{
+    openConfirmModal({
+      title:'Restaurar lançamento', confirmLabel:'Restaurar',
+      message:'O lançamento volta exatamente como estava quando foi excluído, com as parcelas e pagamentos. Continuar?',
+      onConfirm: async ()=>{
+        const { data, error } = await supa.rpc('restaurar_exclusao', { p_id:Number(b.dataset.restaurar) });
+        if(error){ showErrorToast('não foi possível restaurar ('+error.message+').'); return; }
+        showSuccessToast(data || 'Lançamento restaurado.');
+        try{ await loadState(); }catch(e){ showErrorToast('restaurado, mas recarregue a página para ver ('+e.message+').'); }
+        await carregarSegurancaDados(); renderAll();
+      }
+    });
+  }));
   const btnAddService = document.getElementById('btnAddService');
   if(btnAddService) btnAddService.onclick = ()=>openServiceModal(null);
   vp.querySelectorAll('[data-edit-service]').forEach(b=> b.addEventListener('click', ()=>openServiceModal(b.dataset.editService)));
@@ -5716,7 +5820,10 @@ function wireViewportEvents(){
       if(!input.value){ alert('Escolha uma data antes de salvar.'); return; }
       const rec = STATE.recurrences.find(r=>r.id===recId);
       const p = rec && rec.parcelas.find(x=>x.numero===num);
-      if(!p || !travarBotao(btn)) return;
+      if(!p) return;
+      const erroData = erroDataLancamento(input.value, 'A data do pagamento', rec.dataVenda);
+      if(erroData){ alert(erroData); return; }
+      if(!travarBotao(btn)) return;
       await salvarAlteracao(rec, ()=>{ p.data = input.value; }, ()=>persistRecorrencia(rec), 'a data NÃO foi gravada');
       renderAll();
     });
