@@ -1,0 +1,19 @@
+# Roda os testes de cálculo e de gravação em toda mudança de código.
+# Um PR com teste falhando fica marcado a vermelho e não deve ser mesclado.
+name: Testes
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sintaxe e testes de cálculo/gravação
+        run: bash tests/audit/check.sh
