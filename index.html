@@ -4498,6 +4498,265 @@ async function carregarSegurancaDados(){
     STATE.seguranca = Object.assign(STATE.seguranca||{}, { carregando:false, erro:(e&&e.message)||String(e) });
   }
 }
+/* O que fazer em cada tipo de erro (mostrado no verificador e no painel de resolver). */
+const DICAS_SEGURANCA = {
+  'LANC-01': 'A venda está marcada como parte de uma recorrência que não existe, por isso não conta em nenhum total. Crie a recorrência que falta (fica tudo como era) ou transforme-a numa venda normal.',
+  'LANC-02': 'Quase sempre é o ano digitado errado. Abra os dados e corrija a data da venda.',
+  'LANC-03': 'O número de parcelas do contrato não bate com as parcelas gravadas. Abra os dados do contrato e ajuste o nº de parcelas.',
+  'PAG-01': 'O pagamento está com data anterior à venda, por isso entra no mês errado. Corrija a data do pagamento (ou a data da venda).',
+  'PAG-02': 'A parcela está paga mas sem data, por isso não entra no caixa de nenhum mês. Informe a data do extrato bancário, ou desmarque se não foi paga.',
+  'PAG-03': 'O recebido passa do valor do contrato. Confira os valores das parcelas e pagamentos personalizados (algum pode estar lançado duas vezes).',
+  'PAG-04': 'Há uma parcela paga com uma anterior em aberto. Normalmente foi marcada a parcela errada: marque a correta e desmarque a outra.',
+  'PAG-05': 'A venda está como paga integralmente mas o recebido é menor que o total. Corrija o valor recebido ou desmarque "pagamento integral".',
+  'DUP-01': 'Parecem a mesma venda lançada mais de uma vez. Confira e exclua a repetida (fica 30 dias em "Lançamentos excluídos", pode ser restaurada).',
+  'DUP-02': 'Parecem o mesmo contrato lançado mais de uma vez. Confira e exclua o repetido (pode ser restaurado por 30 dias).',
+  'CAD-01': 'O vendedor deste lançamento não existe mais. Abra os dados e escolha o vendedor certo.',
+  'CAD-02': 'O serviço não está no catálogo, por isso o IVA não é separado. Abra a venda e escolha um serviço do catálogo, ou cadastre o serviço em Catálogo de serviços.',
+  'CUS-01': 'Custo com valor zero ou custo fixo sem vencimento. Corrija o valor/vencimento ou exclua se foi lançado por engano.',
+};
+
+/* Painel "Resolver": a partir de um item do verificador, mostra cada lançamento
+   envolvido com as ações para o corrigir ali mesmo. */
+function entidadesDoItem(item){
+  const out = [];
+  String(item.id||'').split(' / ').map(t=>t.trim()).filter(Boolean).forEach(t=>{
+    const m = t.match(/^(.*) #(\d+)$/);
+    const base = m ? m[1] : t;
+    const sale = STATE.sales.find(x=>x.id===base);
+    if(sale){ out.push({ tipo:'venda', obj:sale }); return; }
+    const rec = STATE.recurrences.find(x=>x.id===base) || STATE.recurrences.find(r=>(r.pagamentosExtras||[]).some(e=>e.id===base));
+    if(rec){ out.push({ tipo:'recorrencia', obj:rec, parcela: m ? Number(m[2]) : null }); return; }
+    const cost = STATE.costs.find(x=>x.id===base);
+    if(cost){ out.push({ tipo:'custo', obj:cost }); return; }
+    out.push({ tipo:'desconhecido', id:t });
+  });
+  return out;
+}
+function abrirResolverItem(codigo, idx){
+  const regra = (STATE.seguranca.regras||[]).find(r=>r.codigo===codigo);
+  const item = regra && regra.itens[idx];
+  if(!item) return;
+  STATE.seguranca.aberto = codigo;
+  const ents = entidadesDoItem(item);
+  const bloco = (e, i)=>{
+    if(e.tipo==='venda'){
+      const v = e.obj, semRec = v.jaContabilizadoViaRecorrencia && !STATE.recurrences.some(r=>(r.cliente||'').trim().toUpperCase()===(v.cliente||'').trim().toUpperCase() && r.dataVenda===v.data);
+      return `<div class="card" style="margin-bottom:10px;">
+        <div class="lbl">Venda · ${v.vendedorNome||'-'}</div>
+        <div style="font-weight:600;margin:4px 0;">${v.cliente} · ${fmtDate(v.data)} · ${v.servico||'sem serviço'}</div>
+        <div class="sub">Total ${fmtEUR(v.valorTotal)} · recebido ${fmtEUR(v.valorPago)}${v.pagamentoIntegral?' · paga integralmente':''}${v.jaContabilizadoViaRecorrencia?' · parte de recorrência':''}</div>
+        <div class="btn-group" style="margin-top:10px;flex-wrap:wrap;">
+          <button class="btn gold sm" data-rs-acao="editar-venda" data-rs-i="${i}">Editar venda (data, valores, vendedor, serviço)</button>
+          ${semRec ? `<button class="btn gold sm" data-rs-acao="criar-rec" data-rs-i="${i}">Criar a recorrência que falta</button><button class="btn ghost sm" data-rs-acao="venda-normal" data-rs-i="${i}">Transformar em venda normal</button>` : ''}
+          <button class="btn danger sm" data-rs-acao="excluir-venda" data-rs-i="${i}">Excluir</button>
+        </div></div>`;
+    }
+    if(e.tipo==='recorrencia'){
+      const r = e.obj, st = recStatus(r);
+      return `<div class="card" style="margin-bottom:10px;">
+        <div class="lbl">Recorrência · ${r.vendedorNome||'-'}</div>
+        <div style="font-weight:600;margin:4px 0;">${r.cliente} · venda em ${fmtDate(r.dataVenda)} · ${r.servico||'sem serviço'}</div>
+        <div class="sub">Contrato ${fmtEUR(r.valorContrato)} · entrada ${fmtEUR(r.valorEntrada)} · ${st.pagas}/${st.total} parcelas pagas · pendente ${fmtEUR(st.valorPendente)}</div>
+        <div class="btn-group" style="margin-top:10px;flex-wrap:wrap;">
+          <button class="btn gold sm" data-rs-acao="parcelas" data-rs-i="${i}">Parcelas e pagamentos (pago, data, valor)</button>
+          <button class="btn ghost sm" data-rs-acao="editar-rec" data-rs-i="${i}">Dados do contrato (data da venda, valores, nº parcelas)</button>
+          <button class="btn danger sm" data-rs-acao="excluir-rec" data-rs-i="${i}">Excluir</button>
+        </div></div>`;
+    }
+    if(e.tipo==='custo'){
+      const c = e.obj;
+      return `<div class="card" style="margin-bottom:10px;">
+        <div class="lbl">Custo ${c.categoria==='FIXO'?'fixo':'variável'}</div>
+        <div style="font-weight:600;margin:4px 0;">${c.nome} · ${fmtEUR(c.valor)} · vencimento ${c.vencimento?fmtDate(c.vencimento):'sem data'}</div>
+        <div class="btn-group" style="margin-top:10px;"><button class="btn gold sm" data-rs-acao="editar-custo" data-rs-i="${i}">Editar</button><button class="btn danger sm" data-rs-acao="excluir-custo" data-rs-i="${i}">Excluir</button></div></div>`;
+    }
+    return `<div class="card" style="margin-bottom:10px;"><div class="sub">Registo ${e.id} não está carregado nesta tela (recarregue a página).</div></div>`;
+  };
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:720px;">
+    <div class="modal-head"><h3>Resolver: ${regra.descricao}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:14px;">${DICAS_SEGURANCA[codigo]||''}</div>
+      ${ents.map(bloco).join('')}
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Fechar</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', ev=>{ if(ev.target.id==='mBackdrop') closeModal(); });
+  const depois = ()=>{ STATE.seguranca.revalidar = true; };
+  document.querySelectorAll('#modalRoot [data-rs-acao]').forEach(b=> b.addEventListener('click', ()=>{
+    const e = ents[Number(b.dataset.rsI)];
+    const acao = b.dataset.rsAcao;
+    depois();
+    if(acao==='editar-venda') return openEditSaleModal(e.obj.id);
+    if(acao==='editar-rec') return openEditRecModal(e.obj.id);
+    if(acao==='parcelas') return abrirEditorParcelas(e.obj.id, e.parcela);
+    if(acao==='editar-custo') return openCostModal(e.obj.id, null, null);
+    if(acao==='criar-rec') return abrirCriarRecorrenciaDaVenda(e.obj.id);
+    if(acao==='venda-normal'){
+      const v = e.obj;
+      return openConfirmModal({ title:'Transformar em venda normal', confirmLabel:'Transformar',
+        message:`A venda de <strong>${v.cliente}</strong> passa a contar como venda avulsa: ${fmtEUR(v.valorTotal)} vendidos e ${fmtEUR(v.valorPago)} recebidos em ${fmtDate(v.data)}.`,
+        onConfirm: async ()=>{
+          const ok = await salvarAlteracao(v, ()=>{ v.jaContabilizadoViaRecorrencia = false; v.pagamentoIntegral = v.valorPago >= v.valorTotal - 0.01; }, ()=>persistVenda(v), 'a alteração NÃO foi gravada');
+          if(ok) showSuccessToast('Venda passou a contar nos totais.'); renderAll();
+        } });
+    }
+    if(acao==='excluir-venda' || acao==='excluir-rec'){
+      const ehVenda = acao==='excluir-venda', o = e.obj;
+      return openConfirmModal({ title: ehVenda?'Excluir venda':'Excluir recorrência', danger:true, confirmLabel:'Excluir',
+        message:`Excluir ${ehVenda?'a venda':'a recorrência'} de <strong>${o.cliente}</strong> (${fmtDate(ehVenda?o.data:o.dataVenda)})? Fica 30 dias em Segurança dos dados → Lançamentos excluídos e pode ser restaurada.`,
+        onConfirm: async ()=>{
+          if(!(await excluirRegistoNoBanco(ehVenda?'vendas':'recorrencias', o.id))) return;
+          if(ehVenda) STATE.sales = STATE.sales.filter(x=>x.id!==o.id); else STATE.recurrences = STATE.recurrences.filter(x=>x.id!==o.id);
+          showSuccessToast('Excluído. Pode ser restaurado em Lançamentos excluídos.'); renderAll();
+        } });
+    }
+    if(acao==='excluir-custo'){
+      const c = e.obj;
+      return openConfirmModal({ title:'Excluir custo', danger:true, confirmLabel:'Excluir',
+        message:`Excluir o custo <strong>${c.nome}</strong> (${fmtEUR(c.valor)})?`,
+        onConfirm: async ()=>{
+          const antes = JSON.stringify(STATE.costs);
+          const r = excluirCusto(c.id, null);
+          if(r.erro){ alert(r.erro); return; }
+          if(await gravarCustosOuReverter(antes)) showSuccessToast('Custo excluído.'); renderAll();
+        } });
+    }
+  }));
+}
+
+/* Editor de parcelas e pagamentos personalizados de uma recorrência: marcar/
+   desmarcar pago, pôr/mudar/tirar a data e o valor de cada parcela, e
+   adicionar/editar/remover pagamentos personalizados. */
+function abrirEditorParcelas(recId, destaque){
+  const rec = STATE.recurrences.find(r=>r.id===recId);
+  if(!rec) return;
+  const st = recStatus(rec);
+  const linhaParcela = p=>`
+    <tr data-ep-parcela="${p.numero}" style="${p.numero===destaque?'background:var(--surface-2);':''}">
+      <td><strong>${p.numero}</strong>${p.numero===destaque?' <span class="chip bad">com erro</span>':''}<div style="font-size:11px;color:var(--ink-soft);">vence ${fmtDate(vencimentoParcela(rec, p.numero))}</div></td>
+      <td><label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" data-ep-pago ${p.pago?'checked':''}> paga</label></td>
+      <td><input type="date" data-ep-data value="${p.data||''}" style="width:150px;"> <button type="button" class="btn ghost sm" data-ep-limpar title="Tirar a data">×</button></td>
+      <td><input type="number" step="0.01" min="0.01" data-ep-valor value="${p.valor!=null?p.valor:''}" placeholder="${st.valorParcela.toFixed(2)}" style="width:110px;"></td>
+    </tr>`;
+  const linhaExtra = x=>`
+    <tr data-ep-extra="${x.id||''}">
+      <td><input type="date" data-ep-xdata value="${x.data||''}" style="width:150px;"></td>
+      <td><input type="number" step="0.01" min="0.01" data-ep-xvalor value="${x.valor!=null?x.valor:''}" style="width:110px;"></td>
+      <td><button type="button" class="btn danger sm" data-ep-xremover>Remover</button></td>
+    </tr>`;
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:760px;">
+    <div class="modal-head"><h3>Parcelas e pagamentos · ${rec.cliente}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:12px;">Venda em <strong>${fmtDate(rec.dataVenda)}</strong> · contrato ${fmtEUR(rec.valorContrato)} · entrada ${fmtEUR(rec.valorEntrada)} · valor padrão da parcela ${fmtEUR(st.valorParcela)}.<br>
+        Parcela paga precisa de data (a data do extrato, igual ou depois da venda). Valor em branco = valor padrão. Desmarcar "paga" volta a parcela para em aberto.</div>
+      <table><thead><tr><th>Parcela</th><th>Situação</th><th>Data do pagamento</th><th>Valor (€)</th></tr></thead>
+        <tbody>${rec.parcelas.slice().sort((a,b)=>a.numero-b.numero).map(linhaParcela).join('')}</tbody></table>
+      <h4 style="margin:18px 0 6px;">Pagamentos personalizados</h4>
+      <table><thead><tr><th>Data</th><th>Valor (€)</th><th></th></tr></thead>
+        <tbody id="epExtras">${(rec.pagamentosExtras||[]).map(linhaExtra).join('')}</tbody></table>
+      <button type="button" class="btn ghost sm" id="epAddExtra" style="margin-top:8px;">+ Adicionar pagamento personalizado</button>
+      <div id="epErro" style="display:none;color:var(--bad);font-size:12.5px;margin-top:10px;"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="epContrato">Dados do contrato</button><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Guardar</button></div>
+  </div></div>`;
+  const root = document.getElementById('modalRoot');
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', ev=>{ if(ev.target.id==='mBackdrop') closeModal(); });
+  document.getElementById('epContrato').onclick = ()=>{ STATE.seguranca && (STATE.seguranca.revalidar = true); openEditRecModal(rec.id); };
+  const ligarLinhas = ()=>{
+    root.querySelectorAll('[data-ep-limpar]').forEach(b=> b.onclick = ()=>{ b.closest('tr').querySelector('[data-ep-data]').value=''; });
+    root.querySelectorAll('[data-ep-xremover]').forEach(b=> b.onclick = ()=> b.closest('tr').remove());
+    root.querySelectorAll('[data-ep-pago]').forEach(c=> c.onchange = ()=>{ const tr = c.closest('tr'); if(!c.checked){ tr.querySelector('[data-ep-data]').value=''; tr.querySelector('[data-ep-valor]').value=''; } else if(!tr.querySelector('[data-ep-data]').value){ tr.querySelector('[data-ep-data]').value = todayISO(); } });
+  };
+  ligarLinhas();
+  document.getElementById('epAddExtra').onclick = ()=>{ document.getElementById('epExtras').insertAdjacentHTML('beforeend', linhaExtra({ data:todayISO(), valor:null })); ligarLinhas(); };
+  const btn = document.getElementById('mSave');
+  btn.onclick = async ()=>{
+    const erroEl = document.getElementById('epErro');
+    const falha = msg=>{ erroEl.textContent = msg; erroEl.style.display='block'; };
+    const parcelas = [];
+    for(const tr of root.querySelectorAll('[data-ep-parcela]')){
+      const numero = Number(tr.dataset.epParcela);
+      const pago = tr.querySelector('[data-ep-pago]').checked;
+      const data = tr.querySelector('[data-ep-data]').value || null;
+      const vtxt = tr.querySelector('[data-ep-valor]').value;
+      const valor = vtxt==='' ? null : Number(vtxt);
+      const orig = rec.parcelas.find(x=>x.numero===numero) || {};
+      const semMudanca = !!orig.pago === pago && (orig.data||null) === data; // igual ao banco: só valida o que mudou
+      if(pago && !semMudanca){
+        const e = erroDataLancamento(data, 'Parcela '+numero+': a data do pagamento', rec.dataVenda);
+        if(e) return falha(e);
+      }
+      if(pago){
+        if(valor!==null && !(valor>0)) return falha('Parcela '+numero+': o valor tem de ser maior que zero (ou deixe em branco para o valor padrão).');
+      }
+      parcelas.push({ numero, pago, data: pago ? data : null, valor: pago ? (valor!==null ? arred4(valor) : null) : null });
+    }
+    const extras = [];
+    let n = 0;
+    for(const tr of root.querySelectorAll('[data-ep-extra]')){
+      const data = tr.querySelector('[data-ep-xdata]').value || null;
+      const valor = Number(tr.querySelector('[data-ep-xvalor]').value);
+      const e = erroDataLancamento(data, 'Pagamento personalizado: a data', rec.dataVenda);
+      if(e) return falha(e);
+      if(!(valor>0)) return falha('Pagamento personalizado: informe um valor maior que zero.');
+      extras.push({ id: tr.dataset.epExtra || ('pgx-'+Date.now()+'-'+(n++)), data, valor: arred4(valor) });
+    }
+    const pendente = rec.valorContrato - rec.valorEntrada;
+    const totalPago = parcelas.filter(p=>p.pago).reduce((a,p)=>a+(p.valor!=null?p.valor:st.valorParcela),0) + extras.reduce((a,x)=>a+x.valor,0);
+    if(totalPago > pendente + 0.05 && !btn.dataset.confirmouExcesso){
+      btn.dataset.confirmouExcesso = '1'; btn.textContent = 'Guardar mesmo assim';
+      return falha('O total pago ('+fmtEUR(totalPago+rec.valorEntrada)+') passa do valor do contrato ('+fmtEUR(rec.valorContrato)+'). Confira; se estiver certo, clique de novo.');
+    }
+    if(!travarBotao(btn)) return;
+    const ok = await salvarAlteracao(rec, ()=>{
+      parcelas.forEach(np=>{ const p = rec.parcelas.find(x=>x.numero===np.numero); Object.assign(p, { pago:np.pago, data:np.data, valor:np.valor }); });
+      rec.pagamentosExtras = extras;
+    }, ()=>persistRecorrencia(rec), 'as parcelas NÃO foram gravadas');
+    if(ok) showSuccessToast('Parcelas e pagamentos de '+rec.cliente+' guardados.');
+    if(STATE.seguranca) STATE.seguranca.revalidar = true;
+    closeModal(); renderAll();
+  };
+}
+
+/* LANC-01: recria a recorrência que se perdeu, a partir da venda ligada a ela
+   (mesmo cliente, data, valores e vendedor; parcelas em aberto). */
+function abrirCriarRecorrenciaDaVenda(saleId){
+  const v = STATE.sales.find(x=>x.id===saleId);
+  if(!v) return;
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:460px;">
+    <div class="modal-head"><h3>Criar a recorrência de ${v.cliente}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:12px;">Venda em ${fmtDate(v.data)} · contrato ${fmtEUR(v.valorTotal)} · entrada já recebida ${fmtEUR(v.valorPago)} · ${v.vendedorNome||'-'}. A recorrência é criada com estes dados e as parcelas em aberto (depois marque as que já foram pagas).</div>
+      <div class="field"><label>Nº de parcelas (depois da entrada)</label><input type="number" id="crParcelas" min="1" max="24" value="${v.nParcelas||2}"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Criar recorrência</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', ev=>{ if(ev.target.id==='mBackdrop') closeModal(); });
+  const btn = document.getElementById('mSave');
+  btn.onclick = async ()=>{
+    const nParcelas = Math.max(1, Math.min(24, Number(document.getElementById('crParcelas').value)||1));
+    if(!travarBotao(btn)) return;
+    const rec = {
+      id:'rec-'+Date.now(), dataVenda:v.data, cliente:v.cliente, servico:v.servico, nParcelas, valorEntrada:v.valorPago||0,
+      formaPagamento:v.formaPagamento, origem:v.origem, honorarioBase:v.honorarioBase, iva:v.iva, txAdm:v.txAdm,
+      valorContrato:v.valorTotal, vendedorId:v.vendedorId, vendedorNome:v.vendedorNome,
+      parcelas: Array.from({length:nParcelas}, (_,i)=>({ numero:i+1, data:null, pago:false })), origemSheet:'manual'
+    };
+    if(await criarRecorrencia(rec)) showSuccessToast('Recorrência de '+v.cliente+' criada. A venda volta a contar nos totais.');
+    if(STATE.seguranca) STATE.seguranca.revalidar = true;
+    closeModal(); renderAll();
+  };
+}
+
 function renderAlertaSeguranca(){
   const sg = STATE.seguranca;
   if(STATE.role!=='gestor' || !sg || !sg.recentes || !sg.recentes.length) return '';
@@ -4507,10 +4766,11 @@ function renderSegurancaDados(){
   const sg = STATE.seguranca || {};
   const cor = g => g==='crítica' ? 'bad' : g==='média' ? 'gold' : 'neutral';
   const linhasRegras = (sg.regras||[]).filter(r=>r.codigo!=='HIST-01').map(r=>`
-      <details style="border-bottom:1px solid var(--line);padding:10px 20px;">
+      <details style="border-bottom:1px solid var(--line);padding:10px 20px;" ${sg.aberto===r.codigo?'open':''} data-regra="${r.codigo}">
         <summary style="cursor:pointer;display:flex;gap:10px;align-items:center;"><span class="chip ${cor(r.gravidade)}">${r.gravidade}</span><strong>${r.qtd}</strong> ${r.descricao}</summary>
-        <table style="margin-top:8px;"><thead><tr><th>Cliente</th><th>Data</th><th>Detalhe</th><th>Registo</th></tr></thead>
-        <tbody>${(r.itens||[]).map(i=>`<tr><td>${i.cliente||'-'}</td><td>${i.data?fmtDate(String(i.data).slice(0,10)):'-'}</td><td>${i.detalhe||''}</td><td style="font-size:11px;color:var(--ink-soft);">${i.id}</td></tr>`).join('')}</tbody></table>
+        <div class="field-hint" style="margin:8px 0 0;">${DICAS_SEGURANCA[r.codigo]||''}</div>
+        <table style="margin-top:8px;"><thead><tr><th>Cliente</th><th>Data</th><th>Detalhe</th><th>Registo</th><th></th></tr></thead>
+        <tbody>${(r.itens||[]).map((i,idx)=>`<tr data-resolver="${r.codigo}" data-resolver-idx="${idx}" style="cursor:pointer;" title="Clique para resolver"><td><strong>${i.cliente||'-'}</strong></td><td>${i.data?fmtDate(String(i.data).slice(0,10)):'-'}</td><td>${i.detalhe||''}</td><td style="font-size:11px;color:var(--ink-soft);">${i.id}</td><td><button class="btn gold sm" type="button">Resolver</button></td></tr>`).join('')}</tbody></table>
       </details>`).join('');
   const linhasExcl = (sg.exclusoes||[]).map(x=>`<tr><td>${new Date(x.em).toLocaleString('pt-PT')}</td><td>${x.tipo}</td><td><strong>${x.cliente||'-'}</strong></td><td>${x.data?fmtDate(x.data):'-'}</td><td class="tnum">${fmtEUR(x.valor)}</td><td>${x.parcelas_pagas?x.parcelas_pagas+' parcela(s) paga(s)':''}</td><td>${x.quem}</td><td><button class="btn gold sm" data-restaurar="${x.id}">Restaurar</button></td></tr>`).join('');
   return `
@@ -5613,7 +5873,7 @@ function wireViewportEvents(){
       const sale = STATE.sales.find(s=>s.id===saleId);
       openConfirmModal({
         title:'Excluir venda', danger:true, confirmLabel:'Excluir',
-        message:`Tem a certeza que deseja excluir a venda de <strong>${sale.cliente}</strong> (${fmtEUR(sale.valorTotal)}, ${fmtDate(sale.data)})? Esta ação não pode ser desfeita, use isto pra remover duplicatas.`,
+        message:`Tem a certeza que deseja excluir a venda de <strong>${sale.cliente}</strong> (${fmtEUR(sale.valorTotal)}, ${fmtDate(sale.data)})? Use isto pra remover duplicatas. Fica 30 dias em Configurações → Segurança dos dados → Lançamentos excluídos e pode ser restaurada.`,
         onConfirm: async ()=>{
           if(!(await excluirRegistoNoBanco('vendas', saleId))) return; // só some da tela se o banco apagou
           STATE.sales = STATE.sales.filter(s=>s.id!==saleId); showSuccessToast('Venda excluída.'); renderAll();
@@ -5643,7 +5903,7 @@ function wireViewportEvents(){
       const rec = STATE.recurrences.find(r=>r.id===recId);
       openConfirmModal({
         title:'Excluir recorrência', danger:true, confirmLabel:'Excluir',
-        message:`Tem a certeza que deseja excluir a recorrência de <strong>${rec.cliente}</strong>? Esta ação não pode ser desfeita.`,
+        message:`Tem a certeza que deseja excluir a recorrência de <strong>${rec.cliente}</strong>? Fica 30 dias em Configurações → Segurança dos dados → Lançamentos excluídos e pode ser restaurada.`,
         onConfirm: async ()=>{
           if(!(await excluirRegistoNoBanco('recorrencias', recId))) return;
           STATE.recurrences = STATE.recurrences.filter(r=>r.id!==recId); showSuccessToast('Recorrência excluída.'); renderAll();
@@ -5722,6 +5982,13 @@ function wireViewportEvents(){
     if(b.dataset.ctab==='seguranca'){ await carregarSegurancaDados(); renderAll(); } // sempre a situação atual
   }));
   vp.querySelectorAll('[data-ir-seguranca]').forEach(b=> b.addEventListener('click', async ()=>{ STATE.view='config'; STATE.configTab='seguranca'; renderAll(); await carregarSegurancaDados(); renderAll(); }));
+  vp.querySelectorAll('[data-resolver]').forEach(tr=> tr.addEventListener('click', ()=> abrirResolverItem(tr.dataset.resolver, Number(tr.dataset.resolverIdx))));
+  vp.querySelectorAll('details[data-regra]').forEach(d=> d.addEventListener('toggle', ()=>{ if(STATE.seguranca){ if(d.open) STATE.seguranca.aberto = d.dataset.regra; else if(STATE.seguranca.aberto===d.dataset.regra) STATE.seguranca.aberto = null; } }));
+  // depois de resolver algo (e o modal fechar), a lista é verificada de novo
+  if(STATE.view==='config' && STATE.configTab==='seguranca' && STATE.seguranca && STATE.seguranca.revalidar && !document.querySelector('#modalRoot .modal-backdrop')){
+    STATE.seguranca.revalidar = false;
+    carregarSegurancaDados().then(renderAll);
+  }
   const btnVerificarDados = document.getElementById('btnVerificarDados');
   if(btnVerificarDados) btnVerificarDados.onclick = async ()=>{ STATE.seguranca = Object.assign(STATE.seguranca||{}, { carregando:true }); renderAll(); await carregarSegurancaDados(); renderAll(); };
   vp.querySelectorAll('[data-restaurar]').forEach(b=> b.addEventListener('click', ()=>{
