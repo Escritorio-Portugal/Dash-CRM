@@ -484,6 +484,31 @@ const SUPABASE_KEY = "sb_publishable_DKWzJQhSx7qoKtOdY1x7cg_-kxwVnWh";
 // token da sessão autenticada a cada pedido (não é mais só a anon key).
 const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+/* Sessão que caiu (token não renovou, ou "Sair" noutro aparelho): antes a
+   tela continuava aberta e cada gravação falhava com "permission denied".
+   Agora volta ao login com um aviso claro. Nada fica meio gravado: cada
+   gravação que falhou já foi desfeita na tela por gravarOuReverter. */
+let _saindoDePropósito = false;
+function erroDeSessao(e){
+  const m = String((e && (e.message || e.code)) || e || '');
+  // Não usar o código 42501: as proteções do próprio banco ("Proteção: …",
+  // "Só o gestor pode …") também o usam e não são sessão expirada.
+  return /permission denied for|JWT|PGRST30|not authenticated|Refresh Token/i.test(m) || !!(e && e.status===401);
+}
+function explicarErroBanco(e){
+  if(erroDeSessao(e)) return 'a sua sessão expirou, entre de novo';
+  return (e && e.message) || String(e);
+}
+function sessaoExpirou(){
+  if(_saindoDePropósito || !STATE.role) return;
+  STATE.role=null; STATE.myOwnSellerId=null; STATE.myEmail=null;
+  STATE.sales=[]; STATE.recurrences=[]; STATE.costs=[];
+  renderLoginScreen('signin');
+  const box = document.getElementById('loginError');
+  if(box){ box.textContent = 'A sua sessão expirou. Entre de novo. Se estava a gravar algo, confira se ficou salvo.'; box.style.display = 'block'; }
+}
+supa.auth.onAuthStateChange(ev=>{ if(ev==='SIGNED_OUT') setTimeout(sessaoExpirou, 0); });
+
 async function sbGet(key){
   const { data, error } = await supa.from('app_state').select('value').eq('key', key).maybeSingle();
   if(error) throw error;
@@ -1121,7 +1146,8 @@ async function gravarOuReverter(desfazer, gravar, msgErro){
   try{ await gravar(); return true; }
   catch(e){
     try{ await desfazer(); }catch(_){}
-    showErrorToast((msgErro||'a alteração NÃO foi gravada')+' ('+((e&&e.message)||e)+'). Nada mudou, tente de novo.');
+    showErrorToast((msgErro||'a alteração NÃO foi gravada')+' ('+explicarErroBanco(e)+'). Nada mudou, tente de novo.');
+    if(erroDeSessao(e)) setTimeout(sessaoExpirou, 2500);
     return false;
   }
 }
@@ -2101,11 +2127,11 @@ function renderLoginScreen(mode, extra){
         errBox.textContent = 'Login válido, mas sem perfil configurado, peça ao gestor para o adicionar em "profiles".';
         errBox.style.display = 'block';
         btnLogin.disabled = false; btnLogin.textContent = 'Entrar';
-        await supa.auth.signOut();
+        await supa.auth.signOut({ scope:'local' });
         return;
       }
-      if(profile.status==='pending'){ await supa.auth.signOut(); renderLoginScreen('pending'); return; }
-      if(profile.status==='rejected'){ await supa.auth.signOut(); renderLoginScreen('rejected'); return; }
+      if(profile.status==='pending'){ await supa.auth.signOut({ scope:'local' }); renderLoginScreen('pending'); return; }
+      if(profile.status==='rejected'){ await supa.auth.signOut({ scope:'local' }); renderLoginScreen('rejected'); return; }
       STATE.role = profile.role;
       STATE.myOwnSellerId = profile.sellerId;
       STATE.myEmail = profile.email;
@@ -2157,7 +2183,7 @@ function renderLoginScreen(mode, extra){
         return;
       }
       const { error: profErr } = await supa.from('profiles').insert({ id: data.user.id, nome, email, status:'pending' });
-      await supa.auth.signOut();
+      await supa.auth.signOut({ scope:'local' });
       if(profErr){
         errBox.textContent = 'A conta foi criada, mas não consegui registar o pedido, avise o gestor: ' + profErr.message;
         errBox.style.display = 'block';
@@ -2240,7 +2266,7 @@ async function bootAfterLogin(){
     // Sem os dados reais não entra no painel (nem mostra números parciais).
     console.error('Falha ao carregar dados', e);
     // Encerra a sessão pra que "entrar de novo" recarregue tudo do zero.
-    try{ await supa.auth.signOut(); }catch(_){}
+    try{ await supa.auth.signOut({ scope:'local' }); }catch(_){}
     STATE.role=null; STATE.myOwnSellerId=null; STATE.myEmail=null;
     STATE.sales=[]; STATE.recurrences=[]; STATE.costs=[];
     renderLoginScreen('signin');
@@ -4495,7 +4521,8 @@ async function carregarSegurancaDados(){
     STATE.seguranca = { carregando:false, erro:null, em:new Date(), regras:regras||[], exclusoes:exclusoes||[],
       criticos:(regras||[]).filter(r=>r.gravidade==='crítica').reduce((a,r)=>a+r.qtd,0), recentes };
   }catch(e){
-    STATE.seguranca = Object.assign(STATE.seguranca||{}, { carregando:false, erro:(e&&e.message)||String(e) });
+    STATE.seguranca = Object.assign(STATE.seguranca||{}, { carregando:false, erro:explicarErroBanco(e) });
+    if(erroDeSessao(e)) setTimeout(sessaoExpirou, 2500);
   }
 }
 /* O que fazer em cada tipo de erro (mostrado no verificador e no painel de resolver). */
@@ -6352,10 +6379,12 @@ function renderAll(){
    INIT
    ========================================================= */
 document.getElementById('btnLogout').addEventListener('click', async ()=>{
-  await supa.auth.signOut();
+  _saindoDePropósito = true;
+  await supa.auth.signOut({ scope:'local' });
   STATE.role=null; STATE.myOwnSellerId=null; STATE.myEmail=null;
   STATE.sales=[]; STATE.recurrences=[]; STATE.costs=[];
   renderLoginScreen('signin');
+  setTimeout(()=>{ _saindoDePropósito = false; }, 0);
 });
 
 (async function init(){
@@ -6369,7 +6398,7 @@ document.getElementById('btnLogout').addEventListener('click', async ()=>{
       await bootAfterLogin();
       return;
     }
-    await supa.auth.signOut();
+    await supa.auth.signOut({ scope:'local' });
     if(profile && profile.status==='pending'){ renderLoginScreen('pending'); return; }
     if(profile && profile.status==='rejected'){ renderLoginScreen('rejected'); return; }
   }

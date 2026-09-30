@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { load } = require('./lib');
 
-const FNS = ['snapshotObj','gravarOuReverter','enfileirarGravacao','mudarEGravar'];
+const FNS = ['erroDeSessao','explicarErroBanco','snapshotObj','gravarOuReverter','enfileirarGravacao','mudarEGravar'];
 function ctx(falhar){
   const toasts = [];
   const c = load(FNS, {

@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { load } = require('./lib');
 
-const FNS = ['gravarOuReverter','snapshotObj','restaurarObj','criarVenda','criarRecorrencia','salvarAlteracao','excluirRegistoNoBanco'];
+const FNS = ['erroDeSessao','explicarErroBanco','gravarOuReverter','snapshotObj','restaurarObj','criarVenda','criarRecorrencia','salvarAlteracao','excluirRegistoNoBanco'];
 
 function mk({ falhaVenda=false, falhaRec=false, deleteResult={ error:null, count:1 } } = {}){
   const apagados = [];
