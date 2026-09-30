@@ -4906,6 +4906,7 @@ function abrirEditarPagamento(ref){
     const erroEl = document.getElementById('edpErro');
     const falha = msg=>{ erroEl.textContent = msg; erroEl.style.display='block'; };
     const data = lerData(), valor = lerValor();
+    if(!data && (tipo==='parcela' || tipo==='extra')) return falha('Informe a data do pagamento (a data do extrato). Se não foi paga, use "Desfazer".');
     if(data !== (atual.data||null)){
       const e = tipo==='venda' || tipo==='entrada' ? erroDataLancamento(data, 'A data') : erroDataLancamento(data, 'A data do pagamento', rec.dataVenda);
       if(e) return falha(e);
@@ -5190,12 +5191,53 @@ function renderExtratoTab(){
    um dia), sincronizado ao vivo com vendas e recorrências: cada pagamento
    novo já aparece aqui assim que é lançado, sem precisar de nenhum passo
    extra. */
+/* Pagamentos de recorrência marcados como pagos SEM data: não caem em nenhum
+   período (não entram no caixa de nenhum mês), por isso não aparecem nas
+   linhas do Registro. Ficam listados à parte para poder pôr a data ou desfazer. */
+function pagamentosSemData(){
+  const linhas = [];
+  STATE.recurrences.forEach(r=>{
+    const st = recStatus(r);
+    r.parcelas.forEach(p=>{
+      if(p.pago && !p.data) linhas.push({ emoji:'🔁', tipo:'Parcela '+p.numero+' de recorrência', cliente:r.cliente, vendedor:r.vendedorNome, venda:r.dataVenda, valor:valorEfetivoParcela(p, st), _ref:{tipo:'parcela', recId:r.id, numero:p.numero} });
+    });
+    (r.pagamentosExtras||[]).forEach(ex=>{
+      if(!ex.data) linhas.push({ emoji:'💠', tipo:'Pagamento personalizado', cliente:r.cliente, vendedor:r.vendedorNome, venda:r.dataVenda, valor:ex.valor||0, _ref:{tipo:'extra', recId:r.id, extraId:ex.id} });
+    });
+  });
+  return linhas.sort((a,b)=>(a.venda||'').localeCompare(b.venda||'') || a.cliente.localeCompare(b.cliente));
+}
+/* _ref do Registro → ref do modal "Editar pagamento" (só receitas). */
+function refEditarPagamento(ref){
+  if(!ref) return null;
+  if(ref.tipo==='venda') return 'venda|'+ref.saleId;
+  if(ref.tipo==='entrada') return 'entrada|'+ref.recId;
+  if(ref.tipo==='parcela') return 'parcela|'+ref.recId+'|'+ref.numero;
+  if(ref.tipo==='extra') return 'extra|'+ref.recId+'|'+ref.extraId;
+  return null;
+}
+function botoesLancamentoRegistro(l){
+  const ed = refEditarPagamento(l._ref);
+  return `<div class="btn-group btn-group-actions" style="flex-wrap:nowrap;white-space:nowrap;">${ed?`<button class="btn ghost sm" data-editar-pagamento="${ed}">Editar</button>`:''}${l._ref?`<button class="btn ghost sm" data-estornar='${JSON.stringify(l._ref)}' data-estornar-desc="${l.tipo} de ${l.cliente} (${fmtEUR(l.valor)})">Desfazer</button>`:''}</div>`;
+}
 function renderRegistroTab(filter){
   const linhas = linhasFinanceiras(filter).filter(l=>matchesSearch(l.cliente, STATE.searchFinanceiro));
   const totalEntrou = linhas.filter(l=>l.sinal>0).reduce((a,l)=>a+l.valor,0);
   const totalSaiu = linhas.filter(l=>l.sinal<0).reduce((a,l)=>a+l.valor,0);
+  const semData = pagamentosSemData().filter(l=>matchesSearch(l.cliente, STATE.searchFinanceiro));
   return `
   ${renderSearchBar('searchFinanceiro','Buscar por nome…')}
+  ${semData.length ? `<section class="block" style="border-color:var(--bad);">
+    <div class="block-head"><h3>⚠️ Pagamentos sem data (${semData.length})</h3><span class="hint">marcados como pagos, mas sem data: não entram no caixa de nenhum período. Ponha a data do extrato ou desfaça.</span></div>
+    <table><thead><tr><th>Descrição</th><th>Tipo</th><th>Venda em</th><th>Valor</th>${STATE.role==='gestor'?'<th></th>':''}</tr></thead>
+    <tbody>${semData.map(l=>`<tr>
+        <td>${l.emoji} <strong>${l.cliente}</strong>${l.vendedor?` <span style="color:var(--ink-soft);font-size:11.5px;">· ${l.vendedor}</span>`:''}</td>
+        <td>${l.tipo} <span class="chip bad">sem data</span></td>
+        <td>${fmtDate(l.venda)}</td>
+        <td class="tnum">${fmtEUR(l.valor)}</td>
+        ${STATE.role==='gestor' ? `<td>${botoesLancamentoRegistro(l)}</td>` : ''}
+      </tr>`).join('')}</tbody></table>
+  </section>` : ''}
   <div class="cards">
     <div class="card"><div class="lbl">🟢 Entrou no período</div><div class="val good">${fmtEUR(totalEntrou)}</div></div>
     <div class="card"><div class="lbl">🔴 Saiu no período</div><div class="val bad">${fmtEUR(totalSaiu)}</div></div>
@@ -5211,7 +5253,7 @@ function renderRegistroTab(filter){
         <td>${fmtDate(l.data)}</td>
         <td>${l.forma}</td>
         <td class="tnum ${l.sinal>0?'good':'bad'}">${l.sinal>0?'+':'−'} ${fmtEUR(l.valor)}</td>
-        ${STATE.role==='gestor' ? `<td>${l._ref?`<button class="btn ghost sm" data-estornar='${JSON.stringify(l._ref)}' data-estornar-desc="${l.tipo} de ${l.cliente} (${fmtEUR(l.valor)})">Desfazer</button>`:''}</td>` : ''}
+        ${STATE.role==='gestor' ? `<td>${botoesLancamentoRegistro(l)}</td>` : ''}
       </tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registo nesse período.</div>`}
   </section>`;
 }
@@ -5845,6 +5887,9 @@ function openAddRecModal(forColaborador){
     const origem = document.getElementById('rOrigem').value;
     if(!cliente || !valorContrato){ alert('Preencha ao menos cliente e valor do contrato.'); return; }
     if(valorEntrada > valorContrato){ alert('O valor de entrada não pode ser maior que o valor do contrato.'); return; }
+    // Mesma regra de data das vendas (ano, futuro), antes de o banco recusar.
+    const erroDataRec = erroDataLancamento(data || todayISO(), 'A data da venda');
+    if(erroDataRec){ alert(erroDataRec); return; }
     const componentes = componentesServicoParaTotal(matchedService, valorContrato);
     const vendedor = sellerById(vendedorId);
     const parcelas = Array.from({length:nParcelas}, (_,i)=>({numero:i+1, data:null, pago:false}));
@@ -6443,6 +6488,8 @@ function wireViewportEvents(){
     });
   });
   const extratoDataInput = document.getElementById('extratoDataInput');
+  // Índice e Financeiro → Registro: editar valor/data de um pagamento
+  vp.querySelectorAll('[data-editar-pagamento]').forEach(b=> b.addEventListener('click', ()=> abrirEditarPagamento(b.dataset.editarPagamento)));
   vp.querySelectorAll('[data-estornar]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       let ref;
@@ -6501,7 +6548,6 @@ function wireViewportEvents(){
   if(btnBuscarIndice && indiceQueryInput){
     const dispara = ()=>{ STATE.indiceQuery = indiceQueryInput.value; STATE.indiceQuerySubmetida = indiceQueryInput.value.trim(); renderAll(); };
     btnBuscarIndice.addEventListener('click', dispara);
-    vp.querySelectorAll('[data-editar-pagamento]').forEach(b=> b.addEventListener('click', ()=> abrirEditarPagamento(b.dataset.editarPagamento)));
     indiceQueryInput.addEventListener('keydown', e=>{ if(e.key==='Enter') dispara(); });
   }
   if(btnRefreshLeads2) btnRefreshLeads2.addEventListener('click', ()=>{ STATE.leads = []; loadLeadsData(); });
