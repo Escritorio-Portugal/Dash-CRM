@@ -1194,15 +1194,27 @@ function mudarEGravar(chaves, mutar, part, sellerId, msgErro){
     return gravarOuReverter(()=>{ snap.forEach(([k,v])=>{ STATE[k] = v; }); }, ()=>persist(part, sellerId), msgErro);
   });
 }
-/* Mesmas regras que o banco aplica (migração 20260929): datas de lançamento
-   entre o início do escritório e hoje; pagamento nunca antes da venda. Avisar
-   aqui evita que a pessoa só descubra o erro quando o banco recusar. */
-const INICIO_LANCAMENTOS = '2026-01-01';
+/* Mesmas regras que o banco aplica (migrações 20260929 e 20260930): datas de
+   lançamento entre 2000 e hoje; pagamento nunca antes da venda. Avisar aqui
+   evita que a pessoa só descubra o erro quando o banco recusar.
+   Anos anteriores são permitidos (clientes e leads antigos, pedido de
+   30/09/2026), mas uma data antes do início do painel pede confirmação: é o
+   erro de ano mais comum (2025 no lugar de 2026). */
+const INICIO_LANCAMENTOS = '2000-01-01';
+const INICIO_PAINEL = '2026-01-01';
+const _datasAntigasConfirmadas = new Set();
+function confirmarDataAntiga(data, rotulo){
+  if(_datasAntigasConfirmadas.has(data)) return true;
+  const ok = typeof confirm !== 'function' || confirm(rotulo+': '+fmtDate(data)+' é de '+data.slice(0,4)+'.\n\nÉ mesmo um lançamento de um ano anterior? (Cancelar para corrigir o ano.)');
+  if(ok) _datasAntigasConfirmadas.add(data);
+  return ok;
+}
 function erroDataLancamento(data, rotulo, dataVenda){
   if(!data) return rotulo+' é obrigatória.';
   if(data < INICIO_LANCAMENTOS) return rotulo+' ('+fmtDate(data)+') é anterior a '+fmtDate(INICIO_LANCAMENTOS)+': confira o ano.';
   if(data > toLocalISODate(new Date(Date.now()+86400000))) return rotulo+' ('+fmtDate(data)+') está no futuro.';
   if(dataVenda && data < dataVenda) return rotulo+' ('+fmtDate(data)+') é anterior à data da venda ('+fmtDate(dataVenda)+').';
+  if(data < INICIO_PAINEL && !confirmarDataAntiga(data, rotulo)) return rotulo+' ('+fmtDate(data)+'): confira o ano.';
   return null;
 }
 function travarBotao(btn){ if(!btn || btn.disabled) return false; btn.disabled = true; return true; }
