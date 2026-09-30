@@ -1574,6 +1574,55 @@ function aplicarEdicaoRecorrencia(rec, campos){
   Object.assign(rec, campos, { nParcelas:nNovo, parcelas });
   return { ok:true };
 }
+/* RECÁLCULO DAS PARCELAS (pedido do gestor, 30/09/2026): quando muda o
+   contrato, a entrada, um pagamento personalizado ou o valor de uma parcela,
+   as OUTRAS parcelas são recalculadas para que tudo some exatamente o
+   contrato:  parcelas = contrato devido − entrada − pagamentos personalizados.
+   As parcelas em `fixas` (as que a pessoa acabou de digitar) mantêm o valor;
+   o resto é dividido por igual entre as outras, pagas ou em aberto. As pagas
+   recebem o valor gravado (em cêntimos; a sobra dos cêntimos vai para a
+   última) e as em aberto ficam com o que falta, que o sistema já calcula. */
+function recalcularParcelas(rec, fixas){
+  fixas = fixas || new Set();
+  const st = recStatus(rec);
+  const extras = (rec.pagamentosExtras||[]).reduce((a,e)=>a+(Number(e.valor)||0),0);
+  const alvo = st.valorContratoDevido - st.entrada - extras;
+  const ps = rec.parcelas.slice().sort((a,b)=>a.numero-b.numero);
+  const fixadas = ps.filter(p=>p.pago && fixas.has(p.numero));
+  const somaFixas = fixadas.reduce((a,p)=>a+valorEfetivoParcela(p, st),0);
+  const outras = ps.filter(p=>!fixadas.includes(p));
+  const pagasOutras = outras.filter(p=>p.pago);
+  if(!pagasOutras.length) return { ok:true };
+  const resto = alvo - somaFixas;
+  const parte = resto / outras.length;
+  if(!(parte >= 0.01)){
+    return { erro:`Com estes valores sobram ${fmtEUR(Math.max(0,resto))} para ${outras.length} parcela(s): não dá para recalcular. Confira o contrato, a entrada, os pagamentos ou o nº de parcelas (ou desmarque "Recalcular").` };
+  }
+  const cent = Math.floor(parte*100 + 1e-6)/100;
+  const todasPagas = pagasOutras.length === outras.length;
+  pagasOutras.forEach((p,i)=>{
+    p.valor = (todasPagas && i===pagasOutras.length-1) ? arred4(resto - cent*(pagasOutras.length-1)) : cent;
+  });
+  return { ok:true };
+}
+/* Tabela "antes → depois" das parcelas que o recálculo muda (só as que mudam). */
+function htmlPreviaRecalculo(antes, depois){
+  const sa = recStatus(antes), sd = recStatus(depois);
+  const linhas = depois.parcelas.slice().sort((a,b)=>a.numero-b.numero).map(p=>{
+    const a = antes.parcelas.find(x=>x.numero===p.numero);
+    const va = a ? (a.pago ? valorEfetivoParcela(a, sa) : null) : null;
+    const vd = p.pago ? valorEfetivoParcela(p, sd) : null;
+    if(va!==null && vd!==null && Math.abs(va-vd) < 0.005) return '';
+    if(va===null && vd===null) return '';
+    return `<tr><td>Parcela ${p.numero}${p.pago?'':' <span class="chip neutral">em aberto</span>'}</td><td class="tnum">${va===null?'-':fmtEUR(va)}</td><td class="tnum"><strong>${vd===null?'-':fmtEUR(vd)}</strong></td></tr>`;
+  }).join('');
+  const abertas = depois.parcelas.filter(p=>!p.pago).length;
+  const pend = (sd.valorPendente > 0.005 ? `falta receber ${fmtEUR(sd.valorPendente)}` : 'contrato quitado')
+    + (abertas && sd.valorPendente > 0.005 ? ` (${abertas} parcela(s) em aberto de ${fmtEUR(sd.valorSugeridoProxima)}${Math.abs(sa.valorSugeridoProxima-sd.valorSugeridoProxima)>0.005?`, antes ${fmtEUR(sa.valorSugeridoProxima)}`:''})` : '');
+  const excesso = sd.valorPago - sd.valorContratoDevido;
+  return (linhas ? `<table style="margin-top:6px;"><thead><tr><th></th><th>Antes</th><th>Depois</th></tr></thead><tbody>${linhas}</tbody></table>` : '<div class="field-hint">Nenhuma parcela paga muda de valor.</div>')
+    + `<div class="field-hint" style="margin-top:6px;">Total recebido: <strong>${fmtEUR(sd.valorPago)}</strong> de ${fmtEUR(sd.valorContratoDevido)} · ${pend}${excesso>0.05?` · <span style="color:var(--bad);">passa do contrato em ${fmtEUR(excesso)}</span>`:''}</div>`;
+}
 
 // O IVA guardado na recorrência é o IVA total do serviço. Cada recebimento
 // reconhece somente a fração correspondente desse valor.
@@ -3481,16 +3530,16 @@ function buscarClienteCompleto(query, filter){
 
   const pagamentos = [];
   vendas.forEach(s=>{
-    if((s.valorPago||0)>0) pagamentos.push({ data:s.data, tipo:'Venda integral', valor:s.valorPago, forma:s.formaPagamento, servico:s.servico, vendedor:s.vendedorNome, cliente:s.cliente });
+    if((s.valorPago||0)>0) pagamentos.push({ data:s.data, tipo:'Venda integral', valor:s.valorPago, forma:s.formaPagamento, servico:s.servico, vendedor:s.vendedorNome, cliente:s.cliente, ref:'venda|'+s.id });
   });
   recs.forEach(r=>{
     const st = recStatus(r);
-    if((r.valorEntrada||0)>0) pagamentos.push({ data:r.dataVenda, tipo:'Entrada de recorrência', valor:r.valorEntrada, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
+    if((r.valorEntrada||0)>0) pagamentos.push({ data:r.dataVenda, tipo:'Entrada de recorrência', valor:r.valorEntrada, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente, ref:'entrada|'+r.id });
     r.parcelas.forEach(p=>{
-      if(p.pago) pagamentos.push({ data:p.data, tipo:'Parcela '+p.numero, valor: valorEfetivoParcela(p, st), forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
+      if(p.pago) pagamentos.push({ data:p.data, tipo:'Parcela '+p.numero, valor: valorEfetivoParcela(p, st), forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente, ref:'parcela|'+r.id+'|'+p.numero });
     });
     (r.pagamentosExtras||[]).forEach(ex=>{
-      pagamentos.push({ data:ex.data, tipo:'Pagamento personalizado', valor:ex.valor, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente });
+      pagamentos.push({ data:ex.data, tipo:'Pagamento personalizado', valor:ex.valor, forma:r.formaPagamento, servico:r.servico, vendedor:r.vendedorNome, cliente:r.cliente, ref:'extra|'+r.id+'|'+ex.id });
     });
   });
   pagamentos.sort((a,b)=>(b.data||'').localeCompare(a.data||''));
@@ -3807,8 +3856,8 @@ function renderIndice(){
   </section>
   <section class="block">
     <div class="block-head"><h3>Linha do tempo de pagamentos (${resultadoCliente.pagamentos.length})</h3><span class="hint">tudo que já foi pago, mais recente primeiro</span></div>
-    ${resultadoCliente.pagamentos.length ? `<table><thead><tr><th>Data</th><th>Tipo</th><th>Serviço</th><th>Vendedor</th><th>Forma</th><th>Valor</th></tr></thead>
-    <tbody>${resultadoCliente.pagamentos.map(p=>`<tr><td>${fmtDate(p.data)}</td><td><span class="chip neutral">${p.tipo}</span></td><td>${p.servico||'-'}</td><td>${p.vendedor||'-'}</td><td>${p.forma||'-'}</td><td class="tnum good">${fmtEUR(p.valor)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum pagamento registado ainda.</div>`}
+    ${resultadoCliente.pagamentos.length ? `<table><thead><tr><th>Data</th><th>Tipo</th><th>Serviço</th><th>Vendedor</th><th>Forma</th><th>Valor</th>${STATE.role==='gestor'?'<th></th>':''}</tr></thead>
+    <tbody>${resultadoCliente.pagamentos.map(p=>`<tr><td>${p.data?fmtDate(p.data):'<span class="chip bad">sem data</span>'}</td><td><span class="chip neutral">${p.tipo}</span></td><td>${p.servico||'-'}</td><td>${p.vendedor||'-'}</td><td>${p.forma||'-'}</td><td class="tnum good">${fmtEUR(p.valor)}</td>${STATE.role==='gestor'?`<td><button class="btn ghost sm" data-editar-pagamento="${p.ref}">Editar</button></td>`:''}</tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum pagamento registado ainda.</div>`}
   </section>
   <section class="block">
     <div class="block-head"><h3>Negócios (${resultadoCliente.vendas.length + resultadoCliente.recs.length})</h3><span class="hint">contratos e vendas que compõem o total acima</span></div>
@@ -4686,6 +4735,11 @@ function abrirEditorParcelas(recId, destaque){
       <table><thead><tr><th>Data</th><th>Valor (€)</th><th></th></tr></thead>
         <tbody id="epExtras">${(rec.pagamentosExtras||[]).map(linhaExtra).join('')}</tbody></table>
       <button type="button" class="btn ghost sm" id="epAddExtra" style="margin-top:8px;">+ Adicionar pagamento personalizado</button>
+      <div id="epRecalcBox" style="display:none;border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:14px;">
+        <label><input type="checkbox" id="epRecalc" checked style="width:auto;margin-right:8px;">Recalcular as outras parcelas</label>
+        <div class="field-hint">As parcelas com valor alterado ficam como digitou; o resto do contrato é dividido por igual entre as outras. Desmarque se as outras foram mesmo pagas com o valor que está lá.</div>
+        <div id="epRecalcPrevia"></div>
+      </div>
       <div id="epErro" style="display:none;color:var(--bad);font-size:12.5px;margin-top:10px;"></div>
     </div>
     <div class="modal-foot"><button class="btn ghost" id="epContrato">Dados do contrato</button><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Guardar</button></div>
@@ -4701,7 +4755,38 @@ function abrirEditorParcelas(recId, destaque){
     root.querySelectorAll('[data-ep-pago]').forEach(c=> c.onchange = ()=>{ const tr = c.closest('tr'); if(!c.checked){ tr.querySelector('[data-ep-data]').value=''; tr.querySelector('[data-ep-valor]').value=''; } else if(!tr.querySelector('[data-ep-data]').value){ tr.querySelector('[data-ep-data]').value = todayISO(); } });
   };
   ligarLinhas();
-  document.getElementById('epAddExtra').onclick = ()=>{ document.getElementById('epExtras').insertAdjacentHTML('beforeend', linhaExtra({ data:todayISO(), valor:null })); ligarLinhas(); };
+  document.getElementById('epAddExtra').onclick = ()=>{ document.getElementById('epExtras').insertAdjacentHTML('beforeend', linhaExtra({ data:todayISO(), valor:null })); ligarLinhas(); atualizarPrevia(); };
+  /* Lê a tela sem validar: parcelas/extras como ficariam, quais valores de
+     parcela foram digitados agora (fixas) e se algum valor mudou. */
+  const lerTela = ()=>{
+    const parcelas = [...root.querySelectorAll('[data-ep-parcela]')].map(tr=>{
+      const numero = Number(tr.dataset.epParcela), pago = tr.querySelector('[data-ep-pago]').checked;
+      const vtxt = tr.querySelector('[data-ep-valor]').value;
+      return { numero, pago, data: pago ? (tr.querySelector('[data-ep-data]').value || null) : null, valor: pago && vtxt!=='' && Number(vtxt)>0 ? arred4(Number(vtxt)) : null };
+    });
+    const extras = [...root.querySelectorAll('[data-ep-extra]')].map((tr,i)=>({ id: tr.dataset.epExtra || ('novo-'+i), data: tr.querySelector('[data-ep-xdata]').value || null, valor: arred4(Number(tr.querySelector('[data-ep-xvalor]').value)||0) }));
+    const fixas = new Set(parcelas.filter(np=>{ const o = rec.parcelas.find(x=>x.numero===np.numero)||{}; return np.pago && np.valor!==null && !(o.valor!=null && Math.abs(Number(o.valor)-np.valor)<0.00005); }).map(p=>p.numero));
+    const ex0 = rec.pagamentosExtras||[];
+    const extrasMudaram = ex0.length!==extras.length || extras.some(x=>{ const o = ex0.find(e=>e.id===x.id); return !o || Math.abs((Number(o.valor)||0)-x.valor)>0.00005; });
+    return { parcelas, extras, fixas, valoresMudaram: fixas.size>0 || extrasMudaram };
+  };
+  const rascunhoDe = (t, recalcular)=>{
+    const d = snapshotObj(rec);
+    t.parcelas.forEach(np=>{ const p = d.parcelas.find(x=>x.numero===np.numero); if(p) Object.assign(p, { pago:np.pago, data:np.data, valor:np.valor }); });
+    d.pagamentosExtras = t.extras;
+    const rc = recalcular ? recalcularParcelas(d, t.fixas) : { ok:true };
+    return { d, erro: rc.erro };
+  };
+  const atualizarPrevia = ()=>{
+    const t = lerTela(), box = document.getElementById('epRecalcBox');
+    if(!t.valoresMudaram || !rec.parcelas.length){ box.style.display='none'; return; }
+    box.style.display='';
+    const { d, erro } = rascunhoDe(t, document.getElementById('epRecalc').checked);
+    document.getElementById('epRecalcPrevia').innerHTML = erro ? `<div class="field-hint" style="color:var(--bad);">${erro}</div>` : htmlPreviaRecalculo(rec, d);
+  };
+  root.querySelector('.modal-body').addEventListener('input', atualizarPrevia);
+  root.querySelector('.modal-body').addEventListener('change', atualizarPrevia);
+  root.querySelector('.modal-body').addEventListener('click', ev=>{ if(ev.target.matches('[data-ep-xremover]')) setTimeout(atualizarPrevia, 0); });
   const btn = document.getElementById('mSave');
   btn.onclick = async ()=>{
     const erroEl = document.getElementById('epErro');
@@ -4734,18 +4819,121 @@ function abrirEditorParcelas(recId, destaque){
       if(!(valor>0)) return falha('Pagamento personalizado: informe um valor maior que zero.');
       extras.push({ id: tr.dataset.epExtra || ('pgx-'+Date.now()+'-'+(n++)), data, valor: arred4(valor) });
     }
-    const pendente = rec.valorContrato - rec.valorEntrada;
-    const totalPago = parcelas.filter(p=>p.pago).reduce((a,p)=>a+(p.valor!=null?p.valor:st.valorParcela),0) + extras.reduce((a,x)=>a+x.valor,0);
-    if(totalPago > pendente + 0.05 && !btn.dataset.confirmouExcesso){
+    // Recálculo das outras parcelas (mesma conta da prévia).
+    const t = lerTela();
+    const recalcular = t.valoresMudaram && document.getElementById('epRecalc').checked;
+    const { d: rascunho, erro: erroRecalc } = rascunhoDe({ parcelas, extras, fixas: t.fixas }, recalcular);
+    if(erroRecalc) return falha(erroRecalc);
+    const stR = recStatus(rascunho);
+    if(stR.valorPago > stR.valorContratoDevido + 0.05 && !btn.dataset.confirmouExcesso){
       btn.dataset.confirmouExcesso = '1'; btn.textContent = 'Guardar mesmo assim';
-      return falha('O total pago ('+fmtEUR(totalPago+rec.valorEntrada)+') passa do valor do contrato ('+fmtEUR(rec.valorContrato)+'). Confira; se estiver certo, clique de novo.');
+      return falha('O total pago ('+fmtEUR(stR.valorPago)+') passa do valor do contrato ('+fmtEUR(stR.valorContratoDevido)+'). Confira; se estiver certo, clique de novo.');
     }
     if(!travarBotao(btn)) return;
     const ok = await salvarAlteracao(rec, ()=>{
-      parcelas.forEach(np=>{ const p = rec.parcelas.find(x=>x.numero===np.numero); Object.assign(p, { pago:np.pago, data:np.data, valor:np.valor }); });
+      rascunho.parcelas.forEach(np=>{ const p = rec.parcelas.find(x=>x.numero===np.numero); Object.assign(p, { pago:np.pago, data:np.data, valor:np.valor }); });
       rec.pagamentosExtras = extras;
     }, ()=>persistRecorrencia(rec), 'as parcelas NÃO foram gravadas');
     if(ok) showSuccessToast('Parcelas e pagamentos de '+rec.cliente+' guardados.');
+    if(STATE.seguranca) STATE.seguranca.revalidar = true;
+    closeModal(); renderAll();
+  };
+}
+
+/* Índice → linha do tempo → "Editar": muda o valor e a data de UM pagamento
+   (venda integral, entrada, parcela ou pagamento personalizado). Nas
+   recorrências, as outras parcelas são recalculadas (com prévia) para o
+   total continuar a bater com o contrato. ref = 'tipo|id[|nº ou id extra]'. */
+function abrirEditarPagamento(ref){
+  const [tipo, id, sub] = String(ref).split('|');
+  const venda = tipo==='venda' ? STATE.sales.find(s=>s.id===id) : null;
+  const rec = tipo!=='venda' ? STATE.recurrences.find(r=>r.id===id) : null;
+  if(!venda && !rec) return;
+  const parcela = tipo==='parcela' ? rec.parcelas.find(p=>p.numero===Number(sub)) : null;
+  const extra = tipo==='extra' ? (rec.pagamentosExtras||[]).find(e=>e.id===sub) : null;
+  if((tipo==='parcela' && !parcela) || (tipo==='extra' && !extra)) return;
+  const atual = venda ? { data:venda.data, valor:venda.valorPago||0, titulo:'Venda integral', dica:'A data é a data da venda. O valor não pode passar do total da venda ('+fmtEUR(venda.valorTotal)+').' }
+    : tipo==='entrada' ? { data:rec.dataVenda, valor:rec.valorEntrada||0, titulo:'Entrada', dica:'A data da entrada é a data da venda do contrato. Contrato de '+fmtEUR(rec.valorContrato)+'.' }
+    : tipo==='parcela' ? { data:parcela.data, valor:valorEfetivoParcela(parcela, recStatus(rec)), titulo:'Parcela '+parcela.numero, dica:'Data do extrato (igual ou depois da venda, '+fmtDate(rec.dataVenda)+').' }
+    : { data:extra.data, valor:extra.valor||0, titulo:'Pagamento personalizado', dica:'Data do extrato (igual ou depois da venda, '+fmtDate(rec.dataVenda)+').' };
+  const cliente = venda ? venda.cliente : rec.cliente;
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-backdrop" id="mBackdrop"><div class="modal" style="max-width:520px;">
+    <div class="modal-head"><h3>Editar pagamento · ${cliente}</h3><button id="mClose">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-hint" style="margin-bottom:12px;"><strong>${atual.titulo}</strong>${rec?' · '+(rec.servico||''):''}. ${atual.dica}</div>
+      <div class="field-row">
+        <div class="field"><label>Data do pagamento</label><input type="date" id="edpData" value="${atual.data||''}"></div>
+        <div class="field"><label>Valor pago (€)</label><input type="number" id="edpValor" min="0" step="0.01" value="${arred4(atual.valor)}"></div>
+      </div>
+      ${rec ? `<div id="edpRecalcBox" style="display:none;border:1px solid var(--line);border-radius:9px;padding:10px 12px;">
+        <label><input type="checkbox" id="edpRecalc" checked style="width:auto;margin-right:8px;">Recalcular as outras parcelas</label>
+        <div class="field-hint">${tipo==='parcela'?'Esta parcela fica com o valor digitado; o':'O'} resto do contrato é dividido por igual entre as ${tipo==='parcela'?'outras ':''}parcelas. Desmarque se elas foram mesmo pagas com o valor que está lá.</div>
+        <div id="edpPrevia"></div>
+      </div>` : ''}
+      <div id="edpErro" style="display:none;color:var(--bad);font-size:12.5px;margin-top:10px;"></div>
+    </div>
+    <div class="modal-foot">${rec?'<button class="btn ghost" id="edpTodas">Ver todas as parcelas</button>':''}<button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Guardar</button></div>
+  </div></div>`;
+  document.getElementById('mClose').onclick = closeModal;
+  document.getElementById('mCancel').onclick = closeModal;
+  document.getElementById('mBackdrop').addEventListener('click', ev=>{ if(ev.target.id==='mBackdrop') closeModal(); });
+  if(rec) document.getElementById('edpTodas').onclick = ()=> abrirEditorParcelas(rec.id, parcela ? parcela.numero : null);
+  const lerData = ()=> document.getElementById('edpData').value || null;
+  const lerValor = ()=> Number(document.getElementById('edpValor').value);
+  const valorMudou = ()=> Math.abs((lerValor()||0) - atual.valor) > 0.00005;
+  // Rascunho da recorrência com a mudança aplicada (e recalculada, se pedido).
+  const rascunho = recalcular=>{
+    const d = snapshotObj(rec), data = lerData(), valor = arred4(lerValor()||0);
+    if(tipo==='entrada'){ d.valorEntrada = valor; d.dataVenda = data; }
+    if(tipo==='parcela'){ const p = d.parcelas.find(x=>x.numero===parcela.numero); p.data = data; p.valor = valor; }
+    if(tipo==='extra'){ const e = d.pagamentosExtras.find(x=>x.id===extra.id); e.data = data; e.valor = valor; }
+    const rc = recalcular ? recalcularParcelas(d, tipo==='parcela' ? new Set([parcela.numero]) : new Set()) : { ok:true };
+    return { d, erro: rc.erro };
+  };
+  const recalcularAtivo = ()=> !!rec && valorMudou() && rec.parcelas.some(p=>p.pago && !(tipo==='parcela' && p.numero===parcela.numero)) && document.getElementById('edpRecalc').checked;
+  const atualizarPrevia = ()=>{
+    if(!rec) return;
+    const box = document.getElementById('edpRecalcBox');
+    if(!valorMudou() || !(lerValor()>=0)){ box.style.display='none'; return; }
+    box.style.display='';
+    const { d, erro } = rascunho(document.getElementById('edpRecalc').checked);
+    document.getElementById('edpPrevia').innerHTML = erro ? `<div class="field-hint" style="color:var(--bad);">${erro}</div>` : htmlPreviaRecalculo(rec, d);
+  };
+  ['edpData','edpValor','edpRecalc'].forEach(i=>{ const el = document.getElementById(i); if(el){ el.addEventListener('input', atualizarPrevia); el.addEventListener('change', atualizarPrevia); } });
+  const btn = document.getElementById('mSave');
+  btn.onclick = async ()=>{
+    const erroEl = document.getElementById('edpErro');
+    const falha = msg=>{ erroEl.textContent = msg; erroEl.style.display='block'; };
+    const data = lerData(), valor = lerValor();
+    if(data !== (atual.data||null)){
+      const e = tipo==='venda' || tipo==='entrada' ? erroDataLancamento(data, 'A data') : erroDataLancamento(data, 'A data do pagamento', rec.dataVenda);
+      if(e) return falha(e);
+    }
+    if(tipo==='entrada'){
+      if(!(valor>=0)) return falha('Informe o valor da entrada (0 se não houve entrada).');
+      if(valor > rec.valorContrato + 0.005) return falha('A entrada não pode ser maior que o contrato ('+fmtEUR(rec.valorContrato)+').');
+      const pagaAntes = rec.parcelas.find(p=>p.pago && p.data && data && p.data < data);
+      if(pagaAntes) return falha('A parcela '+pagaAntes.numero+' foi paga em '+fmtDate(pagaAntes.data)+', antes desta data. Corrija primeiro a data dessa parcela.');
+    } else if(!(valor>0)) return falha('O valor tem de ser maior que zero.');
+    if(venda){
+      if(valor > venda.valorTotal + 0.01) return falha('O valor recebido não pode passar do total da venda ('+fmtEUR(venda.valorTotal)+').');
+      if(!travarBotao(btn)) return;
+      const ok = await salvarAlteracao(venda, ()=>{ venda.data = data; venda.valorPago = arred4(valor); venda.pagamentoIntegral = valor >= venda.valorTotal - 0.005; },
+        ()=>persistVenda(venda), 'o pagamento NÃO foi gravado');
+      if(ok) showSuccessToast('Pagamento de '+cliente+' atualizado.');
+    } else {
+      const { d, erro } = rascunho(recalcularAtivo());
+      if(erro) return falha(erro);
+      const st = recStatus(d);
+      if(st.valorPago > st.valorContratoDevido + 0.05 && !btn.dataset.confirmouExcesso){
+        btn.dataset.confirmouExcesso = '1'; btn.textContent = 'Guardar mesmo assim';
+        return falha('O total pago ('+fmtEUR(st.valorPago)+') passa do contrato ('+fmtEUR(st.valorContratoDevido)+'). Confira; se estiver certo, clique de novo.');
+      }
+      if(!travarBotao(btn)) return;
+      const ok = await salvarAlteracao(rec, ()=>restaurarObj(rec, d), ()=>persistRecorrencia(rec), 'o pagamento NÃO foi gravado');
+      if(ok) showSuccessToast('Pagamento de '+cliente+' atualizado'+(recalcularAtivo()?' e parcelas recalculadas':'')+'.');
+    }
     if(STATE.seguranca) STATE.seguranca.revalidar = true;
     closeModal(); renderAll();
   };
@@ -5502,6 +5690,11 @@ function openEditRecModal(recId){
       <div class="field"><label>Nº de parcelas (após a entrada)</label><select id="erParcelas">${opcoesParcelas}</select>
         <div class="field-hint">Aumentar adiciona parcelas pendentes no fim. Reduzir remove as últimas, cuidado se alguma delas já estiver paga.</div>
       </div>
+      <div class="field" id="erRecalcBox" style="display:none;border:1px solid var(--line);border-radius:9px;padding:10px 12px;">
+        <label><input type="checkbox" id="erRecalc" checked style="width:auto;margin-right:8px;">Recalcular as parcelas já pagas com os novos valores</label>
+        <div class="field-hint">(contrato − entrada − pagamentos personalizados) ÷ nº de parcelas. Desmarque se as parcelas foram mesmo pagas com o valor antigo.</div>
+        <div id="erRecalcPrevia"></div>
+      </div>
     </div>
     <div class="modal-foot"><button class="btn ghost" id="mCancel">Cancelar</button><button class="btn gold" id="mSave">Guardar alterações</button></div>
   </div></div>`;
@@ -5524,6 +5717,31 @@ function openEditRecModal(recId){
     }
   });
 
+  const valorDe = id=>Number(document.getElementById(id).value)||0;
+  // Mudou algo que altera o valor das parcelas? (e há parcelas pagas para recalcular)
+  const mudaValoresParcelas = ()=> rec.parcelas.some(p=>p.pago) && (
+    Math.abs(valorDe('erValor') - (rec.valorContrato||0)) > 0.005 || Math.abs(valorDe('erEntrada') - (rec.valorEntrada||0)) > 0.005 ||
+    (Number(document.getElementById('erParcelas').value)||1) !== nAtual || document.getElementById('erIsentoTx').checked !== !!rec.isentoTaxaAdm ||
+    (rec.isentoTaxaAdm && Math.abs(valorDe('erTx') - (rec.txAdm||0)) > 0.005));
+  const atualizarPrevia = ()=>{
+    const box = document.getElementById('erRecalcBox');
+    if(!mudaValoresParcelas()){ box.style.display = 'none'; return; }
+    box.style.display = '';
+    const previa = document.getElementById('erRecalcPrevia');
+    const rascunho = snapshotObj(rec);
+    const r = aplicarEdicaoRecorrencia(rascunho, { valorContrato:valorDe('erValor'), valorEntrada:valorDe('erEntrada'), txAdm:valorDe('erTx'),
+      isentoTaxaAdm:document.getElementById('erIsentoTx').checked, nParcelas:Number(document.getElementById('erParcelas').value)||1 });
+    if(r.erro){ previa.innerHTML = `<div class="field-hint" style="color:var(--bad);">${r.erro}</div>`; return; }
+    if(document.getElementById('erRecalc').checked){
+      const rc = recalcularParcelas(rascunho);
+      if(rc.erro){ previa.innerHTML = `<div class="field-hint" style="color:var(--bad);">${rc.erro}</div>`; return; }
+    }
+    previa.innerHTML = htmlPreviaRecalculo(rec, rascunho);
+  };
+  ['erValor','erEntrada','erTx','erParcelas','erIsentoTx','erRecalc','erServico'].forEach(id=>{
+    const el = document.getElementById(id); el.addEventListener('input', atualizarPrevia); el.addEventListener('change', atualizarPrevia);
+  });
+
   document.getElementById('mSave').onclick = async ()=>{
     const cliente = document.getElementById('erCliente').value.trim();
     const servico = erServico.value.trim();
@@ -5538,6 +5756,7 @@ function openEditRecModal(recId){
     const origem = document.getElementById('erOrigem').value;
     const isentoTaxaAdm = document.getElementById('erIsentoTx').checked;
     const nParcelasNovo = Number(document.getElementById('erParcelas').value)||1;
+    const recalcular = mudaValoresParcelas() && document.getElementById('erRecalc').checked;
     if(!cliente || !valorContrato){ alert('Preencha ao menos cliente e valor do contrato.'); return; }
     if(data !== rec.dataVenda){
       const erroData = erroDataLancamento(data, 'A data da venda');
@@ -5559,8 +5778,13 @@ function openEditRecModal(recId){
       valorContrato, valorEntrada, honorarioBase, iva, txAdm, formaPagamento, origem, isentoTaxaAdm, nParcelas: nParcelasNovo
     });
     if(r.erro){ alert(r.erro); return; }
+    if(recalcular){
+      const rc = recalcularParcelas(rec);
+      if(rc.erro){ restaurarObj(rec, snap); alert(rc.erro); return; }
+    }
     if(!travarBotao(document.getElementById('mSave'))) return;
     await gravarOuReverter(()=>restaurarObj(rec, snap), ()=>persistRecorrencia(rec), 'a edição da recorrência NÃO foi gravada');
+    if(STATE.seguranca) STATE.seguranca.revalidar = true;
     closeModal(); renderAll();
   };
 }
@@ -6277,6 +6501,7 @@ function wireViewportEvents(){
   if(btnBuscarIndice && indiceQueryInput){
     const dispara = ()=>{ STATE.indiceQuery = indiceQueryInput.value; STATE.indiceQuerySubmetida = indiceQueryInput.value.trim(); renderAll(); };
     btnBuscarIndice.addEventListener('click', dispara);
+    vp.querySelectorAll('[data-editar-pagamento]').forEach(b=> b.addEventListener('click', ()=> abrirEditarPagamento(b.dataset.editarPagamento)));
     indiceQueryInput.addEventListener('keydown', e=>{ if(e.key==='Enter') dispara(); });
   }
   if(btnRefreshLeads2) btnRefreshLeads2.addEventListener('click', ()=>{ STATE.leads = []; loadLeadsData(); });
