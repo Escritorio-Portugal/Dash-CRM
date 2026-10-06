@@ -1540,19 +1540,16 @@ function parcelasEmAtraso(rec, hojeISO){
     .filter(v=>v.vencimento && v.vencimento < hoje)
     .map(v=>({ ...v, dias: Math.round((new Date(hoje+'T00:00:00') - new Date(v.vencimento+'T00:00:00')) / 86400000) }));
 }
-/* Lista do painel: só o que está realmente em atraso hoje. Com um período
-   selecionado (mês/semana/dia), mostra as recorrências com parcela em atraso
-   que VENCEU dentro desse período; "Total" mostra todas. */
+/* Lista do painel: só o que está realmente em atraso hoje (nada já pago,
+   nada com pendente €0). Com um período selecionado (mês/semana/dia),
+   mostra as recorrências com parcela que venceu ATÉ o fim desse período e
+   continua sem pagamento; "Total" mostra todas. */
 function recorrenciasAtrasadas(filter){
   const hoje = todayISO();
-  let ini = null, fim = null;
-  if(filter && filter.granularity!=='all'){
-    const { start, end } = periodRange(filter);
-    ini = toLocalISODate(start); fim = toLocalISODate(end);
-  }
+  const fim = (filter && filter.granularity!=='all') ? toLocalISODate(periodRange(filter).end) : null;
   return STATE.recurrences
     .map(r=>({ r, atrasos: parcelasEmAtraso(r, hoje) }))
-    .filter(x=>x.atrasos.some(v=>!ini || (v.vencimento>=ini && v.vencimento<fim)))
+    .filter(x=>x.atrasos.some(v=>!fim || v.vencimento<fim))
     .sort((a,b)=>b.atrasos[0].dias-a.atrasos[0].dias)
     .map(x=>x.r);
 }
@@ -2563,7 +2560,7 @@ function faixaAtraso(dias){
   return '1-30';
 }
 function renderRecorrenciasAtrasadasBox(){
-  const ref = todayISO(); // atraso é sempre medido hoje; o período só escolhe o mês do vencimento
+  const ref = todayISO(); // atraso é sempre medido hoje; o período só limita até quando a parcela venceu
   const porPeriodo = STATE.periodFilter.granularity!=='all';
   const todasAtrasadas = recorrenciasAtrasadas(STATE.periodFilter);
   const totalGeral = porPeriodo ? recorrenciasAtrasadas({ granularity:'all' }).length : todasAtrasadas.length;
@@ -2583,7 +2580,7 @@ function renderRecorrenciasAtrasadasBox(){
   const vendedoresNaLista = [...new Map(todasAtrasadas.map(r=>[r.vendedorId, r.vendedorNome])).entries()];
   return `
   <section class="block atraso-block">
-    <div class="block-head"><h3>⚠️ Recorrências atrasadas (${todasAtrasadas.length})</h3><span class="hint">com parcela vencida e ainda não paga, e saldo a receber (cada parcela vence 1 mês após a anterior, a contar do registo)${porPeriodo?`, parcelas que venceram em ${periodLabelText(STATE.periodFilter)}; ${totalGeral} no total em atraso hoje`:', situação hoje'}</span></div>
+    <div class="block-head"><h3>⚠️ Recorrências atrasadas (${todasAtrasadas.length})</h3><span class="hint">com parcela vencida e ainda não paga, e saldo a receber (cada parcela vence 1 mês após a anterior, a contar do registo)${porPeriodo?`, parcelas que venceram até o fim de ${periodLabelText(STATE.periodFilter)} e continuam sem pagamento hoje; ${totalGeral} no total em atraso hoje`:', situação hoje'}</span></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--surface-2);">
       <select id="atrasadasFiltroVendedor" style="max-width:180px;">
         <option value="all" ${fVendedor==='all'?'selected':''}>Todos os vendedores</option>

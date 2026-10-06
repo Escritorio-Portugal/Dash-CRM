@@ -2,7 +2,8 @@
 // entrada/pagamento personalizado sem marcar a parcela) e, num mês passado,
 // contratos pagos depois, com pendente €0 e sem pagamento possível.
 // Regra (06/10/2026): só entra o que está em atraso HOJE (parcela vencida,
-// não paga, saldo > 0); o período escolhe o mês em que a parcela venceu.
+// não paga, saldo > 0); com um mês selecionado, entram as parcelas que
+// venceram até o fim desse mês e continuam sem pagamento.
 const test = require('node:test');
 const assert = require('node:assert');
 const { load } = require('./lib');
@@ -38,21 +39,36 @@ test('saldo pequeno real continua atrasado', () => {
   const c = ctx([rec('basim', '2026-08-26', { valorEntrada:725, nParcelas:2, parcelas:[{numero:1,pago:false},{numero:2,pago:false}] })]);
   assert.deepStrictEqual(ids(c, {granularity:'all'}), ['basim']);
   assert.deepStrictEqual(ids(c, mes('2026-09')), ['basim']); // parcela 1 venceu 26/09
-  assert.deepStrictEqual(ids(c, mes('2026-10')), []);        // parcela 2 vence 26/10, ainda não venceu
+  assert.deepStrictEqual(ids(c, mes('2026-08')), []);        // nada tinha vencido até agosto
 });
 
-test('filtro por mês usa o mês do vencimento da parcela em atraso', () => {
+test('filtro por mês: parcelas que venceram até o fim do mês e seguem sem pagamento', () => {
   const c = ctx([
     rec('jun', '2026-05-12'),   // vence 12/06
     rec('ago', '2026-07-21'),   // vence 21/08
+    rec('ago31', '2026-07-31'), // vence 31/08
     rec('set', '2026-08-18'),   // vence 18/09
     rec('naoVenceu', '2026-09-29'), // vence 29/10
   ]);
-  assert.deepStrictEqual(ids(c, {granularity:'all'}), ['ago','jun','set']);
+  assert.deepStrictEqual(ids(c, {granularity:'all'}), ['ago','ago31','jun','set']);
+  assert.deepStrictEqual(ids(c, mes('2026-05')), []);
   assert.deepStrictEqual(ids(c, mes('2026-06')), ['jun']);
-  assert.deepStrictEqual(ids(c, mes('2026-08')), ['ago']);
-  assert.deepStrictEqual(ids(c, mes('2026-09')), ['set']);
-  assert.deepStrictEqual(ids(c, mes('2026-10')), []);
+  assert.deepStrictEqual(ids(c, mes('2026-08')), ['ago','ago31','jun']);
+  assert.deepStrictEqual(ids(c, mes('2026-09')), ['ago','ago31','jun','set']);
+  assert.deepStrictEqual(ids(c, mes('2026-10')), ['ago','ago31','jun','set']);
+});
+
+test('agosto com casos reais: pagos depois e quitados por extras saem; só ficam os em aberto', () => {
+  const pagaEmSetembro = (id, venda, entrada, valor, data) => rec(id, venda, { valorEntrada:entrada, parcelas:[{numero:1,pago:true,data,valor}] });
+  const c = ctx([
+    pagaEmSetembro('LEIA', '2026-05-26', 375, 375, '2026-09-06'),
+    pagaEmSetembro('RAVENA', '2026-07-15', 500, 250, '2026-09-03'),
+    pagaEmSetembro('SIDE', '2026-05-27', 375, 375, '2026-10-02'),
+    rec('ELIZAMA', '2026-05-20', { valorContrato:599.9952, valorEntrada:300, pagamentosExtras:[{data:'2026-08-25', valor:300}] }),
+    rec('ADILSON', '2026-05-12', { valorContrato:249.9975, valorEntrada:125 }),
+    rec('CRISTOVAO', '2026-05-04', { valorContrato:350, valorEntrada:100, nParcelas:2, parcelas:[{numero:1,pago:true,data:'2026-08-30',valor:200},{numero:2,pago:false}] }),
+  ]);
+  assert.deepStrictEqual(ids(c, mes('2026-08')), ['ADILSON','CRISTOVAO']);
 });
 
 test('contrato com 2 parcelas atrasadas aparece nos dois meses e ordena pela mais antiga', () => {
