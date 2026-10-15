@@ -1663,14 +1663,28 @@ function ivaProporcionalRecorrencia(rec, valorRecebido){
   return (Number(rec.iva)||0) * (valorRecebido/valorContrato);
 }
 
+/* Regra do escritório (15/10/2026): o valor digitado (valor pago na venda
+   integral, valor do contrato na recorrência) é o que o cliente paga, JÁ com
+   IVA. A taxa administrativa do serviço sai primeiro; o resto é honorário
+   base + IVA, com IVA = 23% do honorário base (resto ÷ 1,23 = base). */
+const TAXA_IVA = 0.23;
+function componentesParaTotal(valorTotal, txAdm, comIva){
+  const total = Math.max(0, Number(valorTotal)||0);
+  const tx = Math.min(Math.max(0, Number(txAdm)||0), total);
+  const semTaxa = total - tx;
+  const iva = comIva ? Math.round(semTaxa*TAXA_IVA/(1+TAXA_IVA)*100)/100 : 0;
+  return { honorarioBase: semTaxa - iva, iva, txAdm: tx }; // soma = total, sempre
+}
 function componentesServicoParaTotal(servico, valorTotal){
   if(!servico) return { honorarioBase:valorTotal, iva:0, txAdm:0 };
-  const baseOriginal = Number(servico.honorarioBase)||0;
-  const ivaOriginal = Number(servico.iva)||0;
-  const txAdm = Math.min(Number(servico.txAdm)||0, valorTotal);
-  const subtotalOriginal = baseOriginal + ivaOriginal;
-  const fator = subtotalOriginal>0 ? Math.max(0, valorTotal-txAdm)/subtotalOriginal : 0;
-  return { honorarioBase:baseOriginal*fator, iva:ivaOriginal*fator, txAdm };
+  // serviço isento de IVA no catálogo continua sem IVA
+  return componentesParaTotal(valorTotal, servico.txAdm, (Number(servico.iva)||0) > 0);
+}
+function htmlComponentesServico(comp, servico, valorTotal){
+  const catalogo = servico ? Number(servico.honorarioFinal)||0 : 0;
+  const difere = servico && Math.abs((Number(valorTotal)||0) - catalogo) > 0.005;
+  return `Honorário base: <strong>${fmtEUR(comp.honorarioBase)}</strong> · IVA${comp.iva>0?' (23%)':''}: ${fmtEUR(comp.iva)} · Taxa adm.: ${fmtEUR(comp.txAdm)}`
+    + (difere ? ` <span style="color:var(--ink-soft);">· valor do catálogo: ${fmtEUR(catalogo)}</span>` : '');
 }
 
 function componentesFinanceirosConferem(valorTotal, honorarioBase, iva, txAdm){
@@ -5495,22 +5509,29 @@ function openQuickAddModal(initialTipo, forColaborador){
         document.getElementById('qServico').value = servico;
         document.getElementById('qData').value = data;
         document.getElementById('qOrigem').value = origem;
+        document.getElementById('qServico').dispatchEvent(new Event('input')); // repõe valor e prévia do serviço
       });
     });
 
     let matchedService = null;
     const qServico = document.getElementById('qServico');
+    const campoValor = ()=>document.getElementById(tipo==='integral' ? 'qValorPago' : 'qValorContrato');
+    // a prévia acompanha o valor digitado (venda por outro valor que o do catálogo)
+    const atualizarPreviaServico = ()=>{
+      const prev = document.getElementById('qServicoPreview');
+      if(!matchedService){
+        prev.textContent = 'Serviço não cadastrado no catálogo, será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
+        return;
+      }
+      const valor = Number(campoValor().value)||0;
+      prev.innerHTML = htmlComponentesServico(componentesServicoParaTotal(matchedService, valor), matchedService, valor);
+    };
     qServico.addEventListener('input', ()=>{
       matchedService = serviceByName(qServico.value);
-      const prev = document.getElementById('qServicoPreview');
-      if(matchedService){
-        if(tipo==='integral'){ document.getElementById('qValorPago').value = (Number(matchedService.honorarioFinal)||0).toFixed(2); }
-        else { document.getElementById('qValorContrato').value = (Number(matchedService.honorarioFinal)||0).toFixed(2); }
-        prev.innerHTML = `Honorário base: <strong>${fmtEUR(matchedService.honorarioBase)}</strong> · IVA: ${fmtEUR(matchedService.iva)} · Taxa adm.: ${fmtEUR(matchedService.txAdm)}`;
-      } else {
-        prev.textContent = 'Serviço não cadastrado no catálogo, será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
-      }
+      if(matchedService) campoValor().value = (Number(matchedService.honorarioFinal)||0).toFixed(2);
+      atualizarPreviaServico();
     });
+    ['qValorPago','qValorContrato'].forEach(id=>document.getElementById(id).addEventListener('input', atualizarPreviaServico));
 
     document.getElementById('mSave').onclick = async ()=>{
       const cliente = document.getElementById('qCliente').value.trim();
@@ -5644,6 +5665,41 @@ function openCreateAccountModal(prefillSellerId){
   };
 }
 
+/* Nos modais de edição: escolher o serviço preenche o valor do catálogo, e
+   mudar o valor (ou a taxa adm.) recalcula honorário base e IVA (23% da
+   base) para continuarem a somar o valor. Abrir e guardar sem mexer no valor
+   não altera nada. */
+function ligarComponentesEdicao(ids, ivaAtual){
+  const el = id=>document.getElementById(id);
+  const doCatalogo = serviceByName(el(ids.servico).value);
+  let comIva = doCatalogo ? (Number(doCatalogo.iva)||0) > 0 : (Number(ivaAtual)||0) > 0;
+  const recalcular = ()=>{
+    const c = componentesParaTotal(el(ids.valor).value, el(ids.tx).value, comIva);
+    el(ids.base).value = arred4(c.honorarioBase);
+    el(ids.iva).value = c.iva;
+    const matched = serviceByName(el(ids.servico).value);
+    el(ids.prev).innerHTML = htmlComponentesServico(c, matched, el(ids.valor).value);
+  };
+  el(ids.servico).addEventListener('input', ()=>{
+    const matched = serviceByName(el(ids.servico).value);
+    if(!matched){ el(ids.prev).textContent = 'Serviço não encontrado no catálogo, os valores abaixo não são alterados automaticamente.'; return; }
+    comIva = (Number(matched.iva)||0) > 0;
+    el(ids.valor).value = (Number(matched.honorarioFinal)||0).toFixed(2);
+    el(ids.tx).value = Number(matched.txAdm)||0;
+    recalcular();
+  });
+  el(ids.valor).addEventListener('input', recalcular);
+  el(ids.tx).addEventListener('input', recalcular);
+  // ao sair do campo (não a cada tecla): taxa maior que o valor fica limitada
+  // ao valor, igual à prévia, para o formulário poder ser guardado
+  const limitarTaxa = ()=>{
+    const c = componentesParaTotal(el(ids.valor).value, el(ids.tx).value, comIva);
+    if(Math.abs((Number(el(ids.tx).value)||0) - c.txAdm) > 0.005){ el(ids.tx).value = c.txAdm; recalcular(); }
+  };
+  el(ids.valor).addEventListener('change', limitarTaxa);
+  el(ids.tx).addEventListener('change', limitarTaxa);
+}
+
 function openEditSaleModal(saleId){
   const sale = STATE.sales.find(s=>s.id===saleId);
   if(!sale) return;
@@ -5687,19 +5743,7 @@ function openEditSaleModal(saleId){
   document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
 
   const esServico = document.getElementById('esServico');
-  esServico.addEventListener('input', ()=>{
-    const matched = serviceByName(esServico.value);
-    const prev = document.getElementById('esServicoPreview');
-    if(matched){
-      document.getElementById('esValorTotal').value = matched.honorarioFinal;
-      document.getElementById('esBase').value = matched.honorarioBase;
-      document.getElementById('esIva').value = matched.iva;
-      document.getElementById('esTx').value = matched.txAdm;
-      prev.innerHTML = `Honorário base: <strong>${fmtEUR(matched.honorarioBase)}</strong> · IVA: ${fmtEUR(matched.iva)} · Taxa adm.: ${fmtEUR(matched.txAdm)}`;
-    } else {
-      prev.textContent = 'Serviço não encontrado no catálogo, os valores acima não são alterados automaticamente.';
-    }
-  });
+  ligarComponentesEdicao({ servico:'esServico', valor:'esValorTotal', base:'esBase', iva:'esIva', tx:'esTx', prev:'esServicoPreview' }, sale.iva);
 
   document.getElementById('mSave').onclick = async ()=>{
     const cliente = document.getElementById('esCliente').value.trim();
@@ -5779,19 +5823,7 @@ function openEditRecModal(recId){
   document.getElementById('mBackdrop').addEventListener('click', e=>{ if(e.target.id==='mBackdrop') closeModal(); });
 
   const erServico = document.getElementById('erServico');
-  erServico.addEventListener('input', ()=>{
-    const matched = serviceByName(erServico.value);
-    const prev = document.getElementById('erServicoPreview');
-    if(matched){
-      document.getElementById('erValor').value = matched.honorarioFinal;
-      document.getElementById('erBase').value = matched.honorarioBase;
-      document.getElementById('erIva').value = matched.iva;
-      document.getElementById('erTx').value = matched.txAdm;
-      prev.innerHTML = `Honorário base: <strong>${fmtEUR(matched.honorarioBase)}</strong> · IVA: ${fmtEUR(matched.iva)} · Taxa adm.: ${fmtEUR(matched.txAdm)}`;
-    } else {
-      prev.textContent = 'Serviço não encontrado no catálogo, os valores acima não são alterados automaticamente.';
-    }
-  });
+  ligarComponentesEdicao({ servico:'erServico', valor:'erValor', base:'erBase', iva:'erIva', tx:'erTx', prev:'erServicoPreview' }, rec.iva);
 
   const valorDe = id=>Number(document.getElementById(id).value)||0;
   // Mudou algo que altera o valor das parcelas? (e há parcelas pagas para recalcular)
@@ -5898,16 +5930,21 @@ function openAddRecModal(forColaborador){
 
   let matchedService = null;
   const rServico = document.getElementById('rServico');
+  const atualizarPreviaServico = ()=>{
+    const prev = document.getElementById('rServicoPreview');
+    if(!matchedService){
+      prev.textContent = 'Serviço não cadastrado no catálogo, será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
+      return;
+    }
+    const valor = Number(document.getElementById('rValor').value)||0;
+    prev.innerHTML = htmlComponentesServico(componentesServicoParaTotal(matchedService, valor), matchedService, valor);
+  };
   rServico.addEventListener('input', ()=>{
     matchedService = serviceByName(rServico.value);
-    const prev = document.getElementById('rServicoPreview');
-    if(matchedService){
-      document.getElementById('rValor').value = (Number(matchedService.honorarioFinal)||0).toFixed(2);
-      prev.innerHTML = `Honorário base: <strong>${fmtEUR(matchedService.honorarioBase)}</strong> · IVA: ${fmtEUR(matchedService.iva)} · Taxa adm.: ${fmtEUR(matchedService.txAdm)}`;
-    } else {
-      prev.textContent = 'Serviço não cadastrado no catálogo, será registado sem detalhamento de imposto (edite em Configurações > Serviços depois, se quiser).';
-    }
+    if(matchedService) document.getElementById('rValor').value = (Number(matchedService.honorarioFinal)||0).toFixed(2);
+    atualizarPreviaServico();
   });
+  document.getElementById('rValor').addEventListener('input', atualizarPreviaServico);
 
   document.getElementById('mSave').onclick = async ()=>{
     const cliente = document.getElementById('rCliente').value.trim();
